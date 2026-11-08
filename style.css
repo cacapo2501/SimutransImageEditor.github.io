@@ -317,11 +317,13 @@ fieldset.sub-panel label input[type="checkbox"] {
   margin-left: auto;
 }
 
+/* メインキャンバス領域（タッチ操作対応） */
 #canvas-viewport {
   flex: 1;
   overflow: hidden;
   position: relative;
   background: #181818;
+  touch-action: none; /* タブレットでの標準スクロール/ピンチの誤作動を防止 */
 }
 
 #main-canvas {
@@ -329,6 +331,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   top: 0;
   left: 0;
   image-rendering: pixelated;
+  touch-action: none;
 }
 
 #status-bar {
