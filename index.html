@@ -10,7 +10,6 @@
 </head>
 <body>
   <div id="app-container">
-    <!-- サイドバー：全機能が縦スクロールで常時アクセス可能 -->
     <aside id="sidebar">
       
       <!-- セクション1: 画像・プロジェクト -->
@@ -35,8 +34,8 @@
         </div>
       </details>
 
-      <!-- セクション2: レイヤー・変形 -->
-      <details class="accordion-panel" open>
+      <!-- セクション2: レイヤー・変形操作 -->
+      <details class="accordion-panel" id="accordion-layer">
         <summary>レイヤー・変形操作</summary>
         <div class="panel-body">
           <div class="btn-group">
@@ -93,12 +92,18 @@
             </div>
           </fieldset>
 
+          <!-- ★変形メニュー（ドロップダウン形式）★ -->
           <fieldset class="sub-panel">
             <legend>変形モード＆ピクセルスナップ</legend>
-            <label><input type="radio" name="transform-mode" value="box" checked> 矩形リサイズ (軸平行)</label>
-            <label><input type="radio" name="transform-mode" value="affine"> 自由3頂点 (平行四辺形)</label>
-            <label><input type="radio" name="transform-mode" value="free"> 自由4頂点 (透視投影)</label>
-            <label><input type="checkbox" id="chk-fill-all"> 現在の変形で画像全体にマッピング (全域タイリング)</label>
+            <div class="row">
+              <label style="min-width: 80px; font-weight: bold;">変形の種類:</label>
+              <select id="select-transform-mode">
+                <option value="box">矩形リサイズ (軸平行)</option>
+                <option value="affine">自由3頂点 (平行四辺形)</option>
+                <option value="free">自由4頂点 (透視投影)</option>
+              </select>
+            </div>
+            <label class="mt-05"><input type="checkbox" id="chk-fill-all"> 現在の変形で画像全体にマッピング (全域タイリング)</label>
             <div class="row mt-05">
               <label><input type="checkbox" id="chk-pixel-snap" checked> 📍 ピクセルスナップ</label>
               <button id="btn-snap-now" style="margin-left:auto;">現在位置をスナップ</button>
@@ -115,7 +120,7 @@
       </details>
 
       <!-- セクション3: トーン＆ハイライトブレンド -->
-      <details class="accordion-panel" open>
+      <details class="accordion-panel">
         <summary>トーン＆ハイライトブレンド</summary>
         <div class="panel-body">
           <fieldset class="sub-panel">
@@ -214,7 +219,7 @@
             <div class="row">
               <input type="file" id="file-csv" accept=".csv">
             </div>
-            <div class="info-text mt-05" id="lbl-csv-info">特殊色: 0件登録済</div>
+            <div class="info-text mt-05" id="lbl-csv-info">特殊色: 読込中...</div>
           </fieldset>
           <fieldset class="sub-panel mt-05">
             <legend>Google Drive 認証設定</legend>

@@ -48,7 +48,37 @@ class AdvancedMultiplyApp {
     this.viewport = document.getElementById('canvas-viewport');
 
     this._bindEvents();
+    this._loadDefaultSpecialColors(); // GitHub上のSpecialColor.csvを自動フェッチ
     this.render();
+  }
+
+  // GitHub上にアップロードされたSpecialColor.csvを自動でデフォルト読み込み
+  async _loadDefaultSpecialColors() {
+    const candidateFiles = ['SpecialColor.csv', 'special_colors.csv', 'SpecialColors.csv'];
+    const infoLabel = document.getElementById('lbl-csv-info');
+    
+    for (const filename of candidateFiles) {
+      try {
+        const response = await fetch(`./${filename}`);
+        if (response.ok) {
+          const text = await response.text();
+          const parsed = parseSpecialColorsCsv(text);
+          if (parsed.size > 0) {
+            this.specialColors = parsed;
+            if (infoLabel) {
+              infoLabel.textContent = `特殊色: ${this.specialColors.size}件登録済 (GitHubデフォルト)`;
+            }
+            this.render();
+            return;
+          }
+        }
+      } catch (err) {
+        // ローカルダブルクリック起動時等のエラーは手動読込に委ねる
+      }
+    }
+    if (infoLabel && this.specialColors.size === 0) {
+      infoLabel.textContent = '特殊色: 0件登録済 (手動選択可)';
+    }
   }
 
   markDirty() { this.isDirty = true; }
@@ -393,11 +423,16 @@ class AdvancedMultiplyApp {
     document.getElementById('chk-fill-all').onchange = (e) => {
       if (this.activeIdx >= 0) { this.layers[this.activeIdx].fillAll = e.target.checked; this.markDirty(); this.render(); }
     };
-    document.querySelectorAll('input[name="transform-mode"]').forEach(r => {
-      r.onchange = (e) => {
-        if (this.activeIdx >= 0) { this.layers[this.activeIdx].transformMode = e.target.value; this.markDirty(); this.render(); }
-      };
-    });
+
+    // ★変形の種類（メニュー）の変更検知★
+    document.getElementById('select-transform-mode').onchange = (e) => {
+      if (this.activeIdx >= 0) {
+        this.layers[this.activeIdx].transformMode = e.target.value;
+        this.markDirty();
+        this.render();
+      }
+    };
+
     document.getElementById('slider-opacity').oninput = (e) => {
       if (this.activeIdx >= 0) {
         this.layers[this.activeIdx].opacity = parseFloat(e.target.value);
@@ -538,7 +573,7 @@ class AdvancedMultiplyApp {
         const r = new FileReader();
         r.onload = () => {
           this.specialColors = parseSpecialColorsCsv(r.result);
-          document.getElementById('lbl-csv-info').textContent = `特殊色: ${this.specialColors.size}件登録済`;
+          document.getElementById('lbl-csv-info').textContent = `特殊色: ${this.specialColors.size}件登録済 (手動選択)`;
           this.markDirty(); this.render();
         };
         r.readAsText(file);
@@ -591,28 +626,6 @@ class AdvancedMultiplyApp {
       if (f) this.loadProject(f);
     };
     document.getElementById('btn-save-png').onclick = () => this.exportPng();
-	
-	// --- Google Drive 認証情報の自動保存 & 復元 ---
-	const apiKeyInput = document.getElementById('gdrive-api-key');
-	const clientIdInput = document.getElementById('gdrive-client-id');
-
-	// 1. ページ読み込み時に localStorage から前回の値を復元
-	if (apiKeyInput && clientIdInput) {
-	  const savedApiKey = localStorage.getItem('gdrive_api_key');
-	  const savedClientId = localStorage.getItem('gdrive_client_id');
-
-	  if (savedApiKey) apiKeyInput.value = savedApiKey;
-	  if (savedClientId) clientIdInput.value = savedClientId;
-
-	  // 2. 入力されたら即座に保存
-	  apiKeyInput.addEventListener('input', (e) => {
-		localStorage.setItem('gdrive_api_key', e.target.value.trim());
-	  });
-
-	  clientIdInput.addEventListener('input', (e) => {
-		localStorage.setItem('gdrive_client_id', e.target.value.trim());
-	  });
-	}
   }
 
   _getActiveTone() {
@@ -682,7 +695,10 @@ class AdvancedMultiplyApp {
         canvasW: this.baseW, canvasH: this.baseH, layerType: layerType
       });
       this.layers.push(l);
-      this._refreshLayerList(); this._selectLayer(this.layers.length - 1);
+      this._refreshLayerList();
+      this._selectLayer(this.layers.length - 1);
+      // レイヤー追加時にアコーディオンを自動オープン
+      document.getElementById('accordion-layer').open = true;
       this.markDirty(); this.render();
     };
     img.src = url;
@@ -699,14 +715,17 @@ class AdvancedMultiplyApp {
       sourceLayer: master, fillAll: master.fillAll, transparentE7ffff: master.transparentE7ffff
     });
     this.layers.push(copy);
-    this._refreshLayerList(); this._selectLayer(this.layers.length - 1);
+    this._refreshLayerList();
+    this._selectLayer(this.layers.length - 1);
+    document.getElementById('accordion-layer').open = true;
     this.markDirty(); this.render();
   }
 
   _delLayer() {
     if (this.activeIdx < 0) return;
     this.layers.splice(this.activeIdx, 1);
-    this._refreshLayerList(); this._selectLayer(Math.min(this.activeIdx, this.layers.length - 1));
+    this._refreshLayerList();
+    this._selectLayer(Math.min(this.activeIdx, this.layers.length - 1));
     this.markDirty(); this.render();
   }
 
@@ -714,6 +733,10 @@ class AdvancedMultiplyApp {
     this.activeIdx = idx;
     document.getElementById('layer-listbox').selectedIndex = idx;
     this._syncActiveLayerUI();
+    // レイヤー選択時にアコーディオンを展開
+    if (idx >= 0) {
+      document.getElementById('accordion-layer').open = true;
+    }
     this.render();
   }
 
@@ -726,7 +749,10 @@ class AdvancedMultiplyApp {
     document.getElementById('slider-opacity').value = l.opacity;
     document.getElementById('lbl-opacity').textContent = `${Math.round(l.opacity * 100)}%`;
     document.getElementById('chk-layer-visible').checked = l.visible;
-    document.querySelector(`input[name="transform-mode"][value="${l.transformMode}"]`).checked = true;
+
+    // ★変形メニューの同期★
+    document.getElementById('select-transform-mode').value = l.transformMode;
+
     document.getElementById('lbl-tile-x').textContent = l.tileX.toFixed(1);
     document.getElementById('lbl-tile-y').textContent = l.tileY.toFixed(1);
     if (l.targetMaskColor) {
