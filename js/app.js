@@ -591,6 +591,28 @@ class AdvancedMultiplyApp {
       if (f) this.loadProject(f);
     };
     document.getElementById('btn-save-png').onclick = () => this.exportPng();
+	
+	// --- Google Drive 認証情報の自動保存 & 復元 ---
+	const apiKeyInput = document.getElementById('gdrive-api-key');
+	const clientIdInput = document.getElementById('gdrive-client-id');
+
+	// 1. ページ読み込み時に localStorage から前回の値を復元
+	if (apiKeyInput && clientIdInput) {
+	  const savedApiKey = localStorage.getItem('gdrive_api_key');
+	  const savedClientId = localStorage.getItem('gdrive_client_id');
+
+	  if (savedApiKey) apiKeyInput.value = savedApiKey;
+	  if (savedClientId) clientIdInput.value = savedClientId;
+
+	  // 2. 入力されたら即座に保存
+	  apiKeyInput.addEventListener('input', (e) => {
+		localStorage.setItem('gdrive_api_key', e.target.value.trim());
+	  });
+
+	  clientIdInput.addEventListener('input', (e) => {
+		localStorage.setItem('gdrive_client_id', e.target.value.trim());
+	  });
+	}
   }
 
   _getActiveTone() {
