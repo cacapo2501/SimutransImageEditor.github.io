@@ -270,6 +270,8 @@
           <button class="paint-tool-btn" data-tool="wand" title="自動選択 (Magic Wand)">🪄 自動選択</button>
           <button class="paint-tool-btn" data-tool="colorSelect" title="同色選択">🎯 同色選択</button>
           <button class="paint-tool-btn" data-tool="text" title="テキスト挿入">🔤 文字</button>
+          <!-- ★ 色置換・複数色置換ボタン ★ -->
+          <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
         </div>
         <div class="paint-tool-group">
           <button id="btn-paint-undo" title="元に戻す">↩ Undo</button>
@@ -294,7 +296,7 @@
             </div>
           </div>
 
-          <!-- ベース画像用パレット生成ツール -->
+          <!-- ベース画像用パレット生成ツール (ベース時のみ表示) -->
           <fieldset class="sub-panel" id="base-palette-tools">
             <legend>グレースケール生成設定</legend>
             <div class="row">
@@ -312,19 +314,22 @@
             <button id="btn-gen-base-palette" class="w-100 mt-05">パレット再生成 (SpecialColor回避)</button>
           </fieldset>
 
-          <!-- ★ マスク画像用パレット追加・スポイトツール ★ -->
+          <!-- マスク画像用パレット追加・スポイトツール (マスク時のみ表示) -->
           <fieldset class="sub-panel" id="mask-palette-tools" style="display:none;">
             <legend>マスクパレット設定</legend>
             <div class="btn-group">
               <button id="btn-add-mask-custom-color" class="btn-primary">＋ 任意色を追加</button>
               <button id="btn-open-image-sampler">🖼️ 画像からスポイト</button>
             </div>
-            <span class="info-text">※右クリックでパレットから色を削除できます</span>
+            <span class="info-text">※右クリックでパレットから色を削除</span>
           </fieldset>
 
           <fieldset class="sub-panel" style="flex:1; overflow-y:auto;">
             <legend>カラーパレット一覧</legend>
             <div id="paint-palette-slots"></div>
+            <div id="paint-palette-empty-msg" class="info-text" style="display:none; text-align:center; padding:10px 0;">
+              パレットは空です。<br>「＋ 任意色を追加」または「画像からスポイト」で色を追加してください。
+            </div>
           </fieldset>
         </aside>
 
@@ -343,11 +348,42 @@
     </div>
   </dialog>
 
-  <!-- ★ 画像から任意ピクセル色を複数サンプリングするモーダル ★ -->
+  <!-- ★ 色置換・複数色置換モーダル ★ -->
+  <dialog id="modal-color-replace">
+    <div class="replace-modal-content">
+      <header class="replace-header">
+        <h3>色置換・複数色置換</h3>
+        <button id="btn-close-replace" style="margin-left:auto;">✕ 閉じる</button>
+      </header>
+      <div class="replace-body">
+        <p class="desc-text">置換元（変換前）の色を置換先（変換後）の色へ一括置換します。</p>
+        <div id="replace-rules-container">
+          <!-- ルール一覧が動的挿入される -->
+        </div>
+        <button id="btn-add-replace-rule" class="w-100 mt-05">＋ 置換ルールを追加</button>
+        <div class="row mt-1">
+          <label><input type="checkbox" id="chk-replace-selection-only" checked> 現在の選択範囲内のみに適用</label>
+        </div>
+      </div>
+      <footer class="replace-footer">
+        <button id="btn-execute-replace" class="btn-primary" style="flex:2;">✓ 置換を実行</button>
+        <button id="btn-cancel-replace" style="flex:1;">キャンセル</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- ★ 画像スポイト採取モーダル (拡大・平行移動操作バー付き) ★ -->
   <dialog id="modal-image-sampler">
     <div class="sampler-container">
       <header class="sampler-header">
         <h3>画像からピクセル色をスポイト採取</h3>
+        <div class="sampler-zoom-toolbar">
+          <button id="btn-sampler-zoom-out">－</button>
+          <span id="sampler-lbl-zoom" class="val-badge">100%</span>
+          <button id="btn-sampler-zoom-in">＋</button>
+          <button id="btn-sampler-zoom-reset">等倍</button>
+          <button id="btn-sampler-zoom-fit">全体</button>
+        </div>
         <button id="btn-close-sampler" style="margin-left:auto;">✕ 閉じる</button>
       </header>
       <div class="sampler-inputs">
@@ -355,6 +391,7 @@
         <button id="btn-sampler-load-url">URLから読込</button>
         <span style="color:#888;">または</span>
         <button id="btn-sampler-local-file">📁 ローカル画像を選択</button>
+        <span class="guide-text" style="margin-left:auto;">操作: ドラッグで平行移動 | ホイールで拡縮 | クリックで色採取</span>
       </div>
       <div id="sampler-viewport">
         <canvas id="sampler-canvas"></canvas>

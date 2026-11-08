@@ -12,11 +12,8 @@ export class PaletteManager {
     };
     this.basePalette = [];
 
-    // マスク画像パレット
-    this.maskPalette = [
-      '#FFFFFF', '#000000', '#FF0000', '#00FF00', '#0000FF',
-      '#FFFF00', '#00FFFF', '#FF00FF', '#C0C0C0', '#808080'
-    ];
+    // ★ マスク画像パレット：デフォルトは空 ★
+    this.maskPalette = [];
   }
 
   // ベース画像用グレースケールパレット生成
@@ -58,9 +55,8 @@ export class PaletteManager {
     this.maskPalette = this.maskPalette.filter(c => c !== cleanHex);
   }
 
-  // CORS例外を完全に防止する画像非同期ロード
+  // CORS例外を安全に処理する画像非同期ロード
   async loadImageSafely(source) {
-    // 1. ローカルファイルの場合
     if (source instanceof File || source instanceof Blob) {
       return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(source);
@@ -71,9 +67,8 @@ export class PaletteManager {
       });
     }
 
-    // 2. Web URLの場合 (直接ロード 試行 -> CORSプロキシ 試行)
     const urlStr = String(source).trim();
-    if (!urlStr) throw new Error('URLが空です。');
+    if (!urlStr) throw new Error('URLを入力してください。');
 
     const tryLoad = (srcUrl) => {
       return new Promise((resolve, reject) => {
@@ -88,12 +83,11 @@ export class PaletteManager {
     try {
       return await tryLoad(urlStr);
     } catch (e1) {
-      // 直接取得がCORSで失敗した場合、パブリックプロキシ経由で再試行
       try {
         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlStr)}`;
         return await tryLoad(proxyUrl);
       } catch (e2) {
-        throw new Error('外部サイトのセキュリティ制限(CORS)によりURLから直接画像を読み込めませんでした。\nお手数ですが画像を右クリック保存し、「ローカル画像を選択」から読み込んでください。');
+        throw new Error('外部サイトのセキュリティ制限(CORS)によりURLから直接読み込めませんでした。\nお手数ですが画像を保存し、「ローカル画像を選択」から読み込んでください。');
       }
     }
   }

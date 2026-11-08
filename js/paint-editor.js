@@ -15,12 +15,23 @@ export class PaintEditor {
     this.oCtx = this.overlayCanvas.getContext('2d');
     this.viewport = document.getElementById('paint-viewport');
 
-    // スポイトサンプラーモーダル要素
+    // 画像スポイトサンプラーモーダル要素
     this.samplerModal = document.getElementById('modal-image-sampler');
     this.samplerCanvas = document.getElementById('sampler-canvas');
     this.samplerCtx = this.samplerCanvas.getContext('2d', { willReadFrequently: true });
+    this.samplerViewport = document.getElementById('sampler-viewport');
     this.samplerPickedColors = new Set();
     this.samplerLoadedImg = null;
+    this.samplerZoom = 1.0;
+    this.samplerPanX = 0;
+    this.samplerPanY = 0;
+    this.samplerIsPanning = false;
+    this.samplerPanStart = [0, 0];
+    this.samplerMouseDownPos = [0, 0];
+
+    // 色置換モーダル要素
+    this.replaceModal = document.getElementById('modal-color-replace');
+    this.replaceRules = [];
 
     // 描画状態
     this.currentColor = '#FFFFFF';
@@ -54,6 +65,7 @@ export class PaintEditor {
     this._loadKeybindings();
     this._bindEvents();
     this._bindSamplerEvents();
+    this._bindReplaceEvents();
   }
 
   _loadKeybindings() {
@@ -154,14 +166,17 @@ export class PaintEditor {
     this._drawOverlay();
   }
 
+  // ★ パレット描画：マスク画像編集時はグレースケール枠を完全排除 ★
   _renderPaletteUI() {
     const container = document.getElementById('paint-palette-slots');
+    const emptyMsg = document.getElementById('paint-palette-empty-msg');
     container.innerHTML = '';
 
     const pm = this.app.paletteManager;
     let colors = [];
 
     if (this.targetType === 'base') {
+      // ベース画像編集時：グレースケール生成ツールを表示
       document.getElementById('base-palette-tools').style.display = 'block';
       document.getElementById('mask-palette-tools').style.display = 'none';
 
@@ -172,36 +187,41 @@ export class PaintEditor {
         colors.push(...Array.from(this.app.specialColors));
       }
     } else {
+      // ★ マスク画像編集時：グレースケール生成ツールを完全に非表示 ★
       document.getElementById('base-palette-tools').style.display = 'none';
       document.getElementById('mask-palette-tools').style.display = 'block';
       colors = [...pm.maskPalette];
     }
 
-    colors.forEach(hex => {
-      const btn = document.createElement('button');
-      btn.className = 'palette-color-btn';
-      btn.style.backgroundColor = hex;
-      btn.title = hex + (this.targetType === 'mask' ? ' (右クリックで削除)' : '');
-      btn.onclick = () => {
-        this.currentColor = hex;
-        this._updateCurrentColorUI();
-      };
-
-      // マスクパレットの場合、右クリックで削除
-      if (this.targetType === 'mask') {
-        btn.oncontextmenu = (e) => {
-          e.preventDefault();
-          if (confirm(`マスクパレットから色 ${hex} を削除しますか？`)) {
-            pm.removeColorFromMaskPalette(hex);
-            this._renderPaletteUI();
-          }
+    if (colors.length === 0) {
+      emptyMsg.style.display = 'block';
+    } else {
+      emptyMsg.style.display = 'none';
+      colors.forEach(hex => {
+        const btn = document.createElement('button');
+        btn.className = 'palette-color-btn';
+        btn.style.backgroundColor = hex;
+        btn.title = hex + (this.targetType === 'mask' ? ' (右クリックで削除)' : '');
+        btn.onclick = () => {
+          this.currentColor = hex;
+          this._updateCurrentColorUI();
         };
-      }
-      container.appendChild(btn);
-    });
 
-    if (!colors.includes(this.currentColor)) {
-      this.currentColor = colors[0] || '#FFFFFF';
+        if (this.targetType === 'mask') {
+          btn.oncontextmenu = (e) => {
+            e.preventDefault();
+            if (confirm(`マスクパレットから色 ${hex} を削除しますか？`)) {
+              pm.removeColorFromMaskPalette(hex);
+              this._renderPaletteUI();
+            }
+          };
+        }
+        container.appendChild(btn);
+      });
+    }
+
+    if (colors.length > 0 && !colors.includes(this.currentColor)) {
+      this.currentColor = colors[0];
     }
     this._updateCurrentColorUI();
   }
@@ -245,7 +265,7 @@ export class PaintEditor {
       this._drawOverlay();
     };
 
-    // グレースケール生成
+    // グレースケール生成 (ベース画像用)
     document.getElementById('btn-gen-base-palette').onclick = () => {
       const pm = this.app.paletteManager;
       pm.basePaletteConfig.brightestHex = document.getElementById('inp-gray-max').value.trim() || '#FEFEFE';
@@ -255,9 +275,9 @@ export class PaintEditor {
       this._renderPaletteUI();
     };
 
-    // ★ マスクパレットに任意色を追加 (HSVカラーピッカー呼出) ★
+    // マスクパレットに任意色を追加 (HSVカラーピッカー)
     document.getElementById('btn-add-mask-custom-color').onclick = async () => {
-      const picked = await this.app.colorPicker.open(this.currentColor);
+      const picked = await this.app.colorPicker.open(this.currentColor || '#FFFFFF');
       if (picked) {
         this.app.paletteManager.addColorToMaskPalette(picked);
         this.currentColor = picked;
@@ -265,9 +285,14 @@ export class PaintEditor {
       }
     };
 
-    // ★ 画像からスポイト抽出モーダルを開く ★
+    // 画像スポイトモーダル起動
     document.getElementById('btn-open-image-sampler').onclick = () => {
       this._openSamplerModal();
+    };
+
+    // 色置換モーダル起動
+    document.getElementById('btn-open-color-replace').onclick = () => {
+      this._openColorReplaceDialog();
     };
 
     document.getElementById('btn-paint-keybindings').onclick = () => this._openKeybindingDialog();
@@ -362,7 +387,7 @@ export class PaintEditor {
     });
   }
 
-  // --- ★ 画像スポイトモーダル制御 (複数ピクセル選択対応) ★ ---
+  // --- ★ 画像スポイトモーダル制御 (拡大・縮小・平行移動対応) ★ ---
   _openSamplerModal() {
     this.samplerPickedColors.clear();
     this._renderSamplerPickedUI();
@@ -370,6 +395,8 @@ export class PaintEditor {
 
     if (!this.samplerLoadedImg && this.app.baseImage) {
       this._drawSamplerImage(this.app.baseImage);
+    } else if (this.samplerLoadedImg) {
+      this._fitSamplerImage();
     }
   }
 
@@ -382,12 +409,103 @@ export class PaintEditor {
 
     this.samplerCtx.imageSmoothingEnabled = false;
     this.samplerCtx.drawImage(img, 0, 0, w, h);
+    this._fitSamplerImage();
+  }
+
+  _fitSamplerImage() {
+    if (!this.samplerLoadedImg) return;
+    const vw = this.samplerViewport.clientWidth || 800;
+    const vh = this.samplerViewport.clientHeight || 500;
+    const w = this.samplerCanvas.width;
+    const h = this.samplerCanvas.height;
+
+    const fit = Math.max(0.5, Math.min(16, Math.min((vw - 40) / w, (vh - 40) / h)));
+    this.samplerZoom = fit;
+    this.samplerPanX = Math.round((vw - w * fit) / 2);
+    this.samplerPanY = Math.round((vh - h * fit) / 2);
+    this._updateSamplerTransform();
+  }
+
+  _updateSamplerTransform() {
+    this.samplerCanvas.style.transformOrigin = '0 0';
+    this.samplerCanvas.style.transform = `translate(${this.samplerPanX}px, ${this.samplerPanY}px) scale(${this.samplerZoom})`;
+    document.getElementById('sampler-lbl-zoom').textContent = `${Math.round(this.samplerZoom * 100)}%`;
   }
 
   _bindSamplerEvents() {
     document.getElementById('btn-close-sampler').onclick = () => this.samplerModal.close();
 
-    // URLから読込 (CORS安全ハンドリング)
+    // ズームバー
+    document.getElementById('btn-sampler-zoom-in').onclick = () => {
+      this.samplerZoom = Math.min(32, this.samplerZoom * 1.25);
+      this._updateSamplerTransform();
+    };
+    document.getElementById('btn-sampler-zoom-out').onclick = () => {
+      this.samplerZoom = Math.max(0.2, this.samplerZoom * 0.8);
+      this._updateSamplerTransform();
+    };
+    document.getElementById('btn-sampler-zoom-reset').onclick = () => {
+      this.samplerZoom = 1.0;
+      this._updateSamplerTransform();
+    };
+    document.getElementById('btn-sampler-zoom-fit').onclick = () => this._fitSamplerImage();
+
+    // ホイールズーム
+    this.samplerViewport.onwheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 1.25 : 0.8;
+      const newZoom = Math.max(0.2, Math.min(32, this.samplerZoom * delta));
+      const rect = this.samplerViewport.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const ix = (cx - this.samplerPanX) / this.samplerZoom;
+      const iy = (cy - this.samplerPanY) / this.samplerZoom;
+      this.samplerZoom = newZoom;
+      this.samplerPanX = Math.round(cx - ix * newZoom);
+      this.samplerPanY = Math.round(cy - iy * newZoom);
+      this._updateSamplerTransform();
+    };
+
+    // 平行移動 (ドラッグ) と スポイト採取 (クリック) の両立
+    this.samplerViewport.onmousedown = (e) => {
+      this.samplerIsPanning = true;
+      this.samplerMouseDownPos = [e.clientX, e.clientY];
+      this.samplerPanStart = [e.clientX - this.samplerPanX, e.clientY - this.samplerPanY];
+    };
+
+    window.addEventListener('mousemove', (e) => {
+      if (this.samplerIsPanning && this.samplerModal.open) {
+        this.samplerPanX = e.clientX - this.samplerPanStart[0];
+        this.samplerPanY = e.clientY - this.samplerPanStart[1];
+        this._updateSamplerTransform();
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (!this.samplerIsPanning || !this.samplerModal.open) return;
+      this.samplerIsPanning = false;
+
+      // 移動距離が5px未満の場合はクリックとみなし、ピクセル色を採取
+      const dist = Math.hypot(e.clientX - this.samplerMouseDownPos[0], e.clientY - this.samplerMouseDownPos[1]);
+      if (dist < 5 && this.samplerLoadedImg) {
+        const rect = this.samplerViewport.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        const px = Math.floor((cx - this.samplerPanX) / this.samplerZoom);
+        const py = Math.floor((cy - this.samplerPanY) / this.samplerZoom);
+
+        if (px >= 0 && px < this.samplerCanvas.width && py >= 0 && py < this.samplerCanvas.height) {
+          const p = this.samplerCtx.getImageData(px, py, 1, 1).data;
+          if (p[3] > 0) {
+            const hex = rgbToHex(p[0], p[1], p[2]);
+            this.samplerPickedColors.add(hex);
+            this._renderSamplerPickedUI();
+          }
+        }
+      }
+    });
+
+    // URL読込
     document.getElementById('btn-sampler-load-url').onclick = async () => {
       const url = document.getElementById('inp-sampler-url').value.trim();
       if (!url) return alert('画像のURLを入力してください。');
@@ -399,7 +517,7 @@ export class PaintEditor {
       }
     };
 
-    // ローカルファイルから読込
+    // ローカルファイル読込
     document.getElementById('btn-sampler-local-file').onclick = () => {
       const inp = document.createElement('input');
       inp.type = 'file';
@@ -417,32 +535,11 @@ export class PaintEditor {
       inp.click();
     };
 
-    // キャンバスクリックでピクセル色取得 (複数可能)
-    this.samplerCanvas.onclick = (e) => {
-      if (!this.samplerLoadedImg) return;
-      const rect = this.samplerCanvas.getBoundingClientRect();
-      const scaleX = this.samplerCanvas.width / rect.width;
-      const scaleY = this.samplerCanvas.height / rect.height;
-      const px = Math.floor((e.clientX - rect.left) * scaleX);
-      const py = Math.floor((e.clientY - rect.top) * scaleY);
-
-      if (px >= 0 && px < this.samplerCanvas.width && py >= 0 && py < this.samplerCanvas.height) {
-        const p = this.samplerCtx.getImageData(px, py, 1, 1).data;
-        if (p[3] > 0) { // 透明以外
-          const hex = rgbToHex(p[0], p[1], p[2]);
-          this.samplerPickedColors.add(hex);
-          this._renderSamplerPickedUI();
-        }
-      }
-    };
-
-    // クリア
     document.getElementById('btn-sampler-clear').onclick = () => {
       this.samplerPickedColors.clear();
       this._renderSamplerPickedUI();
     };
 
-    // パレットへ一括反映
     document.getElementById('btn-sampler-apply').onclick = () => {
       if (this.samplerPickedColors.size === 0) {
         return alert('画像上をクリックして色を1つ以上採取してください。');
@@ -458,7 +555,6 @@ export class PaintEditor {
   _renderSamplerPickedUI() {
     const container = document.getElementById('sampler-picked-swatches');
     container.innerHTML = '';
-
     this.samplerPickedColors.forEach(hex => {
       const b = document.createElement('span');
       b.className = 'color-swatch';
@@ -473,6 +569,124 @@ export class PaintEditor {
     });
   }
 
+  // --- ★ 色置換・複数色置換モーダル制御 ★ ---
+  _openColorReplaceDialog() {
+    this.replaceRules = [
+      { from: this.currentColor, to: '#FFFFFF' }
+    ];
+    this._renderReplaceRulesUI();
+    this.replaceModal.showModal();
+  }
+
+  _renderReplaceRulesUI() {
+    const container = document.getElementById('replace-rules-container');
+    container.innerHTML = '';
+
+    this.replaceRules.forEach((rule, idx) => {
+      const row = document.createElement('div');
+      row.className = 'replace-rule-row';
+      row.innerHTML = `
+        <span>元:</span>
+        <button class="btn-color-pick btn-from">
+          <span class="color-swatch" style="background:${rule.from};"></span>
+          <span>${rule.from}</span>
+        </button>
+        <span class="arrow">➔</span>
+        <span>先:</span>
+        <button class="btn-color-pick btn-to">
+          <span class="color-swatch" style="background:${rule.to};"></span>
+          <span>${rule.to}</span>
+        </button>
+        <button class="btn-del-rule" style="margin-left:auto; color:#ff6b6b;">✕</button>
+      `;
+
+      row.querySelector('.btn-from').onclick = async () => {
+        const picked = await this.app.colorPicker.open(rule.from);
+        if (picked) {
+          rule.from = picked;
+          this._renderReplaceRulesUI();
+        }
+      };
+
+      row.querySelector('.btn-to').onclick = async () => {
+        const picked = await this.app.colorPicker.open(rule.to);
+        if (picked) {
+          rule.to = picked;
+          this._renderReplaceRulesUI();
+        }
+      };
+
+      row.querySelector('.btn-del-rule').onclick = () => {
+        if (this.replaceRules.length > 1) {
+          this.replaceRules.splice(idx, 1);
+          this._renderReplaceRulesUI();
+        }
+      };
+
+      container.appendChild(row);
+    });
+  }
+
+  _bindReplaceEvents() {
+    document.getElementById('btn-close-replace').onclick = () => this.replaceModal.close();
+    document.getElementById('btn-cancel-replace').onclick = () => this.replaceModal.close();
+
+    document.getElementById('btn-add-replace-rule').onclick = () => {
+      this.replaceRules.push({ from: '#000000', to: '#FFFFFF' });
+      this._renderReplaceRulesUI();
+    };
+
+    // 置換実行
+    document.getElementById('btn-execute-replace').onclick = () => {
+      this._executeColorReplace();
+    };
+  }
+
+  _executeColorReplace() {
+    if (this.replaceRules.length === 0) return;
+
+    const selectionOnly = document.getElementById('chk-replace-selection-only').checked;
+    const mask = selectionOnly ? this.selectionMask : null;
+
+    const preparedRules = this.replaceRules.map(r => ({
+      fromRgb: hexToRgb(r.from),
+      toRgb: hexToRgb(r.to)
+    }));
+
+    this._pushHistory();
+    const imgData = this.ctx.getImageData(0, 0, this.width, this.height);
+    const d = imgData.data;
+    let replacedCount = 0;
+
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        const pIdx = y * this.width + x;
+        if (mask && !mask[pIdx]) continue;
+
+        const idx = pIdx * 4;
+        if (d[idx + 3] === 0) continue; // 完全透過ピクセルはスキップ
+
+        const r = d[idx], g = d[idx + 1], b = d[idx + 2];
+
+        for (const rule of preparedRules) {
+          if (r === rule.fromRgb[0] && g === rule.fromRgb[1] && b === rule.fromRgb[2]) {
+            d[idx] = rule.toRgb[0];
+            d[idx + 1] = rule.toRgb[1];
+            d[idx + 2] = rule.toRgb[2];
+            replacedCount++;
+            break;
+          }
+        }
+      }
+    }
+
+    this.ctx.putImageData(imgData, 0, 0);
+    this._drawOverlay();
+    this.replaceModal.close();
+    alert(`色置換が完了しました。（${replacedCount} ピクセルを置換）`);
+  }
+
+  // --- 描画ロジック ---
   _handleToolStart(x, y) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
     this.isDrawing = true;

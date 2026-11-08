@@ -19,7 +19,7 @@ body {
   width: 100vw;
 }
 
-/* サイドバー：縦スクロールとFlexboxの整合性を維持 */
+/* サイドバー */
 #sidebar {
   width: 440px;
   min-width: 440px;
@@ -35,7 +35,6 @@ body {
   gap: 8px;
 }
 
-/* アコーディオンパネル */
 .accordion-panel {
   background: #303030;
   border-radius: 4px;
@@ -58,7 +57,6 @@ body {
   background: #353535;
 }
 
-/* アコーディオン内部スクロール領域 */
 .panel-body {
   padding: 8px 10px 10px 8px;
   display: flex;
@@ -69,35 +67,38 @@ body {
   overflow-x: hidden;
 }
 
-/* スクロールバーの統一スタイル */
+/* スクロールバー統一 */
 .panel-body::-webkit-scrollbar,
 #sidebar::-webkit-scrollbar,
 #paint-sidebar::-webkit-scrollbar,
-#layer-listbox::-webkit-scrollbar {
+#layer-listbox::-webkit-scrollbar,
+#replace-rules-container::-webkit-scrollbar {
   width: 6px;
 }
 .panel-body::-webkit-scrollbar-track,
 #sidebar::-webkit-scrollbar-track,
 #paint-sidebar::-webkit-scrollbar-track,
-#layer-listbox::-webkit-scrollbar-track {
+#layer-listbox::-webkit-scrollbar-track,
+#replace-rules-container::-webkit-scrollbar-track {
   background: #202020;
   border-radius: 3px;
 }
 .panel-body::-webkit-scrollbar-thumb,
 #sidebar::-webkit-scrollbar-thumb,
 #paint-sidebar::-webkit-scrollbar-thumb,
-#layer-listbox::-webkit-scrollbar-thumb {
+#layer-listbox::-webkit-scrollbar-thumb,
+#replace-rules-container::-webkit-scrollbar-thumb {
   background: #505050;
   border-radius: 3px;
 }
 .panel-body::-webkit-scrollbar-thumb:hover,
 #sidebar::-webkit-scrollbar-thumb:hover,
 #paint-sidebar::-webkit-scrollbar-thumb:hover,
-#layer-listbox::-webkit-scrollbar-thumb:hover {
+#layer-listbox::-webkit-scrollbar-thumb:hover,
+#replace-rules-container::-webkit-scrollbar-thumb:hover {
   background: #707070;
 }
 
-/* サブパネル (fieldset) */
 fieldset.sub-panel {
   border: 1px solid #444;
   border-radius: 4px;
@@ -116,7 +117,6 @@ fieldset.sub-panel legend {
   padding: 0 4px;
 }
 
-/* 基本ボタン */
 button {
   background: #3e3e3e;
   color: #e0e0e0;
@@ -143,7 +143,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .mt-05 { margin-top: 4px; }
 .mt-1 { margin-top: 8px; }
 
-/* テキスト入力 */
 input[type="text"] {
   width: 100%;
   background: #1e1e1e;
@@ -154,7 +153,6 @@ input[type="text"] {
   font-size: 11px;
 }
 
-/* 横並び行 (.row) */
 .row {
   display: flex !important;
   align-items: center !important;
@@ -215,7 +213,7 @@ input[type="range"] {
 .info-text { font-size: 10px; color: #888; margin-top: 2px; }
 .desc-text { font-size: 10px; color: #777; margin-top: 2px; }
 
-/* レイヤー一覧ボックス（タブレット対応） */
+/* レイヤー一覧ボックス */
 #layer-listbox {
   width: 100% !important;
   height: 120px !important;
@@ -268,7 +266,6 @@ input[type="range"] {
   font-weight: bold !important;
 }
 
-/* フォームコントロール */
 fieldset.sub-panel label {
   display: flex !important;
   align-items: center !important;
@@ -330,7 +327,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   flex-shrink: 0;
 }
 
-/* メインキャンバス領域 */
+/* メインキャンバス */
 #canvas-container {
   flex: 1;
   display: flex;
@@ -423,9 +420,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   overflow: hidden;
 }
 
-#modal-paint-editor::backdrop {
-  background: rgba(0, 0, 0, 0.75);
-}
+#modal-paint-editor::backdrop { background: rgba(0, 0, 0, 0.75); }
 
 #paint-editor-container {
   display: flex;
@@ -520,9 +515,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   image-rendering: pixelated;
 }
 
-#paint-overlay-canvas {
-  pointer-events: none;
-}
+#paint-overlay-canvas { pointer-events: none; }
 
 #paint-footer {
   height: 24px;
@@ -546,9 +539,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   margin: auto;
 }
 
-#modal-keybindings::backdrop {
-  background: rgba(0, 0, 0, 0.6);
-}
+#modal-keybindings::backdrop { background: rgba(0, 0, 0, 0.6); }
 
 #table-keybindings th, #table-keybindings td {
   padding: 4px 6px;
@@ -565,12 +556,12 @@ fieldset.sub-panel label input[type="checkbox"] {
   cursor: pointer;
 }
 
-/* --- 画像スポイトモーダルスタイル --- */
+/* ★ 画像スポイトモーダル ★ */
 #modal-image-sampler {
-  width: 80vw;
-  height: 80vh;
-  max-width: 900px;
-  max-height: 700px;
+  width: 85vw;
+  height: 85vh;
+  max-width: 960px;
+  max-height: 720px;
   border: 1px solid #555;
   border-radius: 6px;
   background: #222;
@@ -580,9 +571,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   overflow: hidden;
 }
 
-#modal-image-sampler::backdrop {
-  background: rgba(0, 0, 0, 0.75);
-}
+#modal-image-sampler::backdrop { background: rgba(0, 0, 0, 0.75); }
 
 .sampler-container {
   display: flex;
@@ -592,12 +581,19 @@ fieldset.sub-panel label input[type="checkbox"] {
 }
 
 .sampler-header {
-  height: 38px;
+  height: 40px;
   background: #2a2a2a;
   border-bottom: 1px solid #383838;
   display: flex;
   align-items: center;
   padding: 0 10px;
+  gap: 12px;
+}
+
+.sampler-zoom-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .sampler-inputs {
@@ -609,31 +605,31 @@ fieldset.sub-panel label input[type="checkbox"] {
   border-bottom: 1px solid #333;
 }
 
-.sampler-inputs input[type="text"] {
-  flex: 1;
-}
+.sampler-inputs input[type="text"] { flex: 1; }
 
 #sampler-viewport {
   flex: 1;
   background: #121212;
-  overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+#sampler-viewport:active {
+  cursor: grabbing;
 }
 
 #sampler-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
   image-rendering: pixelated;
-  border: 1px dashed #444;
-  cursor: crosshair;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+  transform-origin: 0 0;
 }
 
 .sampler-footer {
-  height: 48px;
+  height: 52px;
   background: #242424;
   border-top: 1px solid #383838;
   display: flex;
@@ -654,4 +650,76 @@ fieldset.sub-panel label input[type="checkbox"] {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* ★ 色置換・複数色置換モーダル ★ */
+#modal-color-replace {
+  width: 480px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #262626;
+  color: #eee;
+  padding: 0;
+  margin: auto;
+}
+
+#modal-color-replace::backdrop { background: rgba(0, 0, 0, 0.7); }
+
+.replace-modal-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.replace-header {
+  height: 38px;
+  background: #303030;
+  border-bottom: 1px solid #404040;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+
+.replace-body {
+  padding: 12px;
+}
+
+#replace-rules-container {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.replace-rule-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1e1e1e;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #383838;
+}
+
+.replace-rule-row span.arrow {
+  color: #55b5ff;
+  font-weight: bold;
+}
+
+.replace-rule-row button.btn-color-pick {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+}
+
+.replace-footer {
+  height: 48px;
+  background: #2a2a2a;
+  border-top: 1px solid #383838;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
 }
