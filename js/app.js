@@ -4,6 +4,19 @@ import { Layer } from './layer.js';
 import { HSVColorPicker } from './color-picker.js';
 import { StorageAPI } from './storage-api.js';
 
+// 多角形（4頂点）の内外判定アルゴリズム (Ray-casting)
+function pointInPolygon(point, vs) {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    const xi = vs[i][0], yi = vs[i][1];
+    const xj = vs[j][0], yj = vs[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
 class AdvancedMultiplyApp {
   constructor() {
     this.storage = new StorageAPI();
@@ -48,11 +61,10 @@ class AdvancedMultiplyApp {
     this.viewport = document.getElementById('canvas-viewport');
 
     this._bindEvents();
-    this._loadDefaultSpecialColors(); // GitHub上のSpecialColor.csvを自動フェッチ
+    this._loadDefaultSpecialColors();
     this.render();
   }
 
-  // GitHub上にアップロードされたSpecialColor.csvを自動でデフォルト読み込み
   async _loadDefaultSpecialColors() {
     const candidateFiles = ['SpecialColor.csv', 'special_colors.csv', 'SpecialColors.csv'];
     const infoLabel = document.getElementById('lbl-csv-info');
@@ -72,9 +84,7 @@ class AdvancedMultiplyApp {
             return;
           }
         }
-      } catch (err) {
-        // ローカルダブルクリック起動時等のエラーは手動読込に委ねる
-      }
+      } catch (err) {}
     }
     if (infoLabel && this.specialColors.size === 0) {
       infoLabel.textContent = '特殊色: 0件登録済 (手動選択可)';
@@ -424,7 +434,6 @@ class AdvancedMultiplyApp {
       if (this.activeIdx >= 0) { this.layers[this.activeIdx].fillAll = e.target.checked; this.markDirty(); this.render(); }
     };
 
-    // ★変形の種類（メニュー）の変更検知★
     document.getElementById('select-transform-mode').onchange = (e) => {
       if (this.activeIdx >= 0) {
         this.layers[this.activeIdx].transformMode = e.target.value;
@@ -601,14 +610,20 @@ class AdvancedMultiplyApp {
       if (this.isEyedropper) { this._pickColorFromCanvas(e); return; }
       this._handleCanvasMouseDown(e);
     };
+
     window.onmousemove = (e) => {
       if (this.isPanning) {
         this.panX = e.clientX - this.panStart[0];
         this.panY = e.clientY - this.panStart[1];
         this.render(); return;
       }
-      if (this.dragMode && this.activeIdx >= 0) this._handleCornerDrag(e);
+      if (this.dragMode && this.activeIdx >= 0) {
+        this._handleCornerDrag(e);
+        return;
+      }
+      this._updateCursor(e);
     };
+
     window.onmouseup = () => {
       if (this.isPanning) { this.isPanning = false; this.viewport.style.cursor = this.spacePressed ? 'grab' : 'default'; }
       if (this.dragMode) { this.dragMode = null; this.markDirty(); this.render(); }
@@ -626,6 +641,43 @@ class AdvancedMultiplyApp {
       if (f) this.loadProject(f);
     };
     document.getElementById('btn-save-png').onclick = () => this.exportPng();
+  }
+
+  // マウス位置に応じたカーソル形状の自動切替
+  _updateCursor(e) {
+    if (this.spacePressed) {
+      this.viewport.style.cursor = 'grab';
+      return;
+    }
+    if (this.isEyedropper) {
+      this.viewport.style.cursor = 'crosshair';
+      return;
+    }
+    if (this.activeIdx < 0 || !this.layers[this.activeIdx]) {
+      this.viewport.style.cursor = 'default';
+      return;
+    }
+
+    const rect = this.viewport.getBoundingClientRect();
+    const mx = (e.clientX - rect.left - this.panX) / this.zoomLevel;
+    const my = (e.clientY - rect.top - this.panY) / this.zoomLevel;
+    const layer = this.layers[this.activeIdx];
+
+    // 四隅の操作ハンドルの上: crosshair
+    for (let i = 0; i < 4; i++) {
+      if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= 8 / this.zoomLevel) {
+        this.viewport.style.cursor = 'crosshair';
+        return;
+      }
+    }
+
+    // 四隅以外でレイヤー画像の内側: move
+    if (pointInPolygon([mx, my], layer.corners)) {
+      this.viewport.style.cursor = 'move';
+      return;
+    }
+
+    this.viewport.style.cursor = 'default';
   }
 
   _getActiveTone() {
@@ -697,7 +749,6 @@ class AdvancedMultiplyApp {
       this.layers.push(l);
       this._refreshLayerList();
       this._selectLayer(this.layers.length - 1);
-      // レイヤー追加時にアコーディオンを自動オープン
       document.getElementById('accordion-layer').open = true;
       this.markDirty(); this.render();
     };
@@ -733,7 +784,6 @@ class AdvancedMultiplyApp {
     this.activeIdx = idx;
     document.getElementById('layer-listbox').selectedIndex = idx;
     this._syncActiveLayerUI();
-    // レイヤー選択時にアコーディオンを展開
     if (idx >= 0) {
       document.getElementById('accordion-layer').open = true;
     }
@@ -749,10 +799,7 @@ class AdvancedMultiplyApp {
     document.getElementById('slider-opacity').value = l.opacity;
     document.getElementById('lbl-opacity').textContent = `${Math.round(l.opacity * 100)}%`;
     document.getElementById('chk-layer-visible').checked = l.visible;
-
-    // ★変形メニューの同期★
     document.getElementById('select-transform-mode').value = l.transformMode;
-
     document.getElementById('lbl-tile-x').textContent = l.tileX.toFixed(1);
     document.getElementById('lbl-tile-y').textContent = l.tileY.toFixed(1);
     if (l.targetMaskColor) {
@@ -786,10 +833,19 @@ class AdvancedMultiplyApp {
     const layer = this.layers[this.activeIdx];
     this.dragStartPos = [mx, my];
     this.dragStartCorners = layer.corners.map(([x, y]) => [x, y]);
+
+    // 1. 四隅操作ハンドルの判定
     for (let i = 0; i < 4; i++) {
       if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= 8 / this.zoomLevel) {
-        this.dragMode = `corner_${i}`; return;
+        this.dragMode = `corner_${i}`;
+        return;
       }
+    }
+
+    // 2. 四隅以外でテクスチャ面の内側をクリックした場合：レイヤー全体移動モード
+    if (pointInPolygon([mx, my], layer.corners)) {
+      this.dragMode = 'move';
+      return;
     }
   }
 
@@ -799,6 +855,19 @@ class AdvancedMultiplyApp {
     const my = (e.clientY - rect.top - this.panY) / this.zoomLevel;
     const dx = mx - this.dragStartPos[0], dy = my - this.dragStartPos[1];
     const layer = this.layers[this.activeIdx];
+
+    // 全体平行移動 (move モード)
+    if (this.dragMode === 'move') {
+      let newCorners = this.dragStartCorners.map(([x, y]) => [x + dx, y + dy]);
+      if (this.pixelSnap) {
+        newCorners = newCorners.map(([x, y]) => [Math.round(x), Math.round(y)]);
+      }
+      layer.corners = newCorners;
+      this.render();
+      return;
+    }
+
+    // 各頂点の個別変形 (corner_0 ~ corner_3)
     const idx = parseInt(this.dragMode.split('_')[1]);
 
     if (layer.transformMode === 'free') {
