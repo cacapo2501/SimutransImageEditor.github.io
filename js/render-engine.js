@@ -18,12 +18,20 @@ export class RenderEngine {
     const outRgb = new Float32Array(total * 3);
     const outAlpha = new Float32Array(total);
 
-    // 2. ベース画像合成 (SpecialColorピクセルは一切変更せず維持)
+    // 2. ベース画像合成 (SpecialColorおよび背景色#E7FFFFは乗算・トーン変更の対象外)
     for (let i = 0; i < total; i++) {
       outAlpha[i] = app.baseAlpha[i] / 255.0;
 
-      // ★ ベース画像のSpecialColorピクセルは全編集の対象外 ★
+      // SpecialColorピクセルは全編集の対象外 (元色を維持)
       if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) {
+        outRgb[i * 3] = app.baseRgb[i * 3] / 255.0;
+        outRgb[i * 3 + 1] = app.baseRgb[i * 3 + 1] / 255.0;
+        outRgb[i * 3 + 2] = app.baseRgb[i * 3 + 2] / 255.0;
+        continue;
+      }
+
+      // 背景色 (#E7FFFF) も乗算・トーン変更は行わず元色を維持
+      if (app.isBgMask && app.isBgMask[i]) {
         outRgb[i * 3] = app.baseRgb[i * 3] / 255.0;
         outRgb[i * 3 + 1] = app.baseRgb[i * 3 + 1] / 255.0;
         outRgb[i * 3 + 2] = app.baseRgb[i * 3 + 2] / 255.0;
@@ -72,6 +80,7 @@ export class RenderEngine {
     for (let i = 0; i < total; i++) {
       if (!app.editableMask[i]) continue;
       if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;
+      if (app.isBgMask && app.isBgMask[i]) continue;
 
       const bg = app.baseRgb[i * 3] / 255.0;
       let cfg = app.globalTone;
@@ -94,39 +103,48 @@ export class RenderEngine {
       }
     }
 
-    // 4. ストラクチャー上乗せ (ベース画像のSpecialColorピクセルには上乗せしない)
+    // 4. ストラクチャー上乗せ (SpecialColorは保護、#E7FFFF背景色には描画・変更を許可)
+    const structureAppliedMask = new Uint8Array(total);
+
     app.layers.forEach(layer => {
       if (layer.visible && layer.layerType === 'structure') {
         const sData = layer.getWarpedStructure(app.baseW, app.baseH, app.maskRgb);
         if (!sData) return;
         for (let i = 0; i < total; i++) {
+          // 通常のSpecialColorピクセルはストラクチャも上乗せ対象外 (完全保護)
           if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;
 
           const sa = sData[i * 4 + 3];
           if (sa > 0.001) {
-            if (app.isBgMask[i]) {
-              outRgb[i * 3] = 192 / 255;
-              outRgb[i * 3 + 1] = 192 / 255;
-              outRgb[i * 3 + 2] = 192 / 255;
-              outAlpha[i] = 0.0;
+            // 背景色 (#E7FFFF) ピクセルの場合：ストラクチャの色で上書き描画
+            if (app.isBgMask[i] && structureAppliedMask[i] === 0) {
+              outRgb[i * 3] = sData[i * 4];
+              outRgb[i * 3 + 1] = sData[i * 4 + 1];
+              outRgb[i * 3 + 2] = sData[i * 4 + 2];
+              outAlpha[i] = sa;
+              structureAppliedMask[i] = 1;
             } else {
+              // 通常領域または複数ストラクチャのブレンド
               outRgb[i * 3] = outRgb[i * 3] * (1.0 - sa) + sData[i * 4] * sa;
               outRgb[i * 3 + 1] = outRgb[i * 3 + 1] * (1.0 - sa) + sData[i * 4 + 1] * sa;
               outRgb[i * 3 + 2] = outRgb[i * 3 + 2] * (1.0 - sa) + sData[i * 4 + 2] * sa;
               outAlpha[i] = Math.min(1.0, outAlpha[i] + sa * (1.0 - outAlpha[i]));
+              structureAppliedMask[i] = 1;
             }
           }
         }
       }
     });
 
-    // 5. SpecialColor保護ぼかし (ベース画像のSpecialColorもinvalid設定)
+    // 5. SpecialColor保護ぼかし (ストラクチャが乗っていない背景色とSpecialColorを除外)
     if (app.enableBlur && app.blurRadius > 0.001) {
       const invalid = new Uint8Array(total);
       for (let i = 0; i < total; i++) {
-        if (app.isBgMask[i]) invalid[i] = 1;
-        else if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) invalid[i] = 1;
-        else {
+        if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) {
+          invalid[i] = 1;
+        } else if (app.isBgMask[i] && structureAppliedMask[i] === 0) {
+          invalid[i] = 1;
+        } else {
           const hex = rgbToHex(outRgb[i * 3] * 255, outRgb[i * 3 + 1] * 255, outRgb[i * 3 + 2] * 255);
           if (app.specialColors.has(hex)) invalid[i] = 1;
         }

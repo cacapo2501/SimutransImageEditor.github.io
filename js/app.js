@@ -92,7 +92,9 @@ class AdvancedMultiplyApp {
     const total = this.baseW * this.baseH;
     this.isBaseSpecialColor = new Uint8Array(total);
     for (let i = 0; i < total; i++) {
-      if (this.isBgMask[i]) continue;
+      // 背景色 (#E7FFFF または透過) は通常のSpecialColor保護から分離
+      if (this.isBgMask && this.isBgMask[i]) continue;
+
       const r = this.baseRgb[i * 3], g = this.baseRgb[i * 3 + 1], b = this.baseRgb[i * 3 + 2];
       const hex = rgbToHex(r, g, b);
       if (this.specialColors.has(hex)) {
@@ -180,11 +182,11 @@ class AdvancedMultiplyApp {
       this.baseRgb[i * 3] = r; this.baseRgb[i * 3 + 1] = g; this.baseRgb[i * 3 + 2] = b;
       this.baseAlpha[i] = a;
 
+      // 背景色 (#E7FFFF または 完全透過)
       if ((r === 231 && g === 255 && b === 255) || a === 0) {
         this.isBgMask[i] = 1;
       } else {
         const hex = rgbToHex(r, g, b);
-        // ベース画像で元々SpecialColorであるピクセルを記録
         if (this.specialColors && this.specialColors.has(hex)) {
           this.isBaseSpecialColor[i] = 1;
         } else if (r === g && g === b) {
