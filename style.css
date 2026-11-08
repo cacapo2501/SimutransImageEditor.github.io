@@ -311,3 +311,78 @@ input[type="range"] {
   border: 1px solid #555;
   border-radius: 2px;
 }
+
+/* タブナビゲーションの表示を確実にする */
+.tab-nav {
+  display: flex !important;
+  width: 100%;
+  background: #202020;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #444;
+  margin: 6px 0;
+}
+
+.tab-btn {
+  flex: 1;
+  background: #282828;
+  border: none;
+  border-right: 1px solid #383838;
+  padding: 8px 4px;
+  font-size: 11px;
+  color: #aaa;
+  cursor: pointer;
+  text-align: center;
+}
+
+.tab-btn:last-child {
+  border-right: none;
+}
+
+.tab-btn.active {
+  background: #3e3e3e;
+  color: #fff;
+  font-weight: bold;
+  border-bottom: 2px solid #0078d4;
+}
+
+/* レイヤー一覧リストボックスの潰れを解消 */
+#layer-listbox {
+  width: 100% !important;
+  height: 90px !important;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  color: #eee;
+  border-radius: 3px;
+  padding: 4px;
+  margin: 6px 0;
+  display: block;
+}
+
+/* ラジオボタン・チェックボックスを整然と縦並びにする */
+fieldset.sub-panel label {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0 !important;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+fieldset.sub-panel label input[type="radio"],
+fieldset.sub-panel label input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #0078d4;
+}
+
+/* セレクトボックスの横幅 */
+select {
+  width: 100%;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  color: #e0e0e0;
+  border-radius: 3px;
+  padding: 4px;
+  font-size: 11px;
+}
