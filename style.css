@@ -1,142 +1,158 @@
-/* --- ペイントエディタ用スタイル --- */
-#modal-paint-editor {
-  width: 95vw;
-  height: 92vh;
-  max-width: 95vw;
-  max-height: 92vh;
-  border: 1px solid #555;
-  border-radius: 6px;
-  background: #1e1e1e;
-  color: #eee;
+* {
+  box-sizing: border-box;
+  margin: 0;
   padding: 0;
-  margin: auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  user-select: none;
+}
+
+body {
+  background-color: #1a1a1a;
+  color: #e0e0e0;
   overflow: hidden;
+  height: 100vh;
 }
 
-#modal-paint-editor::backdrop {
-  background: rgba(0, 0, 0, 0.75);
-}
-
-#paint-editor-container {
+#app-container {
   display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
+  height: 100vh;
+  width: 100vw;
 }
 
-#paint-toolbar {
-  height: 42px;
-  background: #282828;
-  border-bottom: 1px solid #3d3d3d;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.paint-tool-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.paint-tool-btn.active {
-  background: #005a9e !important;
-  border-color: #0078d4 !important;
-  color: #fff !important;
-  font-weight: bold;
-}
-
-.ml-auto { margin-left: auto; }
-
-#paint-main-body {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-#paint-sidebar {
-  width: 240px;
-  background: #252525;
-  border-right: 1px solid #383838;
+/* サイドバー：縦スクロールとFlexboxの整合性を維持 */
+#sidebar {
+  width: 440px;
+  min-width: 440px;
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+  background-color: #262626;
+  border-right: 1px solid #3d3d3d;
   display: flex;
   flex-direction: column;
   padding: 8px;
-  gap: 6px;
   overflow-y: auto;
+  gap: 8px;
 }
 
-#paint-palette-slots {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding: 4px 0;
-}
-
-.palette-color-btn {
-  width: 100%;
-  height: 26px;
-  border: 1px solid #444;
-  border-radius: 2px;
-  cursor: pointer;
-  padding: 0;
-}
-
-.palette-color-btn:hover {
-  border-color: #fff;
-  transform: scale(1.05);
-}
-
-#paint-viewport {
-  flex: 1;
-  background: #141414;
-  position: relative;
-  overflow: hidden;
-  cursor: crosshair;
-}
-
-#paint-canvas-wrapper {
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform-origin: 0 0;
-}
-
-#paint-canvas, #paint-overlay-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  image-rendering: pixelated;
-}
-
-#paint-overlay-canvas {
-  pointer-events: none;
-}
-
-#paint-footer {
-  height: 24px;
-  background: #202020;
-  border-top: 1px solid #333;
-  font-size: 11px;
-  color: #888;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
+/* アコーディオンパネル */
+.accordion-panel {
+  background: #303030;
+  border-radius: 4px;
+  border: 1px solid #404040;
   flex-shrink: 0;
 }
 
-#table-keybindings th, #table-keybindings td {
-  padding: 4px 6px;
-  border-bottom: 1px solid #333;
+.accordion-panel summary {
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #ddd;
+  background: #2a2a2a;
+  cursor: pointer;
+  border-bottom: 1px solid #3d3d3d;
+  outline: none;
 }
 
-.btn-bind {
-  background: #333;
-  border: 1px solid #555;
-  color: #55b5ff;
-  font-family: Consolas, monospace;
-  padding: 2px 6px;
-  border-radius: 3px;
-  cursor: pointer;
+.accordion-panel summary:hover {
+  background: #353535;
 }
+
+/* アコーディオン内部スクロール領域 */
+.panel-body {
+  padding: 8px 10px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 55vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* スクロールバーの統一スタイル */
+.panel-body::-webkit-scrollbar,
+#sidebar::-webkit-scrollbar,
+#paint-sidebar::-webkit-scrollbar,
+#layer-listbox::-webkit-scrollbar {
+  width: 6px;
+}
+.panel-body::-webkit-scrollbar-track,
+#sidebar::-webkit-scrollbar-track,
+#paint-sidebar::-webkit-scrollbar-track,
+#layer-listbox::-webkit-scrollbar-track {
+  background: #202020;
+  border-radius: 3px;
+}
+.panel-body::-webkit-scrollbar-thumb,
+#sidebar::-webkit-scrollbar-thumb,
+#paint-sidebar::-webkit-scrollbar-thumb,
+#layer-listbox::-webkit-scrollbar-thumb {
+  background: #505050;
+  border-radius: 3px;
+}
+.panel-body::-webkit-scrollbar-thumb:hover,
+#sidebar::-webkit-scrollbar-thumb:hover,
+#paint-sidebar::-webkit-scrollbar-thumb:hover,
+#layer-listbox::-webkit-scrollbar-thumb:hover {
+  background: #707070;
+}
+
+/* サブパネル (fieldset) */
+fieldset.sub-panel {
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+}
+
+fieldset.sub-panel legend {
+  font-size: 11px;
+  color: #999;
+  padding: 0 4px;
+}
+
+/* 基本ボタン */
+button {
+  background: #3e3e3e;
+  color: #e0e0e0;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+button:hover { background: #4e4e4e; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: #005a9e; border-color: #0078d4; color: #fff; font-weight: bold; }
+.btn-primary:hover { background: #0078d4; }
+
+.btn-group {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+.btn-group button { flex: 1; }
+.w-100 { width: 100%; }
+.mt-05 { margin-top: 4px; }
+.mt-1 { margin-top: 8px; }
+
+/* テキスト入力 */
+input[type="text"] {
+  width: 100%;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  color: #e0e0e0;
+  border-radius: 3px;
+  padding: 4px;
+  font-size: 11px;
+}
+
+/* 横並び行 (.row) */
+.row {
