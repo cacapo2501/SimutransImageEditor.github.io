@@ -926,20 +926,25 @@ class AdvancedMultiplyApp {
     this.markDirty(); this.render();
   }
 
-  // ★ カスタム div リストボックスの選択処理 ★
+  // ★ タブレットでのタップを100%保証する選択ロジック ★
   _selectLayer(idx) {
     this.activeIdx = idx;
     const items = document.querySelectorAll('#layer-listbox .layer-list-item');
     items.forEach((item, i) => {
       if (i === idx) {
         item.classList.add('selected');
-        item.scrollIntoView({ block: 'nearest' });
+        item.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       } else {
         item.classList.remove('selected');
       }
     });
+
     this._syncActiveLayerUI();
-    if (idx >= 0) document.getElementById('accordion-layer').open = true;
+
+    if (idx >= 0) {
+      const acc = document.getElementById('accordion-layer');
+      if (acc && !acc.open) acc.open = true;
+    }
     this.render();
   }
 
@@ -967,17 +972,28 @@ class AdvancedMultiplyApp {
     }
   }
 
-  // ★ カスタム div リストボックスの描画 ★
+  // ★ タブレット対応 button 要素の生成と pointerdown/click 両方へのバインド ★
   _refreshLayerList() {
     const lb = document.getElementById('layer-listbox');
+    if (!lb) return;
     lb.innerHTML = '';
+
     this.layers.forEach((l, i) => {
       const tag = l.sourceLayer ? '[小物(参照)]' : (l.layerType === 'structure' ? '[小物]' : '[乗算]');
-      const item = document.createElement('div');
-      item.className = 'layer-list-item' + (i === this.activeIdx ? ' selected' : '');
-      item.textContent = `${tag} ${l.name}`;
-      item.onclick = () => this._selectLayer(i);
-      lb.appendChild(item);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'layer-list-item' + (i === this.activeIdx ? ' selected' : '');
+      btn.textContent = `${tag} ${l.name}`;
+
+      const handleSelect = (e) => {
+        e.preventDefault();
+        this._selectLayer(i);
+      };
+
+      btn.addEventListener('pointerdown', handleSelect);
+      btn.addEventListener('click', handleSelect);
+
+      lb.appendChild(btn);
     });
   }
 
