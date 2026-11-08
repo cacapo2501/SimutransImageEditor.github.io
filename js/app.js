@@ -56,6 +56,12 @@ class AdvancedMultiplyApp {
     this.dragMode = null; this.isEyedropper = false;
     this.isDirty = false;
 
+    // タッチ・ピンチ操作ステート
+    this.touchStartDist = null;
+    this.touchStartZoom = 1.0;
+    this.touchStartPan = [0, 0];
+    this.touchStartCenter = [0, 0];
+
     this.canvas = document.getElementById('main-canvas');
     this.ctx = this.canvas.getContext('2d');
     this.viewport = document.getElementById('canvas-viewport');
@@ -335,7 +341,7 @@ class AdvancedMultiplyApp {
 
     if (this.isEyedropper) {
       this.ctx.fillStyle = '#FFFF00'; this.ctx.font = 'bold 12px sans-serif';
-      this.ctx.fillText('【マスク画像表示中】適用したい色をクリックしてください (Escでキャンセル)', this.panX + 10, this.panY - 12);
+      this.ctx.fillText('【マスク画像表示中】適用したい色をクリックまたはタップしてください (Escでキャンセル)', this.panX + 10, this.panY - 12);
     } else {
       this._drawOverlay();
     }
@@ -589,6 +595,7 @@ class AdvancedMultiplyApp {
       }
     };
 
+    // --- PC用マウス操作イベント ---
     this.viewport.onwheel = (e) => {
       e.preventDefault();
       this.setZoom(this.zoomLevel * (e.deltaY < 0 ? 1.25 : 0.8), [e.clientX - this.viewport.offsetLeft, e.clientY - this.viewport.offsetTop]);
@@ -607,10 +614,9 @@ class AdvancedMultiplyApp {
         this.viewport.style.cursor = 'grabbing';
         return;
       }
-      if (this.isEyedropper) { this._pickColorFromCanvas(e); return; }
-      this._handleCanvasMouseDown(e);
+      if (this.isEyedropper) { this._pickColorFromCoords(e.clientX, e.clientY); return; }
+      this._handleInteractionStart(e.clientX, e.clientY, 8);
     };
-
     window.onmousemove = (e) => {
       if (this.isPanning) {
         this.panX = e.clientX - this.panStart[0];
@@ -618,22 +624,29 @@ class AdvancedMultiplyApp {
         this.render(); return;
       }
       if (this.dragMode && this.activeIdx >= 0) {
-        this._handleCornerDrag(e);
+        this._handleInteractionMove(e.clientX, e.clientY);
         return;
       }
       this._updateCursor(e);
     };
-
     window.onmouseup = () => {
       if (this.isPanning) { this.isPanning = false; this.viewport.style.cursor = this.spacePressed ? 'grab' : 'default'; }
       if (this.dragMode) { this.dragMode = null; this.markDirty(); this.render(); }
     };
 
+    // --- タブレット用タッチ操作イベント (1本指変形/移動/パン & 2本指ピンチズーム) ---
+    this.viewport.addEventListener('touchstart', (e) => this._handleTouchStart(e), { passive: false });
+    window.addEventListener('touchmove', (e) => this._handleTouchMove(e), { passive: false });
+    window.addEventListener('touchend', (e) => this._handleTouchEnd(e), { passive: false });
+    window.addEventListener('touchcancel', (e) => this._handleTouchEnd(e), { passive: false });
+
+    // ズームバー
     document.getElementById('btn-zoom-in').onclick = () => this.setZoom(this.zoomLevel * 1.25);
     document.getElementById('btn-zoom-out').onclick = () => this.setZoom(this.zoomLevel * 0.8);
     document.getElementById('btn-zoom-reset').onclick = () => this.setZoom(1.0);
     document.getElementById('btn-zoom-fit').onclick = () => this.zoomFit();
 
+    // プロジェクト保存 / 再開
     document.getElementById('btn-save-proj').onclick = () => this.saveProject();
     document.getElementById('btn-save-proj-as').onclick = () => this.saveProject(true);
     document.getElementById('btn-load-proj').onclick = async () => {
@@ -643,7 +656,167 @@ class AdvancedMultiplyApp {
     document.getElementById('btn-save-png').onclick = () => this.exportPng();
   }
 
-  // マウス位置に応じたカーソル形状の自動切替
+  // --- タッチイベントハンドラー ---
+  _handleTouchStart(e) {
+    if (e.target !== this.canvas && !this.viewport.contains(e.target)) return;
+    e.preventDefault();
+
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      if (this.isEyedropper) {
+        this._pickColorFromCoords(t.clientX, t.clientY);
+        return;
+      }
+      // タッチ時は指の太さを考慮してヒット半径を16pxに拡張
+      this._handleInteractionStart(t.clientX, t.clientY, 16);
+    } else if (e.touches.length === 2) {
+      // 2本指操作：ピンチズーム＆パン
+      this.dragMode = null;
+      this.isPanning = false;
+
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      this.touchStartDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      this.touchStartZoom = this.zoomLevel;
+
+      const rect = this.viewport.getBoundingClientRect();
+      const cx = ((t1.clientX + t2.clientX) / 2) - rect.left;
+      const cy = ((t1.clientY + t2.clientY) / 2) - rect.top;
+      this.touchStartCenter = [cx, cy];
+      this.touchStartPan = [this.panX, this.panY];
+    }
+  }
+
+  _handleTouchMove(e) {
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      if (this.isPanning) {
+        this.panX = t.clientX - this.panStart[0];
+        this.panY = t.clientY - this.panStart[1];
+        this.render();
+        return;
+      }
+      if (this.dragMode && this.activeIdx >= 0) {
+        this._handleInteractionMove(t.clientX, t.clientY);
+      }
+    } else if (e.touches.length === 2 && this.touchStartDist) {
+      e.preventDefault();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const curDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const scale = curDist / this.touchStartDist;
+      const newZoom = Math.max(0.1, Math.min(32.0, this.touchStartZoom * scale));
+
+      const rect = this.viewport.getBoundingClientRect();
+      const curCenterX = ((t1.clientX + t2.clientX) / 2) - rect.left;
+      const curCenterY = ((t1.clientY + t2.clientY) / 2) - rect.top;
+
+      const imgX = (this.touchStartCenter[0] - this.touchStartPan[0]) / this.touchStartZoom;
+      const imgY = (this.touchStartCenter[1] - this.touchStartPan[1]) / this.touchStartZoom;
+
+      this.zoomLevel = newZoom;
+      this.panX = curCenterX - imgX * newZoom;
+      this.panY = curCenterY - imgY * newZoom;
+
+      document.getElementById('lbl-zoom').textContent = `${Math.round(this.zoomLevel * 100)}%`;
+      this.render();
+    }
+  }
+
+  _handleTouchEnd(e) {
+    if (e.touches.length === 0) {
+      if (this.isPanning) this.isPanning = false;
+      if (this.dragMode) {
+        this.dragMode = null;
+        this.markDirty();
+        this.render();
+      }
+      this.touchStartDist = null;
+    } else if (e.touches.length === 1) {
+      this.touchStartDist = null;
+      this.dragMode = null;
+      this.isPanning = false;
+    }
+  }
+
+  // マウス/タッチ共通：操作開始（四隅変形 / レイヤー移動 / キャンバススクロール）
+  _handleInteractionStart(clientX, clientY, hitRadiusPx) {
+    const rect = this.viewport.getBoundingClientRect();
+    const mx = (clientX - rect.left - this.panX) / this.zoomLevel;
+    const my = (clientY - rect.top - this.panY) / this.zoomLevel;
+
+    if (this.activeIdx >= 0 && this.layers[this.activeIdx]) {
+      const layer = this.layers[this.activeIdx];
+      this.dragStartPos = [mx, my];
+      this.dragStartCorners = layer.corners.map(([x, y]) => [x, y]);
+
+      // 1. 四隅操作ハンドルの判定
+      for (let i = 0; i < 4; i++) {
+        if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= hitRadiusPx / this.zoomLevel) {
+          this.dragMode = `corner_${i}`;
+          return;
+        }
+      }
+
+      // 2. 四隅以外でテクスチャ面の内側をクリック/タップした場合：全体移動モード
+      if (pointInPolygon([mx, my], layer.corners)) {
+        this.dragMode = 'move';
+        return;
+      }
+    }
+
+    // 3. レイヤー外をドラッグ：キャンバスのパン（スクロール）
+    this.isPanning = true;
+    this.panStart = [clientX - this.panX, clientY - this.panY];
+    this.viewport.style.cursor = 'grabbing';
+  }
+
+  // マウス/タッチ共通：操作中移動
+  _handleInteractionMove(clientX, clientY) {
+    const rect = this.viewport.getBoundingClientRect();
+    const mx = (clientX - rect.left - this.panX) / this.zoomLevel;
+    const my = (clientY - rect.top - this.panY) / this.zoomLevel;
+    const dx = mx - this.dragStartPos[0], dy = my - this.dragStartPos[1];
+    const layer = this.layers[this.activeIdx];
+
+    // 全体平行移動 (move モード)
+    if (this.dragMode === 'move') {
+      let newCorners = this.dragStartCorners.map(([x, y]) => [x + dx, y + dy]);
+      if (this.pixelSnap) {
+        newCorners = newCorners.map(([x, y]) => [Math.round(x), Math.round(y)]);
+      }
+      layer.corners = newCorners;
+      this.render();
+      return;
+    }
+
+    // 各頂点の個別変形 (corner_0 ~ corner_3)
+    const idx = parseInt(this.dragMode.split('_')[1]);
+
+    if (layer.transformMode === 'free') {
+      let nx = this.dragStartCorners[idx][0] + dx, ny = this.dragStartCorners[idx][1] + dy;
+      if (this.pixelSnap) { nx = Math.round(nx); ny = Math.round(ny); }
+      layer.corners[idx] = [nx, ny];
+    } else if (layer.transformMode === 'affine') {
+      let nx = this.dragStartCorners[idx][0] + dx, ny = this.dragStartCorners[idx][1] + dy;
+      if (this.pixelSnap) { nx = Math.round(nx); ny = Math.round(ny); }
+      const p = this.dragStartCorners.map(([x, y]) => [x, y]);
+      if (idx === 0) { p[0] = [nx, ny]; p[2] = [p[1][0] + p[3][0] - nx, p[1][1] + p[3][1] - ny]; }
+      else if (idx === 1) { p[1] = [nx, ny]; p[2] = [nx + p[3][0] - p[0][0], ny + p[3][1] - p[0][1]]; }
+      else if (idx === 3) { p[3] = [nx, ny]; p[2] = [p[1][0] + nx - p[0][0], p[1][1] + ny - p[0][1]]; }
+      else if (idx === 2) { p[2] = [nx, ny]; p[0] = [p[1][0] + p[3][0] - nx, p[1][1] + p[3][1] - ny]; }
+      layer.corners = this.pixelSnap ? p.map(([x, y]) => [Math.round(x), Math.round(y)]) : p;
+    } else {
+      let curX = this.dragStartCorners[idx][0] + dx, curY = this.dragStartCorners[idx][1] + dy;
+      const [oppX, oppY] = this.dragStartCorners[(idx + 2) % 4];
+      let xMin = Math.min(oppX, curX), xMax = Math.max(oppX, curX);
+      let yMin = Math.min(oppY, curY), yMax = Math.max(oppY, curY);
+      if (this.pixelSnap) { xMin = Math.round(xMin); xMax = Math.round(xMax); yMin = Math.round(yMin); yMax = Math.round(yMax); }
+      layer.corners = [[xMin, yMin], [xMax, yMin], [xMax, yMax], [xMin, yMax]];
+    }
+    this.render();
+  }
+
   _updateCursor(e) {
     if (this.spacePressed) {
       this.viewport.style.cursor = 'grab';
@@ -663,7 +836,6 @@ class AdvancedMultiplyApp {
     const my = (e.clientY - rect.top - this.panY) / this.zoomLevel;
     const layer = this.layers[this.activeIdx];
 
-    // 四隅の操作ハンドルの上: crosshair
     for (let i = 0; i < 4; i++) {
       if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= 8 / this.zoomLevel) {
         this.viewport.style.cursor = 'crosshair';
@@ -671,7 +843,6 @@ class AdvancedMultiplyApp {
       }
     }
 
-    // 四隅以外でレイヤー画像の内側: move
     if (pointInPolygon([mx, my], layer.corners)) {
       this.viewport.style.cursor = 'move';
       return;
@@ -716,15 +887,15 @@ class AdvancedMultiplyApp {
   _toggleEyedropper() {
     this.isEyedropper = !this.isEyedropper;
     document.getElementById('btn-eyedropper').textContent = this.isEyedropper ? '❌ スポイト中止 (プレビューに戻る)' : '🎯 スポイトで選択 (マスク画像を表示)';
-    document.getElementById('status-bar').textContent = this.isEyedropper ? '【マスク画像表示中】適用したい色をクリックしてください (Escでキャンセル)' : '準備完了 | スポイト: OFF';
+    document.getElementById('status-bar').textContent = this.isEyedropper ? '【マスク画像表示中】適用したい色をクリックまたはタップしてください (Escでキャンセル)' : '準備完了 | スポイト: OFF';
     this.render();
   }
 
-  _pickColorFromCanvas(e) {
+  _pickColorFromCoords(clientX, clientY) {
     if (!this.maskRgb) return;
     const rect = this.viewport.getBoundingClientRect();
-    const ix = Math.floor((e.clientX - rect.left - this.panX) / this.zoomLevel);
-    const iy = Math.floor((e.clientY - rect.top - this.panY) / this.zoomLevel);
+    const ix = Math.floor((clientX - rect.left - this.panX) / this.zoomLevel);
+    const iy = Math.floor((clientY - rect.top - this.panY) / this.zoomLevel);
     if (ix >= 0 && ix < this.baseW && iy >= 0 && iy < this.baseH) {
       const idx = (iy * this.baseW + ix) * 3;
       if (this.activeIdx >= 0) {
@@ -823,75 +994,6 @@ class AdvancedMultiplyApp {
       opt.textContent = `${tag} ${l.name}`;
       lb.appendChild(opt);
     });
-  }
-
-  _handleCanvasMouseDown(e) {
-    if (this.activeIdx < 0) return;
-    const rect = this.viewport.getBoundingClientRect();
-    const mx = (e.clientX - rect.left - this.panX) / this.zoomLevel;
-    const my = (e.clientY - rect.top - this.panY) / this.zoomLevel;
-    const layer = this.layers[this.activeIdx];
-    this.dragStartPos = [mx, my];
-    this.dragStartCorners = layer.corners.map(([x, y]) => [x, y]);
-
-    // 1. 四隅操作ハンドルの判定
-    for (let i = 0; i < 4; i++) {
-      if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= 8 / this.zoomLevel) {
-        this.dragMode = `corner_${i}`;
-        return;
-      }
-    }
-
-    // 2. 四隅以外でテクスチャ面の内側をクリックした場合：レイヤー全体移動モード
-    if (pointInPolygon([mx, my], layer.corners)) {
-      this.dragMode = 'move';
-      return;
-    }
-  }
-
-  _handleCornerDrag(e) {
-    const rect = this.viewport.getBoundingClientRect();
-    const mx = (e.clientX - rect.left - this.panX) / this.zoomLevel;
-    const my = (e.clientY - rect.top - this.panY) / this.zoomLevel;
-    const dx = mx - this.dragStartPos[0], dy = my - this.dragStartPos[1];
-    const layer = this.layers[this.activeIdx];
-
-    // 全体平行移動 (move モード)
-    if (this.dragMode === 'move') {
-      let newCorners = this.dragStartCorners.map(([x, y]) => [x + dx, y + dy]);
-      if (this.pixelSnap) {
-        newCorners = newCorners.map(([x, y]) => [Math.round(x), Math.round(y)]);
-      }
-      layer.corners = newCorners;
-      this.render();
-      return;
-    }
-
-    // 各頂点の個別変形 (corner_0 ~ corner_3)
-    const idx = parseInt(this.dragMode.split('_')[1]);
-
-    if (layer.transformMode === 'free') {
-      let nx = this.dragStartCorners[idx][0] + dx, ny = this.dragStartCorners[idx][1] + dy;
-      if (this.pixelSnap) { nx = Math.round(nx); ny = Math.round(ny); }
-      layer.corners[idx] = [nx, ny];
-    } else if (layer.transformMode === 'affine') {
-      let nx = this.dragStartCorners[idx][0] + dx, ny = this.dragStartCorners[idx][1] + dy;
-      if (this.pixelSnap) { nx = Math.round(nx); ny = Math.round(ny); }
-      const p = this.dragStartCorners.map(([x, y]) => [x, y]);
-      if (idx === 0) { p[0] = [nx, ny]; p[2] = [p[1][0] + p[3][0] - nx, p[1][1] + p[3][1] - ny]; }
-      else if (idx === 1) { p[1] = [nx, ny]; p[2] = [nx + p[3][0] - p[0][0], ny + p[3][1] - p[0][1]]; }
-      else if (idx === 3) { p[3] = [nx, ny]; p[2] = [p[1][0] + nx - p[0][0], p[1][1] + ny - p[0][1]]; }
-      else if (idx === 2) { p[2] = [nx, ny]; p[0] = [p[1][0] + p[3][0] - nx, p[1][1] + p[3][1] - ny]; }
-      layer.corners = this.pixelSnap ? p.map(([x, y]) => [Math.round(x), Math.round(y)]) : p;
-    } else {
-      let curX = this.dragStartCorners[idx][0] + dx, curY = this.dragStartCorners[idx][1] + dy;
-      const [oppX, oppY] = this.dragStartCorners[(idx + 2) % 4];
-      let xMin = Math.min(oppX, curX), xMax = Math.max(oppX, curX);
-      let yMin = Math.min(oppY, curY), yMax = Math.max(oppY, curY);
-      if (this.pixelSnap) { xMin = Math.round(xMin); xMax = Math.round(xMax); yMin = Math.round(yMin); yMax = Math.round(yMax); }
-      layer.corners = [[xMin, yMin], [xMax, yMin], [xMax, yMax], [xMin, yMax]];
-    }
-    this.render();
   }
 
   saveProject() {
