@@ -4,7 +4,7 @@ import { Layer } from './layer.js';
 import { HSVColorPicker } from './color-picker.js';
 import { StorageAPI } from './storage-api.js';
 
-// 多角形（4頂点）の内外判定アルゴリズム (Ray-casting)
+// 多角形（4頂点）の内外判定 (Ray-casting)
 function pointInPolygon(point, vs) {
   const [x, y] = point;
   let inside = false;
@@ -17,17 +17,42 @@ function pointInPolygon(point, vs) {
   return inside;
 }
 
+// HTMLImageElement を PNG形式のDataURL (可逆圧縮) に変換
+function imageToPngDataUrl(img) {
+  if (!img) return null;
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth || img.width;
+  c.height = img.naturalHeight || img.height;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  return c.toDataURL('image/png');
+}
+
+// DataURL から HTMLImageElement を非同期ロード
+function loadImageAsync(src) {
+  return new Promise((resolve, reject) => {
+    if (!src) return resolve(null);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 class AdvancedMultiplyApp {
   constructor() {
     this.storage = new StorageAPI();
     this.colorPicker = new HSVColorPicker();
 
     this.baseImage = null;
+    this.baseName = 'base.png';
     this.baseW = 0; this.baseH = 0;
     this.baseRgb = null; this.baseAlpha = null;
     this.isBgMask = null; this.editableMask = null;
 
-    this.maskImage = null; this.maskRgb = null;
+    this.maskImage = null;
+    this.maskName = 'mask.png';
+    this.maskRgb = null;
     this.maskColors = [];
     this.maskTintColors = new Map();
     this.enableMaskTint = true;
@@ -56,12 +81,6 @@ class AdvancedMultiplyApp {
     this.dragMode = null; this.isEyedropper = false;
     this.isDirty = false;
 
-    // タッチ・ピンチ操作ステート
-    this.touchStartDist = null;
-    this.touchStartZoom = 1.0;
-    this.touchStartPan = [0, 0];
-    this.touchStartCenter = [0, 0];
-
     this.canvas = document.getElementById('main-canvas');
     this.ctx = this.canvas.getContext('2d');
     this.viewport = document.getElementById('canvas-viewport');
@@ -74,7 +93,6 @@ class AdvancedMultiplyApp {
   async _loadDefaultSpecialColors() {
     const candidateFiles = ['SpecialColor.csv', 'special_colors.csv', 'SpecialColors.csv'];
     const infoLabel = document.getElementById('lbl-csv-info');
-    
     for (const filename of candidateFiles) {
       try {
         const response = await fetch(`./${filename}`);
@@ -83,9 +101,7 @@ class AdvancedMultiplyApp {
           const parsed = parseSpecialColorsCsv(text);
           if (parsed.size > 0) {
             this.specialColors = parsed;
-            if (infoLabel) {
-              infoLabel.textContent = `特殊色: ${this.specialColors.size}件登録済 (GitHubデフォルト)`;
-            }
+            if (infoLabel) infoLabel.textContent = `特殊色: ${this.specialColors.size}件登録済 (GitHubデフォルト)`;
             this.render();
             return;
           }
@@ -99,61 +115,83 @@ class AdvancedMultiplyApp {
 
   markDirty() { this.isDirty = true; }
 
+  // ベース画像の適用（ファイル読込およびプロジェクト復元で共用）
+  _applyBaseImage(img, name) {
+    this.baseImage = img;
+    this.baseName = name || 'base.png';
+    this.baseW = img.naturalWidth || img.width;
+    this.baseH = img.naturalHeight || img.height;
+
+    const off = document.createElement('canvas');
+    off.width = this.baseW; off.height = this.baseH;
+    const ctx = off.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+
+    const d = ctx.getImageData(0, 0, this.baseW, this.baseH).data;
+    const total = this.baseW * this.baseH;
+    this.baseRgb = new Uint8Array(total * 3);
+    this.baseAlpha = new Uint8Array(total);
+    this.isBgMask = new Uint8Array(total);
+    this.editableMask = new Uint8Array(total);
+
+    for (let i = 0; i < total; i++) {
+      const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
+      this.baseRgb[i * 3] = r; this.baseRgb[i * 3 + 1] = g; this.baseRgb[i * 3 + 2] = b;
+      this.baseAlpha[i] = a;
+      if ((r === 231 && g === 255 && b === 255) || a === 0) this.isBgMask[i] = 1;
+      if (r === g && g === b && this.isBgMask[i] === 0) this.editableMask[i] = 1;
+    }
+
+    document.getElementById('lbl-base-info').textContent = `ベース: ${this.baseName} (${this.baseW}x${this.baseH})`;
+  }
+
   async loadBaseFromFile(file) {
     const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      this.baseImage = img;
-      this.baseW = img.naturalWidth; this.baseH = img.naturalHeight;
-      const off = document.createElement('canvas'); off.width = this.baseW; off.height = this.baseH;
-      const ctx = off.getContext('2d'); ctx.drawImage(img, 0, 0);
-      const d = ctx.getImageData(0, 0, this.baseW, this.baseH).data;
-      const total = this.baseW * this.baseH;
-      this.baseRgb = new Uint8Array(total * 3);
-      this.baseAlpha = new Uint8Array(total);
-      this.isBgMask = new Uint8Array(total);
-      this.editableMask = new Uint8Array(total);
-      for (let i = 0; i < total; i++) {
-        const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
-        this.baseRgb[i * 3] = r; this.baseRgb[i * 3 + 1] = g; this.baseRgb[i * 3 + 2] = b;
-        this.baseAlpha[i] = a;
-        if ((r === 231 && g === 255 && b === 255) || a === 0) this.isBgMask[i] = 1;
-        if (r === g && g === b && this.isBgMask[i] === 0) this.editableMask[i] = 1;
-      }
-      document.getElementById('lbl-base-info').textContent = `ベース: ${file.name} (${this.baseW}x${this.baseH})`;
-      this.isDirty = false;
-      this.zoomFit();
-    };
-    img.src = url;
+    const img = await loadImageAsync(url);
+    this._applyBaseImage(img, file.name);
+    this.isDirty = false;
+    this.zoomFit();
+  }
+
+  // マスク画像の適用（ファイル読込およびプロジェクト復元で共用）
+  _applyMaskImage(img, name) {
+    this.maskImage = img;
+    this.maskName = name || 'mask.png';
+
+    const off = document.createElement('canvas');
+    off.width = this.baseW; off.height = this.baseH;
+    const ctx = off.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, this.baseW, this.baseH);
+
+    const d = ctx.getImageData(0, 0, this.baseW, this.baseH).data;
+    const total = this.baseW * this.baseH;
+    this.maskRgb = new Uint8Array(total * 3);
+    const colorCount = new Map();
+
+    for (let i = 0; i < total; i++) {
+      const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+      this.maskRgb[i * 3] = r; this.maskRgb[i * 3 + 1] = g; this.maskRgb[i * 3 + 2] = b;
+      const hex = rgbToHex(r, g, b);
+      colorCount.set(hex, (colorCount.get(hex) || 0) + 1);
+      if (!this.maskTintColors.has(hex)) this.maskTintColors.set(hex, hex);
+    }
+
+    this.maskColors = Array.from(colorCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([hex, count]) => ({ hex, count }));
+
+    this._updateMaskCombos();
+    this._updateTintTable();
+    document.getElementById('lbl-mask-info').textContent = `マスク: ${this.maskName}`;
   }
 
   async loadMaskFromFile(file) {
     const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      this.maskImage = img;
-      const off = document.createElement('canvas'); off.width = this.baseW; off.height = this.baseH;
-      const ctx = off.getContext('2d'); ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(img, 0, 0, this.baseW, this.baseH);
-      const d = ctx.getImageData(0, 0, this.baseW, this.baseH).data;
-      const total = this.baseW * this.baseH;
-      this.maskRgb = new Uint8Array(total * 3);
-      const colorCount = new Map();
-      for (let i = 0; i < total; i++) {
-        const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
-        this.maskRgb[i * 3] = r; this.maskRgb[i * 3 + 1] = g; this.maskRgb[i * 3 + 2] = b;
-        const hex = rgbToHex(r, g, b);
-        colorCount.set(hex, (colorCount.get(hex) || 0) + 1);
-        if (!this.maskTintColors.has(hex)) this.maskTintColors.set(hex, hex);
-      }
-      this.maskColors = Array.from(colorCount.entries()).sort((a, b) => b[1] - a[1]).map(([hex, count]) => ({ hex, count }));
-      this._updateMaskCombos();
-      this._updateTintTable();
-      document.getElementById('lbl-mask-info').textContent = `マスク: ${file.name}`;
-      this.markDirty();
-      this.render();
-    };
-    img.src = url;
+    const img = await loadImageAsync(url);
+    this._applyMaskImage(img, file.name);
+    this.markDirty();
+    this.render();
   }
 
   _updateMaskCombos() {
@@ -201,6 +239,7 @@ class AdvancedMultiplyApp {
     const outRgb = new Float32Array(total * 3);
     const outAlpha = new Float32Array(total);
 
+    // 1. トーン変更・Tint乗算・乗算レイヤー合成
     for (let i = 0; i < total; i++) {
       outAlpha[i] = this.baseAlpha[i] / 255.0;
       if (this.editableMask[i]) {
@@ -234,7 +273,7 @@ class AdvancedMultiplyApp {
       }
     }
 
-    // ハイライトNormalブレンド (超過明るさ(%) × ブレンド最大強さ(%))
+    // 2. ハイライトNormalブレンド (全乗算完了後に適用)
     for (let i = 0; i < total; i++) {
       if (!this.editableMask[i]) continue;
       const bg = this.baseRgb[i * 3] / 255.0;
@@ -257,7 +296,7 @@ class AdvancedMultiplyApp {
       }
     }
 
-    // ストラクチャー上乗せ合成
+    // 3. ストラクチャー (小物) 上乗せ合成
     this.layers.forEach(layer => {
       if (layer.visible && layer.layerType === 'structure') {
         const sData = layer.getWarpedStructure(this.baseW, this.baseH, this.maskRgb);
@@ -279,7 +318,7 @@ class AdvancedMultiplyApp {
       }
     });
 
-    // SpecialColor保護ぼかし
+    // 4. SpecialColor保護ぼかし
     if (this.enableBlur && this.blurRadius > 0.001) {
       const invalid = new Uint8Array(total);
       for (let i = 0; i < total; i++) {
@@ -413,7 +452,7 @@ class AdvancedMultiplyApp {
       const res = await this.storage.openGoogleDrivePicker(apiKey, clientId);
       if (res) {
         const file = new File([res.blob], res.name, { type: res.blob.type });
-        if (res.name.endsWith('.proj.json')) this.loadProject(file);
+        if (res.name.endsWith('.proj.json') || res.name.endsWith('.json')) this.loadProject(file);
         else if (res.name.includes('mask') || res.name.includes('paint')) this.loadMaskFromFile(file);
         else this.loadBaseFromFile(file);
       }
@@ -439,15 +478,12 @@ class AdvancedMultiplyApp {
     document.getElementById('chk-fill-all').onchange = (e) => {
       if (this.activeIdx >= 0) { this.layers[this.activeIdx].fillAll = e.target.checked; this.markDirty(); this.render(); }
     };
-
     document.getElementById('select-transform-mode').onchange = (e) => {
       if (this.activeIdx >= 0) {
         this.layers[this.activeIdx].transformMode = e.target.value;
-        this.markDirty();
-        this.render();
+        this.markDirty(); this.render();
       }
     };
-
     document.getElementById('slider-opacity').oninput = (e) => {
       if (this.activeIdx >= 0) {
         this.layers[this.activeIdx].opacity = parseFloat(e.target.value);
@@ -595,7 +631,7 @@ class AdvancedMultiplyApp {
       }
     };
 
-    // --- PC用マウス操作イベント ---
+    // マウス操作
     this.viewport.onwheel = (e) => {
       e.preventDefault();
       this.setZoom(this.zoomLevel * (e.deltaY < 0 ? 1.25 : 0.8), [e.clientX - this.viewport.offsetLeft, e.clientY - this.viewport.offsetTop]);
@@ -634,20 +670,20 @@ class AdvancedMultiplyApp {
       if (this.dragMode) { this.dragMode = null; this.markDirty(); this.render(); }
     };
 
-    // --- タブレット用タッチ操作イベント (1本指変形/移動/パン & 2本指ピンチズーム) ---
+    // タッチ操作
     this.viewport.addEventListener('touchstart', (e) => this._handleTouchStart(e), { passive: false });
     window.addEventListener('touchmove', (e) => this._handleTouchMove(e), { passive: false });
     window.addEventListener('touchend', (e) => this._handleTouchEnd(e), { passive: false });
     window.addEventListener('touchcancel', (e) => this._handleTouchEnd(e), { passive: false });
 
-    // ズームバー
+    // ズームボタン
     document.getElementById('btn-zoom-in').onclick = () => this.setZoom(this.zoomLevel * 1.25);
     document.getElementById('btn-zoom-out').onclick = () => this.setZoom(this.zoomLevel * 0.8);
     document.getElementById('btn-zoom-reset').onclick = () => this.setZoom(1.0);
     document.getElementById('btn-zoom-fit').onclick = () => this.zoomFit();
 
     // プロジェクト保存 / 再開
-    document.getElementById('btn-save-proj').onclick = () => this.saveProject();
+    document.getElementById('btn-save-proj').onclick = () => this.saveProject(false);
     document.getElementById('btn-save-proj-as').onclick = () => this.saveProject(true);
     document.getElementById('btn-load-proj').onclick = async () => {
       const f = await this.storage.pickLocalFile('.json');
@@ -656,33 +692,20 @@ class AdvancedMultiplyApp {
     document.getElementById('btn-save-png').onclick = () => this.exportPng();
   }
 
-  // --- タッチイベントハンドラー ---
   _handleTouchStart(e) {
     if (e.target !== this.canvas && !this.viewport.contains(e.target)) return;
     e.preventDefault();
-
     if (e.touches.length === 1) {
       const t = e.touches[0];
-      if (this.isEyedropper) {
-        this._pickColorFromCoords(t.clientX, t.clientY);
-        return;
-      }
-      // タッチ時は指の太さを考慮してヒット半径を16pxに拡張
+      if (this.isEyedropper) { this._pickColorFromCoords(t.clientX, t.clientY); return; }
       this._handleInteractionStart(t.clientX, t.clientY, 16);
     } else if (e.touches.length === 2) {
-      // 2本指操作：ピンチズーム＆パン
-      this.dragMode = null;
-      this.isPanning = false;
-
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
+      this.dragMode = null; this.isPanning = false;
+      const t1 = e.touches[0], t2 = e.touches[1];
       this.touchStartDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
       this.touchStartZoom = this.zoomLevel;
-
       const rect = this.viewport.getBoundingClientRect();
-      const cx = ((t1.clientX + t2.clientX) / 2) - rect.left;
-      const cy = ((t1.clientY + t2.clientY) / 2) - rect.top;
-      this.touchStartCenter = [cx, cy];
+      this.touchStartCenter = [((t1.clientX + t2.clientX) / 2) - rect.left, ((t1.clientY + t2.clientY) / 2) - rect.top];
       this.touchStartPan = [this.panX, this.panY];
     }
   }
@@ -693,31 +716,22 @@ class AdvancedMultiplyApp {
       if (this.isPanning) {
         this.panX = t.clientX - this.panStart[0];
         this.panY = t.clientY - this.panStart[1];
-        this.render();
-        return;
+        this.render(); return;
       }
-      if (this.dragMode && this.activeIdx >= 0) {
-        this._handleInteractionMove(t.clientX, t.clientY);
-      }
+      if (this.dragMode && this.activeIdx >= 0) this._handleInteractionMove(t.clientX, t.clientY);
     } else if (e.touches.length === 2 && this.touchStartDist) {
       e.preventDefault();
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
+      const t1 = e.touches[0], t2 = e.touches[1];
       const curDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      const scale = curDist / this.touchStartDist;
-      const newZoom = Math.max(0.1, Math.min(32.0, this.touchStartZoom * scale));
-
+      const newZoom = Math.max(0.1, Math.min(32.0, this.touchStartZoom * (curDist / this.touchStartDist)));
       const rect = this.viewport.getBoundingClientRect();
       const curCenterX = ((t1.clientX + t2.clientX) / 2) - rect.left;
       const curCenterY = ((t1.clientY + t2.clientY) / 2) - rect.top;
-
       const imgX = (this.touchStartCenter[0] - this.touchStartPan[0]) / this.touchStartZoom;
       const imgY = (this.touchStartCenter[1] - this.touchStartPan[1]) / this.touchStartZoom;
-
       this.zoomLevel = newZoom;
       this.panX = curCenterX - imgX * newZoom;
       this.panY = curCenterY - imgY * newZoom;
-
       document.getElementById('lbl-zoom').textContent = `${Math.round(this.zoomLevel * 100)}%`;
       this.render();
     }
@@ -726,20 +740,13 @@ class AdvancedMultiplyApp {
   _handleTouchEnd(e) {
     if (e.touches.length === 0) {
       if (this.isPanning) this.isPanning = false;
-      if (this.dragMode) {
-        this.dragMode = null;
-        this.markDirty();
-        this.render();
-      }
+      if (this.dragMode) { this.dragMode = null; this.markDirty(); this.render(); }
       this.touchStartDist = null;
     } else if (e.touches.length === 1) {
-      this.touchStartDist = null;
-      this.dragMode = null;
-      this.isPanning = false;
+      this.touchStartDist = null; this.dragMode = null; this.isPanning = false;
     }
   }
 
-  // マウス/タッチ共通：操作開始（四隅変形 / レイヤー移動 / キャンバススクロール）
   _handleInteractionStart(clientX, clientY, hitRadiusPx) {
     const rect = this.viewport.getBoundingClientRect();
     const mx = (clientX - rect.left - this.panX) / this.zoomLevel;
@@ -750,28 +757,21 @@ class AdvancedMultiplyApp {
       this.dragStartPos = [mx, my];
       this.dragStartCorners = layer.corners.map(([x, y]) => [x, y]);
 
-      // 1. 四隅操作ハンドルの判定
       for (let i = 0; i < 4; i++) {
         if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= hitRadiusPx / this.zoomLevel) {
-          this.dragMode = `corner_${i}`;
-          return;
+          this.dragMode = `corner_${i}`; return;
         }
       }
-
-      // 2. 四隅以外でテクスチャ面の内側をクリック/タップした場合：全体移動モード
       if (pointInPolygon([mx, my], layer.corners)) {
-        this.dragMode = 'move';
-        return;
+        this.dragMode = 'move'; return;
       }
     }
 
-    // 3. レイヤー外をドラッグ：キャンバスのパン（スクロール）
     this.isPanning = true;
     this.panStart = [clientX - this.panX, clientY - this.panY];
     this.viewport.style.cursor = 'grabbing';
   }
 
-  // マウス/タッチ共通：操作中移動
   _handleInteractionMove(clientX, clientY) {
     const rect = this.viewport.getBoundingClientRect();
     const mx = (clientX - rect.left - this.panX) / this.zoomLevel;
@@ -779,20 +779,14 @@ class AdvancedMultiplyApp {
     const dx = mx - this.dragStartPos[0], dy = my - this.dragStartPos[1];
     const layer = this.layers[this.activeIdx];
 
-    // 全体平行移動 (move モード)
     if (this.dragMode === 'move') {
       let newCorners = this.dragStartCorners.map(([x, y]) => [x + dx, y + dy]);
-      if (this.pixelSnap) {
-        newCorners = newCorners.map(([x, y]) => [Math.round(x), Math.round(y)]);
-      }
+      if (this.pixelSnap) newCorners = newCorners.map(([x, y]) => [Math.round(x), Math.round(y)]);
       layer.corners = newCorners;
-      this.render();
-      return;
+      this.render(); return;
     }
 
-    // 各頂点の個別変形 (corner_0 ~ corner_3)
     const idx = parseInt(this.dragMode.split('_')[1]);
-
     if (layer.transformMode === 'free') {
       let nx = this.dragStartCorners[idx][0] + dx, ny = this.dragStartCorners[idx][1] + dy;
       if (this.pixelSnap) { nx = Math.round(nx); ny = Math.round(ny); }
@@ -818,18 +812,9 @@ class AdvancedMultiplyApp {
   }
 
   _updateCursor(e) {
-    if (this.spacePressed) {
-      this.viewport.style.cursor = 'grab';
-      return;
-    }
-    if (this.isEyedropper) {
-      this.viewport.style.cursor = 'crosshair';
-      return;
-    }
-    if (this.activeIdx < 0 || !this.layers[this.activeIdx]) {
-      this.viewport.style.cursor = 'default';
-      return;
-    }
+    if (this.spacePressed) { this.viewport.style.cursor = 'grab'; return; }
+    if (this.isEyedropper) { this.viewport.style.cursor = 'crosshair'; return; }
+    if (this.activeIdx < 0 || !this.layers[this.activeIdx]) { this.viewport.style.cursor = 'default'; return; }
 
     const rect = this.viewport.getBoundingClientRect();
     const mx = (e.clientX - rect.left - this.panX) / this.zoomLevel;
@@ -838,16 +823,12 @@ class AdvancedMultiplyApp {
 
     for (let i = 0; i < 4; i++) {
       if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= 8 / this.zoomLevel) {
-        this.viewport.style.cursor = 'crosshair';
-        return;
+        this.viewport.style.cursor = 'crosshair'; return;
       }
     }
-
     if (pointInPolygon([mx, my], layer.corners)) {
-      this.viewport.style.cursor = 'move';
-      return;
+      this.viewport.style.cursor = 'move'; return;
     }
-
     this.viewport.style.cursor = 'default';
   }
 
@@ -911,19 +892,16 @@ class AdvancedMultiplyApp {
     const file = await this.storage.pickLocalFile('.png');
     if (!file) return;
     const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const l = new Layer({
-        name: file.name, imageElement: img,
-        canvasW: this.baseW, canvasH: this.baseH, layerType: layerType
-      });
-      this.layers.push(l);
-      this._refreshLayerList();
-      this._selectLayer(this.layers.length - 1);
-      document.getElementById('accordion-layer').open = true;
-      this.markDirty(); this.render();
-    };
-    img.src = url;
+    const img = await loadImageAsync(url);
+    const l = new Layer({
+      name: file.name, imageElement: img,
+      canvasW: this.baseW, canvasH: this.baseH, layerType: layerType
+    });
+    this.layers.push(l);
+    this._refreshLayerList();
+    this._selectLayer(this.layers.length - 1);
+    document.getElementById('accordion-layer').open = true;
+    this.markDirty(); this.render();
   }
 
   _copyLayer() {
@@ -955,9 +933,7 @@ class AdvancedMultiplyApp {
     this.activeIdx = idx;
     document.getElementById('layer-listbox').selectedIndex = idx;
     this._syncActiveLayerUI();
-    if (idx >= 0) {
-      document.getElementById('accordion-layer').open = true;
-    }
+    if (idx >= 0) document.getElementById('accordion-layer').open = true;
     this.render();
   }
 
@@ -996,13 +972,21 @@ class AdvancedMultiplyApp {
     });
   }
 
-  saveProject() {
+  // ★画像データをPNG形式(可逆圧縮)で完全内包したプロジェクト保存★
+  saveProject(saveAs = false) {
     if (!this.baseImage) return alert('保存するデータがありません。');
+
     const tintObj = {}, overridesObj = {};
     this.maskTintColors.forEach((v, k) => { tintObj[k] = v; });
     this.maskToneOverrides.forEach((v, k) => { overridesObj[k] = v; });
+
     const data = {
-      version: '13.0',
+      version: '14.0',
+      base_name: this.baseName,
+      mask_name: this.maskName,
+      // ベース・マスク画像をPNG DataURLとして可逆圧縮保持
+      base_image_data: imageToPngDataUrl(this.baseImage),
+      mask_image_data: imageToPngDataUrl(this.maskImage),
       global_tone_config: this.globalTone,
       enable_mask_tint: this.enableMaskTint,
       mask_tint_colors: tintObj,
@@ -1010,21 +994,28 @@ class AdvancedMultiplyApp {
       enable_blur: this.enableBlur,
       blur_radius: this.blurRadius,
       pixel_snap: this.pixelSnap,
+      // 親レイヤーのみPNG圧縮DataURLを含め、子レイヤーはnullとして保存
       layers: this.layers.map(l => l.toDict(this.layers)),
       active_idx: this.activeIdx
     };
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = 'project.proj.json'; a.click();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (this.baseName ? this.baseName.replace(/\.[^/.]+$/, '') : 'project') + '.proj.json';
+    a.click();
     this.isDirty = false;
-    document.getElementById('status-bar').textContent = 'プロジェクトを保存しました。';
+    document.getElementById('status-bar').textContent = 'プロジェクト(画像内包版)を保存しました。';
   }
 
-  loadProject(file) {
+  // ★プロジェクトファイルを読み込むだけで画像も含めて一発完全復元★
+  async loadProject(file) {
     const r = new FileReader();
-    r.onload = () => {
+    r.onload = async () => {
       try {
         const data = JSON.parse(r.result);
+
+        // 1. 各種トーン・設定パラメータの復元
         if (data.global_tone_config) this.globalTone = data.global_tone_config;
         if (data.mask_tint_colors) {
           this.maskTintColors.clear();
@@ -1042,10 +1033,71 @@ class AdvancedMultiplyApp {
         document.getElementById('lbl-blur-radius').textContent = `${this.blurRadius.toFixed(2)}px`;
         document.getElementById('chk-pixel-snap').checked = this.pixelSnap;
         this._onToneTargetChanged('__ALL__');
+
+        // 2. ベース画像・マスク画像の復元展開
+        if (data.base_image_data) {
+          const baseImg = await loadImageAsync(data.base_image_data);
+          if (baseImg) this._applyBaseImage(baseImg, data.base_name || 'base.png');
+        }
+        if (data.mask_image_data) {
+          const maskImg = await loadImageAsync(data.mask_image_data);
+          if (maskImg) this._applyMaskImage(maskImg, data.mask_name || 'mask.png');
+        }
+
+        // 3. 各レイヤー画像データの非同期デコード
+        const layerDefs = data.layers || [];
+        const layerImages = await Promise.all(layerDefs.map(ld => {
+          if (ld.image_data) return loadImageAsync(ld.image_data);
+          return Promise.resolve(null);
+        }));
+
+        // 4. レイヤーインスタンス生成 (第1パス)
+        this.layers = [];
+        for (let i = 0; i < layerDefs.length; i++) {
+          const ld = layerDefs[i];
+          const img = layerImages[i];
+          const layer = new Layer({
+            name: ld.name,
+            imageElement: img,
+            canvasW: this.baseW,
+            canvasH: this.baseH,
+            corners: ld.corners,
+            opacity: ld.opacity,
+            visible: ld.visible,
+            transformMode: ld.transform_mode,
+            tileX: ld.tile_x,
+            tileY: ld.tile_y,
+            targetMaskColor: ld.target_mask_color,
+            layerType: ld.layer_type,
+            fillAll: ld.fill_all,
+            transparentE7ffff: ld.transparent_e7ffff
+          });
+          this.layers.push(layer);
+        }
+
+        // 5. 相対参照 (第2パス: sourceLayerの復元)
+        for (let i = 0; i < layerDefs.length; i++) {
+          const sIdx = layerDefs[i].source_idx;
+          if (sIdx !== null && sIdx !== undefined && sIdx >= 0 && sIdx < this.layers.length) {
+            this.layers[i].sourceLayer = this.layers[sIdx];
+          }
+        }
+
+        this._refreshLayerList();
+        const act = data.active_idx !== undefined ? data.active_idx : 0;
+        if (this.layers.length > 0) {
+          this._selectLayer(Math.min(act, this.layers.length - 1));
+        } else {
+          this._selectLayer(-1);
+        }
+
         this.isDirty = false;
+        this.zoomFit();
         this.render();
-        alert('プロジェクト設定を復元しました。(ベース画像とレイヤー画像は再度読み込んでください)');
-      } catch (e) { alert('プロジェクトの読み込みに失敗しました: ' + e); }
+        document.getElementById('status-bar').textContent = `プロジェクトを完全復元しました: ${file.name}`;
+      } catch (e) {
+        alert('プロジェクトの読み込みに失敗しました: ' + e);
+      }
     };
     r.readAsText(file);
   }
