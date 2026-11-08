@@ -5,11 +5,14 @@ import { StorageAPI } from './storage-api.js';
 import { RenderEngine } from './render-engine.js';
 import { CanvasController } from './canvas-controller.js';
 import { ProjectIO, loadImageAsync } from './project-io.js';
+import { PaletteManager } from './palette-manager.js';
+import { PaintEditor } from './paint-editor.js';
 
 class AdvancedMultiplyApp {
   constructor() {
     this.storage = new StorageAPI();
     this.colorPicker = new HSVColorPicker();
+    this.paletteManager = new PaletteManager(this);
 
     this.baseImage = null;
     this.baseName = 'base.png';
@@ -52,8 +55,9 @@ class AdvancedMultiplyApp {
     this.ctx = this.canvas.getContext('2d');
     this.viewport = document.getElementById('canvas-viewport');
 
-    // コントローラー初期化
     this.canvasCtrl = new CanvasController(this);
+    this.paintEditor = new PaintEditor(this);
+
     this._bindEvents();
     this._loadDefaultSpecialColors();
     this.render();
@@ -252,7 +256,6 @@ class AdvancedMultiplyApp {
     this.render();
   }
 
-  // レイヤーリスト描画（タブレット対応ボタン化）
   refreshLayerList() {
     const lb = document.getElementById('layer-listbox');
     if (!lb) return;
@@ -338,6 +341,7 @@ class AdvancedMultiplyApp {
   }
 
   _bindEvents() {
+    // ファイル読込・プロジェクト
     document.getElementById('btn-load-base').onclick = async () => {
       const f = await this.storage.pickLocalFile('.png');
       if (f) this.loadBaseFromFile(f);
@@ -346,6 +350,11 @@ class AdvancedMultiplyApp {
       const f = await this.storage.pickLocalFile('.png');
       if (f) this.loadMaskFromFile(f);
     };
+
+    // ★ ペイントエディタ起動ボタン ★
+    document.getElementById('btn-paint-base').onclick = () => this.paintEditor.open('base');
+    document.getElementById('btn-paint-mask').onclick = () => this.paintEditor.open('mask');
+
     document.getElementById('btn-load-folder').onclick = async () => {
       const files = await this.storage.pickLocalDirectory();
       if (files.length > 0) {
@@ -367,6 +376,7 @@ class AdvancedMultiplyApp {
       }
     };
 
+    // レイヤー操作
     document.getElementById('btn-add-multiply').onclick = () => this._addLayer('multiply');
     document.getElementById('btn-add-structure').onclick = () => this._addLayer('structure');
     document.getElementById('btn-copy-layer').onclick = () => this._copyLayer();
@@ -416,6 +426,7 @@ class AdvancedMultiplyApp {
       };
     });
 
+    // ぼかし
     document.getElementById('chk-enable-blur').onchange = (e) => { this.enableBlur = e.target.checked; this.markDirty(); this.render(); };
     document.getElementById('slider-blur').oninput = (e) => {
       this.blurRadius = parseFloat(e.target.value);
@@ -439,6 +450,7 @@ class AdvancedMultiplyApp {
       }
     };
 
+    // マスクカラー選択
     document.getElementById('btn-eyedropper').onclick = () => this.toggleEyedropper();
     document.getElementById('mask-color-combo').onchange = (e) => {
       if (this.activeIdx < 0) return;
@@ -451,6 +463,7 @@ class AdvancedMultiplyApp {
       this._syncActiveLayerUI(); this.markDirty(); this.render();
     };
 
+    // トーン
     document.getElementById('combo-tone-target').onchange = (e) => this.onToneTargetChanged(e.target.value);
     document.getElementById('chk-tone-override').onchange = (e) => {
       const sel = document.getElementById('combo-tone-target').value;

@@ -20,6 +20,11 @@
             <button id="btn-load-base">ベースPNGを開く</button>
             <button id="btn-load-mask">マスク画像を開く</button>
           </div>
+          <!-- ★ ペイントエディタ起動ボタン ★ -->
+          <div class="btn-group mt-05">
+            <button id="btn-paint-base" class="btn-primary">✏️ ベース画像を編集</button>
+            <button id="btn-paint-mask" class="btn-primary">🎭 マスク画像を編集</button>
+          </div>
           <div class="btn-group mt-05">
             <button id="btn-load-folder">📁 ローカルフォルダ</button>
             <button id="btn-google-drive">☁️ Google Drive</button>
@@ -35,7 +40,7 @@
       </details>
 
       <!-- セクション2: レイヤー・変形操作 -->
-      <details class="accordion-panel" id="accordion-layer" open>
+      <details class="accordion-panel" id="accordion-layer">
         <summary>レイヤー・変形操作</summary>
         <div class="panel-body">
           <div class="btn-group">
@@ -46,8 +51,6 @@
             <button id="btn-copy-layer">📋 コピー(相対参照)</button>
             <button id="btn-del-layer">－ 削除</button>
           </div>
-          <!-- 変更前: <select id="layer-listbox" size="5"></select> -->
-          <!-- 変更後: -->
           <div id="layer-listbox"></div>
           <div class="btn-group">
             <button id="btn-layer-up">▲ 上へ</button>
@@ -94,7 +97,6 @@
             </div>
           </fieldset>
 
-          <!-- ★変形モード・スナップ・不透明度を正しく内包★ -->
           <fieldset class="sub-panel">
             <legend>変形モード＆ピクセルスナップ</legend>
             <div class="row">
@@ -120,7 +122,6 @@
           <label class="mt-05"><input type="checkbox" id="chk-layer-visible" checked> レイヤーを表示</label>
         </div>
       </details>
-      <!-- ここで「レイヤー・変形操作」が完全に閉じます -->
 
       <!-- セクション3: トーン＆ハイライトブレンド -->
       <details class="accordion-panel">
@@ -222,7 +223,7 @@
             <div class="row">
               <input type="file" id="file-csv" accept=".csv">
             </div>
-            <div class="info-text mt-05" id="lbl-csv-info">特殊色: 読込中...</div>
+            <div class="info-text mt-05" id="lbl-csv-info">特殊色: 0件登録済</div>
           </fieldset>
           <fieldset class="sub-panel mt-05">
             <legend>Google Drive 認証設定</legend>
@@ -235,7 +236,6 @@
         </div>
       </details>
 
-      <!-- 最下部固定: PNG保存 -->
       <div class="sidebar-footer">
         <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存 (#C0C0C000透過・特殊色回避)</button>
       </div>
@@ -257,6 +257,102 @@
       <footer id="status-bar">準備完了 | スポイト: OFF</footer>
     </main>
   </div>
+
+  <!-- ★ ペイントエディタ 全画面モーダル ★ -->
+  <dialog id="modal-paint-editor">
+    <div id="paint-editor-container">
+      <!-- 上部ツールバー -->
+      <header id="paint-toolbar">
+        <div class="paint-tool-group">
+          <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ">✏️ ドット</button>
+          <button class="paint-tool-btn" data-tool="line" title="ピクセルパーフェクト直線">📏 直線</button>
+          <button class="paint-tool-btn" data-tool="bucket" title="塗りつぶし">🪣 塗潰</button>
+          <button class="paint-tool-btn" data-tool="rectSelect" title="矩形選択">🔲 矩形選択</button>
+          <button class="paint-tool-btn" data-tool="polySelect" title="多角形選択">📐 多角形選択</button>
+          <button class="paint-tool-btn" data-tool="wand" title="自動選択 (Magic Wand)">🪄 自動選択</button>
+          <button class="paint-tool-btn" data-tool="colorSelect" title="同色選択">🎯 同色選択</button>
+          <button class="paint-tool-btn" data-tool="text" title="テキスト挿入">🔤 文字</button>
+        </div>
+        <div class="paint-tool-group">
+          <button id="btn-paint-undo" title="元に戻す">↩ Undo</button>
+          <button id="btn-paint-redo" title="やり直し">↪ Redo</button>
+          <button id="btn-paint-clear-sel" title="選択解除">✕ 選択解除</button>
+          <button id="btn-paint-keybindings" title="キーバインド設定">⌨️ キー設定</button>
+        </div>
+        <div class="paint-tool-group ml-auto">
+          <span id="paint-lbl-zoom" class="val-badge">100%</span>
+          <button id="btn-paint-apply" class="btn-primary">✓ 完了(反映)</button>
+          <button id="btn-paint-cancel">キャンセル</button>
+        </div>
+      </header>
+
+      <!-- メインエリア: パレット + ペイントキャンバス -->
+      <div id="paint-main-body">
+        <aside id="paint-sidebar">
+          <div class="sub-panel">
+            <legend>描画色</legend>
+            <div class="color-preview-row">
+              <span id="paint-current-color-swatch" class="color-swatch"></span>
+              <strong id="paint-current-color-hex">#FFFFFF</strong>
+            </div>
+          </div>
+
+          <!-- ベース画像用パレット生成ツール -->
+          <fieldset class="sub-panel" id="base-palette-tools">
+            <legend>グレースケール生成設定</legend>
+            <div class="row">
+              <span>明色:</span>
+              <input type="text" id="inp-gray-max" value="#FEFEFE" style="width:70px;">
+            </div>
+            <div class="row mt-05">
+              <span>暗色:</span>
+              <input type="text" id="inp-gray-min" value="#404040" style="width:70px;">
+            </div>
+            <div class="row mt-05">
+              <span>段階:</span>
+              <input type="number" id="inp-gray-steps" value="16" min="2" max="64" style="width:50px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px;">
+            </div>
+            <button id="btn-gen-base-palette" class="w-100 mt-05">パレット再生成 (SpecialColor回避)</button>
+          </fieldset>
+
+          <!-- マスク画像用画像スポイトツール -->
+          <fieldset class="sub-panel" id="mask-palette-tools" style="display:none;">
+            <legend>マスクパレット抽出</legend>
+            <button id="btn-pick-mask-image" class="w-100">🖼️ Web/画像からカラーピック</button>
+          </fieldset>
+
+          <fieldset class="sub-panel" style="flex:1; overflow-y:auto;">
+            <legend>カラーパレット一覧</legend>
+            <div id="paint-palette-slots"></div>
+          </fieldset>
+        </aside>
+
+        <div id="paint-viewport">
+          <div id="paint-canvas-wrapper">
+            <canvas id="paint-canvas"></canvas>
+            <canvas id="paint-overlay-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <footer id="paint-footer">
+        <span id="paint-lbl-tool">ツール: ドット</span>
+        <span id="paint-lbl-coord" style="margin-left:auto;">X: 0, Y: 0</span>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- キーバインド設定ダイアログ -->
+  <dialog id="modal-keybindings">
+    <div class="picker-content" style="width:360px;">
+      <h3 style="font-size:13px; margin-bottom:8px;">ペイントツール キーバインド設定</h3>
+      <table id="table-keybindings" style="width:100%; font-size:11px; margin-bottom:12px;">
+        <thead><tr><th>ツール名</th><th>キー</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <button id="btn-close-keybindings" class="btn-primary w-100">閉じる</button>
+    </div>
+  </dialog>
 
   <!-- HSV カラーピッカーモーダル -->
   <dialog id="modal-color-picker">

@@ -1,0 +1,695 @@
+import { hexToRgb, rgbToHex } from './color-utils.js';
+
+export class PaintEditor {
+  constructor(app) {
+    this.app = app;
+    this.targetType = 'base'; // 'base' または 'mask'
+    this.width = 0;
+    this.height = 0;
+
+    // キャンバス・コンテキスト
+    this.modal = document.getElementById('modal-paint-editor');
+    this.canvas = document.getElementById('paint-canvas');
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+    this.overlayCanvas = document.getElementById('paint-overlay-canvas');
+    this.oCtx = this.overlayCanvas.getContext('2d');
+    this.viewport = document.getElementById('paint-viewport');
+
+    // 描画状態
+    this.currentColor = '#FFFFFF';
+    this.currentTool = 'pencil'; // pencil, line, bucket, rectSelect, polySelect, wand, colorSelect, text
+    this.brushSize = 1;
+    this.zoomLevel = 8.0;
+    this.panX = 40;
+    this.panY = 40;
+    this.isPanning = false;
+    this.isDrawing = false;
+    this.lastDrawPos = null;
+
+    // 直線プレビュー用
+    this.lineStart = null;
+
+    // 多角形選択用頂点
+    this.polyPoints = [];
+
+    // 選択範囲マスク (Uint8Array: 1=選択中, 0=非選択)
+    this.selectionMask = null;
+
+    // Undo / Redo スタック
+    this.undoStack = [];
+    this.redoStack = [];
+    this.maxUndo = 25;
+
+    // キーバインド設定 (初期設定)
+    this.keybindings = {
+      pencil: 'KeyB',
+      line: 'KeyL',
+      bucket: 'KeyG',
+      rectSelect: 'KeyM',
+      polySelect: 'KeyP',
+      wand: 'KeyW',
+      colorSelect: 'KeyC',
+      text: 'KeyT'
+    };
+
+    this._loadKeybindings();
+    this._bindEvents();
+  }
+
+  _loadKeybindings() {
+    const saved = localStorage.getItem('paint_keybindings');
+    if (saved) {
+      try { Object.assign(this.keybindings, JSON.parse(saved)); } catch (e) {}
+    }
+  }
+
+  saveKeybindings() {
+    localStorage.setItem('paint_keybindings', JSON.stringify(this.keybindings));
+  }
+
+  // エディタを開く
+  open(targetType = 'base') {
+    this.targetType = targetType;
+    const srcImg = targetType === 'base' ? this.app.baseImage : this.app.maskImage;
+    if (!srcImg) {
+      alert(`${targetType === 'base' ? 'ベース' : 'マスク'}画像が読み込まれていません。`);
+      return;
+    }
+
+    this.width = srcImg.naturalWidth || srcImg.width;
+    this.height = srcImg.naturalHeight || srcImg.height;
+
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+    this.overlayCanvas.width = this.width;
+    this.overlayCanvas.height = this.height;
+
+    // 初期画像転写
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.drawImage(srcImg, 0, 0);
+
+    this.selectionMask = null;
+    this.polyPoints = [];
+    this.undoStack = [];
+    this.redoStack = [];
+    this._pushHistory();
+
+    // パレット初期化
+    this._renderPaletteUI();
+
+    // ビューポートフィット
+    const vw = this.viewport.clientWidth - 80;
+    const vh = this.viewport.clientHeight - 80;
+    this.zoomLevel = Math.max(2, Math.min(32, Math.floor(Math.min(vw / this.width, vh / this.height))));
+    this.panX = Math.round((this.viewport.clientWidth - this.width * this.zoomLevel) / 2);
+    this.panY = Math.round((this.viewport.clientHeight - this.height * this.zoomLevel) / 2);
+
+    this._updateTransform();
+    this.modal.showModal();
+    this._updateStatus();
+  }
+
+  // 編集完了反映
+  applyAndClose() {
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = this.width;
+    outCanvas.height = this.height;
+    const octx = outCanvas.getContext('2d');
+    octx.drawImage(this.canvas, 0, 0);
+
+    const img = new Image();
+    img.onload = () => {
+      if (this.targetType === 'base') {
+        this.app.applyBaseImage(img, this.app.baseName);
+      } else {
+        this.app.applyMaskImage(img, this.app.maskName);
+      }
+      this.app.markDirty();
+      this.app.render();
+      this.modal.close();
+    };
+    img.src = outCanvas.toDataURL('image/png');
+  }
+
+  // Undo / Redo
+  _pushHistory() {
+    const data = this.ctx.getImageData(0, 0, this.width, this.height);
+    this.undoStack.push(data);
+    if (this.undoStack.length > this.maxUndo) this.undoStack.shift();
+    this.redoStack = [];
+  }
+
+  undo() {
+    if (this.undoStack.length <= 1) return;
+    const cur = this.undoStack.pop();
+    this.redoStack.push(cur);
+    const prev = this.undoStack[this.undoStack.length - 1];
+    this.ctx.putImageData(prev, 0, 0);
+    this._drawOverlay();
+  }
+
+  redo() {
+    if (this.redoStack.length === 0) return;
+    const next = this.redoStack.pop();
+    this.undoStack.push(next);
+    this.ctx.putImageData(next, 0, 0);
+    this._drawOverlay();
+  }
+
+  // パレットUI構築
+  _renderPaletteUI() {
+    const container = document.getElementById('paint-palette-slots');
+    container.innerHTML = '';
+
+    const pm = this.app.paletteManager;
+    let colors = [];
+
+    if (this.targetType === 'base') {
+      document.getElementById('base-palette-tools').style.display = 'block';
+      document.getElementById('mask-palette-tools').style.display = 'none';
+
+      if (pm.basePalette.length === 0) pm.generateBasePalette();
+      colors = [...pm.basePalette];
+
+      // SpecialColor一覧もパレットへ追加
+      if (this.app.specialColors && this.app.specialColors.size > 0) {
+        colors.push(...Array.from(this.app.specialColors));
+      }
+    } else {
+      document.getElementById('base-palette-tools').style.display = 'none';
+      document.getElementById('mask-palette-tools').style.display = 'block';
+      colors = [...pm.maskPalette];
+    }
+
+    colors.forEach(hex => {
+      const btn = document.createElement('button');
+      btn.className = 'palette-color-btn';
+      btn.style.backgroundColor = hex;
+      btn.title = hex;
+      btn.onclick = () => {
+        this.currentColor = hex;
+        this._updateCurrentColorUI();
+      };
+      container.appendChild(btn);
+    });
+
+    this.currentColor = colors[0] || '#FFFFFF';
+    this._updateCurrentColorUI();
+  }
+
+  _updateCurrentColorUI() {
+    document.getElementById('paint-current-color-swatch').style.backgroundColor = this.currentColor;
+    document.getElementById('paint-current-color-hex').textContent = this.currentColor;
+  }
+
+  _updateTransform() {
+    const s = this.zoomLevel;
+    const tStr = `translate(${this.panX}px, ${this.panY}px) scale(${s})`;
+    this.canvas.style.transformOrigin = '0 0';
+    this.canvas.style.transform = tStr;
+    this.overlayCanvas.style.transformOrigin = '0 0';
+    this.overlayCanvas.style.transform = tStr;
+    document.getElementById('paint-lbl-zoom').textContent = `${Math.round(s * 100)}%`;
+  }
+
+  _bindEvents() {
+    // ツールバーボタン
+    document.querySelectorAll('.paint-tool-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.paint-tool-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.currentTool = btn.dataset.tool;
+        this.lineStart = null;
+        this.polyPoints = [];
+        this._drawOverlay();
+        this._updateStatus();
+      };
+    });
+
+    // 完了・キャンセル
+    document.getElementById('btn-paint-apply').onclick = () => this.applyAndClose();
+    document.getElementById('btn-paint-cancel').onclick = () => this.modal.close();
+
+    // Undo / Redo
+    document.getElementById('btn-paint-undo').onclick = () => this.undo();
+    document.getElementById('btn-paint-redo').onclick = () => this.redo();
+    document.getElementById('btn-paint-clear-sel').onclick = () => {
+      this.selectionMask = null;
+      this.polyPoints = [];
+      this._drawOverlay();
+    };
+
+    // グレースケール自動生成ボタン
+    document.getElementById('btn-gen-base-palette').onclick = () => {
+      const pm = this.app.paletteManager;
+      pm.basePaletteConfig.brightestHex = document.getElementById('inp-gray-max').value.trim() || '#FEFEFE';
+      pm.basePaletteConfig.darkestHex = document.getElementById('inp-gray-min').value.trim() || '#404040';
+      pm.basePaletteConfig.steps = parseInt(document.getElementById('inp-gray-steps').value) || 16;
+      pm.generateBasePalette();
+      this._renderPaletteUI();
+    };
+
+    // マスク画像: Web/ファイルからカラーピック
+    document.getElementById('btn-pick-mask-image').onclick = () => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'image/*';
+      inp.onchange = async () => {
+        if (inp.files[0]) {
+          await this.app.paletteManager.extractColorsFromImage(inp.files[0]);
+          this._renderPaletteUI();
+        }
+      };
+      inp.click();
+    };
+
+    // キーバインド設定モーダル
+    document.getElementById('btn-paint-keybindings').onclick = () => this._openKeybindingDialog();
+
+    // キャンバス操作
+    this.viewport.onwheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 1.25 : 0.8;
+      const newZoom = Math.max(1, Math.min(64, this.zoomLevel * delta));
+      const rect = this.viewport.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const ix = (cx - this.panX) / this.zoomLevel;
+      const iy = (cy - this.panY) / this.zoomLevel;
+      this.zoomLevel = newZoom;
+      this.panX = Math.round(cx - ix * newZoom);
+      this.panY = Math.round(cy - iy * newZoom);
+      this._updateTransform();
+    };
+
+    // マウス/タッチ共通イベント
+    const getCoords = (e) => {
+      const rect = this.viewport.getBoundingClientRect();
+      const cx = (e.clientX !== undefined ? e.clientX : e.touches[0].clientX) - rect.left;
+      const cy = (e.clientY !== undefined ? e.clientY : e.touches[0].clientY) - rect.top;
+      const px = Math.floor((cx - this.panX) / this.zoomLevel);
+      const py = Math.floor((cy - this.panY) / this.zoomLevel);
+      return { cx, cy, px, py };
+    };
+
+    this.viewport.onmousedown = (e) => {
+      if (e.button === 1 || e.button === 2 || e.spaceKey) {
+        this.isPanning = true;
+        this.panStart = [e.clientX - this.panX, e.clientY - this.panY];
+        return;
+      }
+      const { px, py } = getCoords(e);
+      this._handleToolStart(px, py);
+    };
+
+    window.addEventListener('mousemove', (e) => {
+      if (this.isPanning) {
+        this.panX = e.clientX - this.panStart[0];
+        this.panY = e.clientY - this.panStart[1];
+        this._updateTransform();
+        return;
+      }
+      if (!this.modal.open) return;
+      const { px, py } = getCoords(e);
+      document.getElementById('paint-lbl-coord').textContent = `X: ${px}, Y: ${py}`;
+      if (this.isDrawing) {
+        this._handleToolMove(px, py);
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (this.isPanning) this.isPanning = false;
+      if (this.isDrawing) {
+        const { px, py } = getCoords(e);
+        this._handleToolEnd(px, py);
+      }
+    });
+
+    // キーボードショートカット
+    window.addEventListener('keydown', (e) => {
+      if (!this.modal.open) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+        e.preventDefault();
+        if (e.shiftKey) this.redo(); else this.undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
+        e.preventDefault();
+        this.redo();
+        return;
+      }
+      if (e.code === 'Escape' || ((e.ctrlKey || e.metaKey) && e.code === 'KeyD')) {
+        this.selectionMask = null;
+        this.polyPoints = [];
+        this._drawOverlay();
+        return;
+      }
+
+      // カスタムキーバインド判定
+      for (const [tool, code] of Object.entries(this.keybindings)) {
+        if (e.code === code) {
+          const btn = document.querySelector(`.paint-tool-btn[data-tool="${tool}"]`);
+          if (btn) btn.click();
+          break;
+        }
+      }
+    });
+  }
+
+  // --- ツール実行ロジック ---
+  _handleToolStart(x, y) {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
+    this.isDrawing = true;
+    this.lastDrawPos = [x, y];
+
+    if (this.currentTool === 'pencil') {
+      this._pushHistory();
+      this._drawPixel(x, y);
+    } else if (this.currentTool === 'line') {
+      this.lineStart = [x, y];
+    } else if (this.currentTool === 'bucket') {
+      this._pushHistory();
+      this._floodFill(x, y, this.currentColor);
+      this.isDrawing = false;
+    } else if (this.currentTool === 'rectSelect') {
+      this.selStart = [x, y];
+    } else if (this.currentTool === 'polySelect') {
+      this.polyPoints.push([x, y]);
+      if (this.polyPoints.length >= 3 && Math.hypot(x - this.polyPoints[0][0], y - this.polyPoints[0][1]) <= 1) {
+        this._finalizePolySelect();
+      }
+      this._drawOverlay();
+      this.isDrawing = false;
+    } else if (this.currentTool === 'wand') {
+      this._magicWand(x, y);
+      this.isDrawing = false;
+    } else if (this.currentTool === 'colorSelect') {
+      this._colorSelect(x, y);
+      this.isDrawing = false;
+    } else if (this.currentTool === 'text') {
+      this._insertText(x, y);
+      this.isDrawing = false;
+    }
+  }
+
+  _handleToolMove(x, y) {
+    if (this.currentTool === 'pencil') {
+      // 連続補間線描画
+      const [lx, ly] = this.lastDrawPos;
+      this._drawPixelPerfectLine(lx, ly, x, y, (px, py) => this._drawPixel(px, py));
+      this.lastDrawPos = [x, y];
+    } else if (this.currentTool === 'line' || this.currentTool === 'rectSelect') {
+      this._drawOverlay([x, y]);
+    }
+  }
+
+  _handleToolEnd(x, y) {
+    this.isDrawing = false;
+    if (this.currentTool === 'line' && this.lineStart) {
+      this._pushHistory();
+      this._drawPixelPerfectLine(this.lineStart[0], this.lineStart[1], x, y, (px, py) => this._drawPixel(px, py));
+      this.lineStart = null;
+      this._drawOverlay();
+    } else if (this.currentTool === 'rectSelect' && this.selStart) {
+      const x0 = Math.max(0, Math.min(this.selStart[0], x));
+      const x1 = Math.min(this.width - 1, Math.max(this.selStart[0], x));
+      const y0 = Math.max(0, Math.min(this.selStart[1], y));
+      const y1 = Math.min(this.height - 1, Math.max(this.selStart[1], y));
+
+      this.selectionMask = new Uint8Array(this.width * this.height);
+      for (let sy = y0; sy <= y1; sy++) {
+        for (let sx = x0; sx <= x1; sx++) {
+          this.selectionMask[sy * this.width + sx] = 1;
+        }
+      }
+      this.selStart = null;
+      this._drawOverlay();
+    }
+  }
+
+  // 1ピクセル描画（選択範囲制限付き）
+  _drawPixel(x, y) {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
+    if (this.selectionMask && !this.selectionMask[y * this.width + x]) return;
+
+    this.ctx.fillStyle = this.currentColor;
+    this.ctx.fillRect(x, y, 1, 1);
+  }
+
+  // ピクセルパーフェクト直線アルゴリズム (Bresenham + 冗長角除去)
+  _drawPixelPerfectLine(x0, y0, x1, y1, setPixel) {
+    const points = [];
+    let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    let curX = x0, curY = y0;
+
+    while (true) {
+      points.push([curX, curY]);
+      if (curX === x1 && curY === y1) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; curX += sx; }
+      if (e2 <= dx) { err += dx; curY += sy; }
+    }
+
+    // 冗長角（L字状の不要ピクセル）を間引いてピクセルパーフェクト化
+    for (let i = 0; i < points.length; i++) {
+      if (i > 0 && i < points.length - 1) {
+        const [px, py] = points[i - 1];
+        const [cx, cy] = points[i];
+        const [nx, ny] = points[i + 1];
+        if (px !== nx && py !== ny && (cx === px || cy === py)) {
+          // 角ピクセルをスキップして斜め直通にする
+          continue;
+        }
+      }
+      setPixel(points[i][0], points[i][1]);
+    }
+  }
+
+  // 塗りつぶし (Flood Fill: 選択範囲対応)
+  _floodFill(startX, startY, fillHex) {
+    if (this.selectionMask && !this.selectionMask[startY * this.width + startX]) return;
+
+    const imgData = this.ctx.getImageData(0, 0, this.width, this.height);
+    const d = imgData.data;
+    const startIdx = (startY * this.width + startX) * 4;
+    const [sr, sg, sb, sa] = [d[startIdx], d[startIdx + 1], d[startIdx + 2], d[startIdx + 3]];
+    const [fr, fg, fb] = hexToRgb(fillHex);
+    if (sr === fr && sg === fg && sb === fb && sa === 255) return;
+
+    const queue = [[startX, startY]];
+    const visited = new Uint8Array(this.width * this.height);
+    visited[startY * this.width + startX] = 1;
+
+    while (queue.length > 0) {
+      const [cx, cy] = queue.pop();
+      const idx = (cy * this.width + cx) * 4;
+      d[idx] = fr; d[idx + 1] = fg; d[idx + 2] = fb; d[idx + 3] = 255;
+
+      const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+      for (const [nx, ny] of neighbors) {
+        if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue;
+        const nPos = ny * this.width + nx;
+        if (visited[nPos]) continue;
+        if (this.selectionMask && !this.selectionMask[nPos]) continue;
+
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
+          visited[nPos] = 1;
+          queue.push([nx, ny]);
+        }
+      }
+    }
+    this.ctx.putImageData(imgData, 0, 0);
+  }
+
+  // 自動選択 (Magic Wand)
+  _magicWand(startX, startY) {
+    const d = this.ctx.getImageData(0, 0, this.width, this.height).data;
+    const sIdx = (startY * this.width + startX) * 4;
+    const [sr, sg, sb] = [d[sIdx], d[sIdx + 1], d[sIdx + 2]];
+
+    this.selectionMask = new Uint8Array(this.width * this.height);
+    const queue = [[startX, startY]];
+    this.selectionMask[startY * this.width + startX] = 1;
+
+    while (queue.length > 0) {
+      const [cx, cy] = queue.pop();
+      const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+      for (const [nx, ny] of neighbors) {
+        if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue;
+        const nPos = ny * this.width + nx;
+        if (this.selectionMask[nPos]) continue;
+
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb) {
+          this.selectionMask[nPos] = 1;
+          queue.push([nx, ny]);
+        }
+      }
+    }
+    this._drawOverlay();
+  }
+
+  // 同色選択 (Color Range)
+  _colorSelect(startX, startY) {
+    const d = this.ctx.getImageData(0, 0, this.width, this.height).data;
+    const sIdx = (startY * this.width + startX) * 4;
+    const [sr, sg, sb] = [d[sIdx], d[sIdx + 1], d[sIdx + 2]];
+
+    this.selectionMask = new Uint8Array(this.width * this.height);
+    for (let i = 0; i < this.width * this.height; i++) {
+      if (d[i * 4] === sr && d[i * 4 + 1] === sg && d[i * 4 + 2] === sb) {
+        this.selectionMask[i] = 1;
+      }
+    }
+    this._drawOverlay();
+  }
+
+  // 多角形選択の確定 (Ray-castingスキャン)
+  _finalizePolySelect() {
+    if (this.polyPoints.length < 3) return;
+    this.selectionMask = new Uint8Array(this.width * this.height);
+    const pts = this.polyPoints;
+
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        let inside = false;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const xi = pts[i][0], yi = pts[i][1];
+          const xj = pts[j][0], yj = pts[j][1];
+          const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+          if (intersect) inside = !inside;
+        }
+        if (inside) this.selectionMask[y * this.width + x] = 1;
+      }
+    }
+    this.polyPoints = [];
+  }
+
+  // テキスト挿入
+  _insertText(x, y) {
+    const text = prompt('挿入するテキストを入力してください:');
+    if (!text) return;
+    const fontSize = parseInt(prompt('フォントサイズ (px):', '10')) || 10;
+
+    const tCanvas = document.createElement('canvas');
+    tCanvas.width = this.width;
+    tCanvas.height = this.height;
+    const tCtx = tCanvas.getContext('2d');
+    tCtx.font = `${fontSize}px monospace`;
+    tCtx.fillStyle = '#FFFFFF';
+    tCtx.textBaseline = 'top';
+    tCtx.fillText(text, x, y);
+
+    const tData = tCtx.getImageData(0, 0, this.width, this.height).data;
+    this._pushHistory();
+
+    for (let py = 0; py < this.height; py++) {
+      for (let px = 0; px < this.width; px++) {
+        const idx = (py * this.width + px) * 4;
+        if (tData[idx + 3] > 64) {
+          this._drawPixel(px, py);
+        }
+      }
+    }
+  }
+
+  // 選択範囲・直線プレビューの点線オーバーレイ
+  _drawOverlay(curPos = null) {
+    this.oCtx.clearRect(0, 0, this.width, this.height);
+
+    // 1. 選択範囲の点線枠描画
+    if (this.selectionMask) {
+      this.oCtx.fillStyle = 'rgba(0, 150, 255, 0.25)';
+      this.oCtx.strokeStyle = '#00E5FF';
+      this.oCtx.lineWidth = 1;
+      for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+          if (this.selectionMask[y * this.width + x]) {
+            this.oCtx.fillRect(x, y, 1, 1);
+          }
+        }
+      }
+    }
+
+    // 2. 直線プレビュー
+    if (this.currentTool === 'line' && this.lineStart && curPos) {
+      this.oCtx.fillStyle = this.currentColor;
+      this._drawPixelPerfectLine(this.lineStart[0], this.lineStart[1], curPos[0], curPos[1], (px, py) => {
+        this.oCtx.fillRect(px, py, 1, 1);
+      });
+    }
+
+    // 3. 矩形選択プレビュー
+    if (this.currentTool === 'rectSelect' && this.selStart && curPos) {
+      this.oCtx.strokeStyle = '#FFFF00';
+      this.oCtx.setLineDash([2, 2]);
+      const x = Math.min(this.selStart[0], curPos[0]);
+      const y = Math.min(this.selStart[1], curPos[1]);
+      const w = Math.abs(curPos[0] - this.selStart[0]) + 1;
+      const h = Math.abs(curPos[1] - this.selStart[1]) + 1;
+      this.oCtx.strokeRect(x, y, w, h);
+      this.oCtx.setLineDash([]);
+    }
+
+    // 4. 多角形選択の線分
+    if (this.polyPoints.length > 0) {
+      this.oCtx.strokeStyle = '#00FF66';
+      this.oCtx.beginPath();
+      this.oCtx.moveTo(this.polyPoints[0][0] + 0.5, this.polyPoints[0][1] + 0.5);
+      for (let i = 1; i < this.polyPoints.length; i++) {
+        this.oCtx.lineTo(this.polyPoints[i][0] + 0.5, this.polyPoints[i][1] + 0.5);
+      }
+      this.oCtx.stroke();
+    }
+  }
+
+  // キーバインド設定ダイアログ
+  _openKeybindingDialog() {
+    const d = document.getElementById('modal-keybindings');
+    const tbody = document.querySelector('#table-keybindings tbody');
+    tbody.innerHTML = '';
+
+    const labels = {
+      pencil: 'ドットブラシ',
+      line: '直線 (ピクセルパーフェクト)',
+      bucket: '塗りつぶし',
+      rectSelect: '矩形選択',
+      polySelect: '多角形選択',
+      wand: '自動選択 (Magic Wand)',
+      colorSelect: '同色選択',
+      text: 'テキスト挿入'
+    };
+
+    for (const [tool, code] of Object.entries(this.keybindings)) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${labels[tool]}</td><td><button class="btn-bind" data-tool="${tool}">${code}</button></td>`;
+      tbody.appendChild(tr);
+    }
+
+    tbody.querySelectorAll('.btn-bind').forEach(btn => {
+      btn.onclick = () => {
+        btn.textContent = 'キー入力待ち...';
+        const onKey = (e) => {
+          e.preventDefault();
+          this.keybindings[btn.dataset.tool] = e.code;
+          btn.textContent = e.code;
+          this.saveKeybindings();
+          window.removeEventListener('keydown', onKey);
+        };
+        window.addEventListener('keydown', onKey, { once: true });
+      };
+    });
+
+    d.showModal();
+    document.getElementById('btn-close-keybindings').onclick = () => d.close();
+  }
+
+  _updateStatus() {
+    document.getElementById('paint-lbl-tool').textContent = `ツール: ${this.currentTool}`;
+  }
+}
