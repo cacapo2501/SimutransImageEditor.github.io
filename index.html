@@ -1,11 +1,9 @@
-<html>
-    <head>
-        <title>Simutrans Image Editor</title>
-    </head>
-    <body>
-        <span>
-            <h1>Simutrans Image Editor</h1>
-            
-        </span>
-    </body>
-</html>
+├── index.html            # メインHTML・レイアウトUI
+├── style.css             # ダークテーマ＆レスポンシブスタイル
+└── js/
+    ├── color-utils.js    # HSV/RGB変換・SpecialColor判定・色衝突回避
+    ├── transform.js      # 透視投影(Homography)・全域タイリング・SpecialColor保護ぼかし
+    ├── layer.js          # レイヤークラス（変形・タイリング・小物透過・シリアライズ）
+    ├── color-picker.js   # HSVカラーピッカーダイアログ
+    ├── storage-api.js    # ローカルフォルダ/ファイル＆Google Drive Picker連携
+    └── app.js            # メインコントローラー（合成パイプライン・キャンバス操作）
