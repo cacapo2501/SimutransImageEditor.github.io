@@ -17,7 +17,6 @@ function pointInPolygon(point, vs) {
   return inside;
 }
 
-// HTMLImageElement を PNG形式のDataURL (可逆圧縮) に変換
 function imageToPngDataUrl(img) {
   if (!img) return null;
   const c = document.createElement('canvas');
@@ -28,7 +27,6 @@ function imageToPngDataUrl(img) {
   return c.toDataURL('image/png');
 }
 
-// DataURL から HTMLImageElement を非同期ロード
 function loadImageAsync(src) {
   return new Promise((resolve, reject) => {
     if (!src) return resolve(null);
@@ -81,6 +79,12 @@ class AdvancedMultiplyApp {
     this.dragMode = null; this.isEyedropper = false;
     this.isDirty = false;
 
+    // タッチ・ピンチ操作ステート
+    this.touchStartDist = null;
+    this.touchStartZoom = 1.0;
+    this.touchStartPan = [0, 0];
+    this.touchStartCenter = [0, 0];
+
     this.canvas = document.getElementById('main-canvas');
     this.ctx = this.canvas.getContext('2d');
     this.viewport = document.getElementById('canvas-viewport');
@@ -115,7 +119,6 @@ class AdvancedMultiplyApp {
 
   markDirty() { this.isDirty = true; }
 
-  // ベース画像の適用（ファイル読込およびプロジェクト復元で共用）
   _applyBaseImage(img, name) {
     this.baseImage = img;
     this.baseName = name || 'base.png';
@@ -153,7 +156,6 @@ class AdvancedMultiplyApp {
     this.zoomFit();
   }
 
-  // マスク画像の適用（ファイル読込およびプロジェクト復元で共用）
   _applyMaskImage(img, name) {
     this.maskImage = img;
     this.maskName = name || 'mask.png';
@@ -239,7 +241,6 @@ class AdvancedMultiplyApp {
     const outRgb = new Float32Array(total * 3);
     const outAlpha = new Float32Array(total);
 
-    // 1. トーン変更・Tint乗算・乗算レイヤー合成
     for (let i = 0; i < total; i++) {
       outAlpha[i] = this.baseAlpha[i] / 255.0;
       if (this.editableMask[i]) {
@@ -273,7 +274,6 @@ class AdvancedMultiplyApp {
       }
     }
 
-    // 2. ハイライトNormalブレンド (全乗算完了後に適用)
     for (let i = 0; i < total; i++) {
       if (!this.editableMask[i]) continue;
       const bg = this.baseRgb[i * 3] / 255.0;
@@ -296,7 +296,6 @@ class AdvancedMultiplyApp {
       }
     }
 
-    // 3. ストラクチャー (小物) 上乗せ合成
     this.layers.forEach(layer => {
       if (layer.visible && layer.layerType === 'structure') {
         const sData = layer.getWarpedStructure(this.baseW, this.baseH, this.maskRgb);
@@ -318,7 +317,6 @@ class AdvancedMultiplyApp {
       }
     });
 
-    // 4. SpecialColor保護ぼかし
     if (this.enableBlur && this.blurRadius > 0.001) {
       const invalid = new Uint8Array(total);
       for (let i = 0; i < total; i++) {
@@ -462,7 +460,6 @@ class AdvancedMultiplyApp {
     document.getElementById('btn-add-structure').onclick = () => this._addLayer('structure');
     document.getElementById('btn-copy-layer').onclick = () => this._copyLayer();
     document.getElementById('btn-del-layer').onclick = () => this._delLayer();
-    document.getElementById('layer-listbox').onchange = (e) => this._selectLayer(e.target.selectedIndex);
 
     document.querySelectorAll('input[name="layer-type"]').forEach(r => {
       r.onchange = (e) => {
@@ -670,7 +667,7 @@ class AdvancedMultiplyApp {
       if (this.dragMode) { this.dragMode = null; this.markDirty(); this.render(); }
     };
 
-    // タッチ操作
+    // タッチ操作 (ピンチズーム・パン・変形)
     this.viewport.addEventListener('touchstart', (e) => this._handleTouchStart(e), { passive: false });
     window.addEventListener('touchmove', (e) => this._handleTouchMove(e), { passive: false });
     window.addEventListener('touchend', (e) => this._handleTouchEnd(e), { passive: false });
@@ -929,9 +926,18 @@ class AdvancedMultiplyApp {
     this.markDirty(); this.render();
   }
 
+  // ★ カスタム div リストボックスの選択処理 ★
   _selectLayer(idx) {
     this.activeIdx = idx;
-    document.getElementById('layer-listbox').selectedIndex = idx;
+    const items = document.querySelectorAll('#layer-listbox .layer-list-item');
+    items.forEach((item, i) => {
+      if (i === idx) {
+        item.classList.add('selected');
+        item.scrollIntoView({ block: 'nearest' });
+      } else {
+        item.classList.remove('selected');
+      }
+    });
     this._syncActiveLayerUI();
     if (idx >= 0) document.getElementById('accordion-layer').open = true;
     this.render();
@@ -961,18 +967,20 @@ class AdvancedMultiplyApp {
     }
   }
 
+  // ★ カスタム div リストボックスの描画 ★
   _refreshLayerList() {
     const lb = document.getElementById('layer-listbox');
     lb.innerHTML = '';
     this.layers.forEach((l, i) => {
       const tag = l.sourceLayer ? '[小物(参照)]' : (l.layerType === 'structure' ? '[小物]' : '[乗算]');
-      const opt = document.createElement('option');
-      opt.textContent = `${tag} ${l.name}`;
-      lb.appendChild(opt);
+      const item = document.createElement('div');
+      item.className = 'layer-list-item' + (i === this.activeIdx ? ' selected' : '');
+      item.textContent = `${tag} ${l.name}`;
+      item.onclick = () => this._selectLayer(i);
+      lb.appendChild(item);
     });
   }
 
-  // ★画像データをPNG形式(可逆圧縮)で完全内包したプロジェクト保存★
   saveProject(saveAs = false) {
     if (!this.baseImage) return alert('保存するデータがありません。');
 
@@ -984,7 +992,6 @@ class AdvancedMultiplyApp {
       version: '14.0',
       base_name: this.baseName,
       mask_name: this.maskName,
-      // ベース・マスク画像をPNG DataURLとして可逆圧縮保持
       base_image_data: imageToPngDataUrl(this.baseImage),
       mask_image_data: imageToPngDataUrl(this.maskImage),
       global_tone_config: this.globalTone,
@@ -994,7 +1001,6 @@ class AdvancedMultiplyApp {
       enable_blur: this.enableBlur,
       blur_radius: this.blurRadius,
       pixel_snap: this.pixelSnap,
-      // 親レイヤーのみPNG圧縮DataURLを含め、子レイヤーはnullとして保存
       layers: this.layers.map(l => l.toDict(this.layers)),
       active_idx: this.activeIdx
     };
@@ -1008,14 +1014,12 @@ class AdvancedMultiplyApp {
     document.getElementById('status-bar').textContent = 'プロジェクト(画像内包版)を保存しました。';
   }
 
-  // ★プロジェクトファイルを読み込むだけで画像も含めて一発完全復元★
   async loadProject(file) {
     const r = new FileReader();
     r.onload = async () => {
       try {
         const data = JSON.parse(r.result);
 
-        // 1. 各種トーン・設定パラメータの復元
         if (data.global_tone_config) this.globalTone = data.global_tone_config;
         if (data.mask_tint_colors) {
           this.maskTintColors.clear();
@@ -1034,7 +1038,6 @@ class AdvancedMultiplyApp {
         document.getElementById('chk-pixel-snap').checked = this.pixelSnap;
         this._onToneTargetChanged('__ALL__');
 
-        // 2. ベース画像・マスク画像の復元展開
         if (data.base_image_data) {
           const baseImg = await loadImageAsync(data.base_image_data);
           if (baseImg) this._applyBaseImage(baseImg, data.base_name || 'base.png');
@@ -1044,14 +1047,12 @@ class AdvancedMultiplyApp {
           if (maskImg) this._applyMaskImage(maskImg, data.mask_name || 'mask.png');
         }
 
-        // 3. 各レイヤー画像データの非同期デコード
         const layerDefs = data.layers || [];
         const layerImages = await Promise.all(layerDefs.map(ld => {
           if (ld.image_data) return loadImageAsync(ld.image_data);
           return Promise.resolve(null);
         }));
 
-        // 4. レイヤーインスタンス生成 (第1パス)
         this.layers = [];
         for (let i = 0; i < layerDefs.length; i++) {
           const ld = layerDefs[i];
@@ -1075,7 +1076,6 @@ class AdvancedMultiplyApp {
           this.layers.push(layer);
         }
 
-        // 5. 相対参照 (第2パス: sourceLayerの復元)
         for (let i = 0; i < layerDefs.length; i++) {
           const sIdx = layerDefs[i].source_idx;
           if (sIdx !== null && sIdx !== undefined && sIdx >= 0 && sIdx < this.layers.length) {
