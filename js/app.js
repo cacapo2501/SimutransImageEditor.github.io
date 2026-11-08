@@ -1,4 +1,4 @@
-import { rgbToHex, hexToRgb, parseSpecialColorsCsv } from './color-utils.js';
+import { rgbToHex, hexToRgb, parseSpecialColorsCsv, hsvToHex } from './color-utils.js';
 import { Layer } from './layer.js';
 import { HSVColorPicker } from './color-picker.js';
 import { StorageAPI } from './storage-api.js';
@@ -85,6 +85,90 @@ class AdvancedMultiplyApp {
 
   markDirty() { this.isDirty = true; }
 
+  // ★ ベース画像からマスク画像を自動生成する処理 ★
+  autoGenerateMaskFromBase() {
+    if (!this.baseImage || !this.baseRgb) return;
+
+    // 1. ベース画像内の編集可能グレー階調の最小値・最大値を調査
+    let minGray = 255;
+    let maxGray = 0;
+    let grayFound = false;
+
+    for (let i = 0; i < this.baseW * this.baseH; i++) {
+      if (this.isBgMask[i]) continue;
+      const r = this.baseRgb[i * 3], g = this.baseRgb[i * 3 + 1], b = this.baseRgb[i * 3 + 2];
+      const hex = rgbToHex(r, g, b);
+      if (this.specialColors && this.specialColors.has(hex)) continue;
+
+      if (r === g && g === b) {
+        grayFound = true;
+        if (r < minGray) minGray = r;
+        if (r > maxGray) maxGray = r;
+      }
+    }
+
+    if (!grayFound) {
+      minGray = 0;
+      maxGray = 255;
+    }
+
+    // 2. マスクピクセル配列を作成
+    const mCanvas = document.createElement('canvas');
+    mCanvas.width = this.baseW;
+    mCanvas.height = this.baseH;
+    const mCtx = mCanvas.getContext('2d');
+    const mImgData = mCtx.createImageData(this.baseW, this.baseH);
+    const mData = mImgData.data;
+
+    for (let i = 0; i < this.baseW * this.baseH; i++) {
+      const idx = i * 4;
+      const r = this.baseRgb[i * 3], g = this.baseRgb[i * 3 + 1], b = this.baseRgb[i * 3 + 2];
+      const a = this.baseAlpha[i];
+      const hex = rgbToHex(r, g, b);
+
+      if (this.isBgMask[i] || a === 0) {
+        // 背景色 (#E7FFFF または透過)
+        mData[idx] = 231;
+        mData[idx + 1] = 255;
+        mData[idx + 2] = 255;
+        mData[idx + 3] = a;
+      } else if (this.specialColors && this.specialColors.has(hex)) {
+        // SpecialColor はそのまま保持
+        mData[idx] = r;
+        mData[idx + 1] = g;
+        mData[idx + 2] = b;
+        mData[idx + 3] = 255;
+      } else if (r === g && g === b) {
+        // グレー: 明るい色=#FFC0C0 (H=0°), 暗い色=#C0C0FF (H=240°) 色相スカラー変化
+        const t = maxGray > minGray ? (r - minGray) / (maxGray - minGray) : 0.5;
+        const h = Math.round(240 * (1.0 - t)); // 暗い方(t=0)が240°、明るい方(t=1)が0°
+        const s = Math.round((63 / 255) * 100); // 25% (パステル)
+        const v = 100;
+        const [mr, mg, mb] = hexToRgb(hsvToHex(h, s, v));
+
+        mData[idx] = mr;
+        mData[idx + 1] = mg;
+        mData[idx + 2] = mb;
+        mData[idx + 3] = 255;
+      } else {
+        // SpecialColorでもグレーでもない色 -> #800000
+        mData[idx] = 128;
+        mData[idx + 1] = 0;
+        mData[idx + 2] = 0;
+        mData[idx + 3] = 255;
+      }
+    }
+
+    mCtx.putImageData(mImgData, 0, 0);
+    const maskImg = new Image();
+    maskImg.onload = () => {
+      this.applyMaskImage(maskImg, 'auto_generated_mask.png');
+      this.markDirty();
+      this.render();
+    };
+    maskImg.src = mCanvas.toDataURL('image/png');
+  }
+
   applyBaseImage(img, name) {
     this.baseImage = img;
     this.baseName = name || 'base.png';
@@ -111,6 +195,11 @@ class AdvancedMultiplyApp {
       if (r === g && g === b && this.isBgMask[i] === 0) this.editableMask[i] = 1;
     }
     document.getElementById('lbl-base-info').textContent = `ベース: ${this.baseName} (${this.baseW}x${this.baseH})`;
+
+    // ベース画像があり、マスク画像がまだない場合は自動生成
+    if (!this.maskImage) {
+      this.autoGenerateMaskFromBase();
+    }
   }
 
   async loadBaseFromFile(file) {
@@ -341,7 +430,6 @@ class AdvancedMultiplyApp {
   }
 
   _bindEvents() {
-    // ファイル読込・プロジェクト
     document.getElementById('btn-load-base').onclick = async () => {
       const f = await this.storage.pickLocalFile('.png');
       if (f) this.loadBaseFromFile(f);
@@ -351,9 +439,15 @@ class AdvancedMultiplyApp {
       if (f) this.loadMaskFromFile(f);
     };
 
-    // ★ ペイントエディタ起動ボタン ★
+    // ペイントエディタ起動
     document.getElementById('btn-paint-base').onclick = () => this.paintEditor.open('base');
-    document.getElementById('btn-paint-mask').onclick = () => this.paintEditor.open('mask');
+    document.getElementById('btn-paint-mask').onclick = () => {
+      // マスク画像がない場合はベース画像を元に自動生成してから開く
+      if (!this.maskImage && this.baseImage) {
+        this.autoGenerateMaskFromBase();
+      }
+      this.paintEditor.open('mask');
+    };
 
     document.getElementById('btn-load-folder').onclick = async () => {
       const files = await this.storage.pickLocalDirectory();
@@ -376,7 +470,6 @@ class AdvancedMultiplyApp {
       }
     };
 
-    // レイヤー操作
     document.getElementById('btn-add-multiply').onclick = () => this._addLayer('multiply');
     document.getElementById('btn-add-structure').onclick = () => this._addLayer('structure');
     document.getElementById('btn-copy-layer').onclick = () => this._copyLayer();
@@ -426,7 +519,6 @@ class AdvancedMultiplyApp {
       };
     });
 
-    // ぼかし
     document.getElementById('chk-enable-blur').onchange = (e) => { this.enableBlur = e.target.checked; this.markDirty(); this.render(); };
     document.getElementById('slider-blur').oninput = (e) => {
       this.blurRadius = parseFloat(e.target.value);
@@ -450,7 +542,6 @@ class AdvancedMultiplyApp {
       }
     };
 
-    // マスクカラー選択
     document.getElementById('btn-eyedropper').onclick = () => this.toggleEyedropper();
     document.getElementById('mask-color-combo').onchange = (e) => {
       if (this.activeIdx < 0) return;
@@ -463,7 +554,6 @@ class AdvancedMultiplyApp {
       this._syncActiveLayerUI(); this.markDirty(); this.render();
     };
 
-    // トーン
     document.getElementById('combo-tone-target').onchange = (e) => this.onToneTargetChanged(e.target.value);
     document.getElementById('chk-tone-override').onchange = (e) => {
       const sel = document.getElementById('combo-tone-target').value;

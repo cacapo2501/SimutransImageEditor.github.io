@@ -1,4 +1,4 @@
-import { hexToRgb, rgbToHex } from './color-utils.js';
+import { hexToRgb, rgbToHex, hsvToHex } from './color-utils.js';
 
 export class PaintEditor {
   constructor(app) {
@@ -17,8 +17,7 @@ export class PaintEditor {
 
     // 描画状態
     this.currentColor = '#FFFFFF';
-    this.currentTool = 'pencil'; // pencil, line, bucket, rectSelect, polySelect, wand, colorSelect, text
-    this.brushSize = 1;
+    this.currentTool = 'pencil';
     this.zoomLevel = 8.0;
     this.panX = 40;
     this.panY = 40;
@@ -35,12 +34,12 @@ export class PaintEditor {
     // 選択範囲マスク (Uint8Array: 1=選択中, 0=非選択)
     this.selectionMask = null;
 
-    // Undo / Redo スタック
+    // Undo / Redo
     this.undoStack = [];
     this.redoStack = [];
     this.maxUndo = 25;
 
-    // キーバインド設定 (初期設定)
+    // キーバインド設定
     this.keybindings = {
       pencil: 'KeyB',
       line: 'KeyL',
@@ -67,7 +66,7 @@ export class PaintEditor {
     localStorage.setItem('paint_keybindings', JSON.stringify(this.keybindings));
   }
 
-  // エディタを開く
+  // エディタを開く（初期位置を確実に中央配置）
   open(targetType = 'base') {
     this.targetType = targetType;
     const srcImg = targetType === 'base' ? this.app.baseImage : this.app.maskImage;
@@ -94,22 +93,26 @@ export class PaintEditor {
     this.redoStack = [];
     this._pushHistory();
 
-    // パレット初期化
     this._renderPaletteUI();
 
-    // ビューポートフィット
-    const vw = this.viewport.clientWidth - 80;
-    const vh = this.viewport.clientHeight - 80;
-    this.zoomLevel = Math.max(2, Math.min(32, Math.floor(Math.min(vw / this.width, vh / this.height))));
-    this.panX = Math.round((this.viewport.clientWidth - this.width * this.zoomLevel) / 2);
-    this.panY = Math.round((this.viewport.clientHeight - this.height * this.zoomLevel) / 2);
-
-    this._updateTransform();
+    // 先にモーダルを表示してビューポートの確定サイズを取得可能にする
     this.modal.showModal();
+
+    // 表示後の正確な領域サイズからキャンバス中央座標を算出
+    requestAnimationFrame(() => {
+      const vw = this.viewport.clientWidth;
+      const vh = this.viewport.clientHeight;
+      const fitZoom = Math.max(1, Math.min(32, Math.floor(Math.min((vw - 80) / this.width, (vh - 80) / this.height))));
+      this.zoomLevel = Math.max(2, fitZoom);
+      this.panX = Math.round((vw - this.width * this.zoomLevel) / 2);
+      this.panY = Math.round((vh - this.height * this.zoomLevel) / 2);
+      this._updateTransform();
+      this._drawOverlay();
+    });
+
     this._updateStatus();
   }
 
-  // 編集完了反映
   applyAndClose() {
     const outCanvas = document.createElement('canvas');
     outCanvas.width = this.width;
@@ -131,7 +134,6 @@ export class PaintEditor {
     img.src = outCanvas.toDataURL('image/png');
   }
 
-  // Undo / Redo
   _pushHistory() {
     const data = this.ctx.getImageData(0, 0, this.width, this.height);
     this.undoStack.push(data);
@@ -156,7 +158,6 @@ export class PaintEditor {
     this._drawOverlay();
   }
 
-  // パレットUI構築
   _renderPaletteUI() {
     const container = document.getElementById('paint-palette-slots');
     container.innerHTML = '';
@@ -171,7 +172,6 @@ export class PaintEditor {
       if (pm.basePalette.length === 0) pm.generateBasePalette();
       colors = [...pm.basePalette];
 
-      // SpecialColor一覧もパレットへ追加
       if (this.app.specialColors && this.app.specialColors.size > 0) {
         colors.push(...Array.from(this.app.specialColors));
       }
@@ -213,7 +213,6 @@ export class PaintEditor {
   }
 
   _bindEvents() {
-    // ツールバーボタン
     document.querySelectorAll('.paint-tool-btn').forEach(btn => {
       btn.onclick = () => {
         document.querySelectorAll('.paint-tool-btn').forEach(b => b.classList.remove('active'));
@@ -226,11 +225,9 @@ export class PaintEditor {
       };
     });
 
-    // 完了・キャンセル
     document.getElementById('btn-paint-apply').onclick = () => this.applyAndClose();
     document.getElementById('btn-paint-cancel').onclick = () => this.modal.close();
 
-    // Undo / Redo
     document.getElementById('btn-paint-undo').onclick = () => this.undo();
     document.getElementById('btn-paint-redo').onclick = () => this.redo();
     document.getElementById('btn-paint-clear-sel').onclick = () => {
@@ -239,7 +236,6 @@ export class PaintEditor {
       this._drawOverlay();
     };
 
-    // グレースケール自動生成ボタン
     document.getElementById('btn-gen-base-palette').onclick = () => {
       const pm = this.app.paletteManager;
       pm.basePaletteConfig.brightestHex = document.getElementById('inp-gray-max').value.trim() || '#FEFEFE';
@@ -249,7 +245,6 @@ export class PaintEditor {
       this._renderPaletteUI();
     };
 
-    // マスク画像: Web/ファイルからカラーピック
     document.getElementById('btn-pick-mask-image').onclick = () => {
       const inp = document.createElement('input');
       inp.type = 'file';
@@ -263,10 +258,8 @@ export class PaintEditor {
       inp.click();
     };
 
-    // キーバインド設定モーダル
     document.getElementById('btn-paint-keybindings').onclick = () => this._openKeybindingDialog();
 
-    // キャンバス操作
     this.viewport.onwheel = (e) => {
       e.preventDefault();
       const delta = e.deltaY < 0 ? 1.25 : 0.8;
@@ -282,11 +275,12 @@ export class PaintEditor {
       this._updateTransform();
     };
 
-    // マウス/タッチ共通イベント
     const getCoords = (e) => {
       const rect = this.viewport.getBoundingClientRect();
-      const cx = (e.clientX !== undefined ? e.clientX : e.touches[0].clientX) - rect.left;
-      const cy = (e.clientY !== undefined ? e.clientY : e.touches[0].clientY) - rect.top;
+      const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+      const cx = clientX - rect.left;
+      const cy = clientY - rect.top;
       const px = Math.floor((cx - this.panX) / this.zoomLevel);
       const py = Math.floor((cy - this.panY) / this.zoomLevel);
       return { cx, cy, px, py };
@@ -325,7 +319,6 @@ export class PaintEditor {
       }
     });
 
-    // キーボードショートカット
     window.addEventListener('keydown', (e) => {
       if (!this.modal.open) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -347,7 +340,6 @@ export class PaintEditor {
         return;
       }
 
-      // カスタムキーバインド判定
       for (const [tool, code] of Object.entries(this.keybindings)) {
         if (e.code === code) {
           const btn = document.querySelector(`.paint-tool-btn[data-tool="${tool}"]`);
@@ -358,7 +350,6 @@ export class PaintEditor {
     });
   }
 
-  // --- ツール実行ロジック ---
   _handleToolStart(x, y) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
     this.isDrawing = true;
@@ -396,9 +387,8 @@ export class PaintEditor {
 
   _handleToolMove(x, y) {
     if (this.currentTool === 'pencil') {
-      // 連続補間線描画
       const [lx, ly] = this.lastDrawPos;
-      this._drawPixelPerfectLine(lx, ly, x, y, (px, py) => this._drawPixel(px, py));
+      this._drawLineContinuous(lx, ly, x, y, (px, py) => this._drawPixel(px, py));
       this.lastDrawPos = [x, y];
     } else if (this.currentTool === 'line' || this.currentTool === 'rectSelect') {
       this._drawOverlay([x, y]);
@@ -409,7 +399,7 @@ export class PaintEditor {
     this.isDrawing = false;
     if (this.currentTool === 'line' && this.lineStart) {
       this._pushHistory();
-      this._drawPixelPerfectLine(this.lineStart[0], this.lineStart[1], x, y, (px, py) => this._drawPixel(px, py));
+      this._drawLineContinuous(this.lineStart[0], this.lineStart[1], x, y, (px, py) => this._drawPixel(px, py));
       this.lineStart = null;
       this._drawOverlay();
     } else if (this.currentTool === 'rectSelect' && this.selStart) {
@@ -429,7 +419,6 @@ export class PaintEditor {
     }
   }
 
-  // 1ピクセル描画（選択範囲制限付き）
   _drawPixel(x, y) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
     if (this.selectionMask && !this.selectionMask[y * this.width + x]) return;
@@ -438,38 +427,22 @@ export class PaintEditor {
     this.ctx.fillRect(x, y, 1, 1);
   }
 
-  // ピクセルパーフェクト直線アルゴリズム (Bresenham + 冗長角除去)
-  _drawPixelPerfectLine(x0, y0, x1, y1, setPixel) {
-    const points = [];
+  // ★ 連続直線アルゴリズム（欠落を完全撤廃したBresenhamアルゴリズム） ★
+  _drawLineContinuous(x0, y0, x1, y1, setPixel) {
     let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
     let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     let err = dx + dy;
     let curX = x0, curY = y0;
 
     while (true) {
-      points.push([curX, curY]);
+      setPixel(curX, curY);
       if (curX === x1 && curY === y1) break;
       const e2 = 2 * err;
       if (e2 >= dy) { err += dy; curX += sx; }
       if (e2 <= dx) { err += dx; curY += sy; }
     }
-
-    // 冗長角（L字状の不要ピクセル）を間引いてピクセルパーフェクト化
-    for (let i = 0; i < points.length; i++) {
-      if (i > 0 && i < points.length - 1) {
-        const [px, py] = points[i - 1];
-        const [cx, cy] = points[i];
-        const [nx, ny] = points[i + 1];
-        if (px !== nx && py !== ny && (cx === px || cy === py)) {
-          // 角ピクセルをスキップして斜め直通にする
-          continue;
-        }
-      }
-      setPixel(points[i][0], points[i][1]);
-    }
   }
 
-  // 塗りつぶし (Flood Fill: 選択範囲対応)
   _floodFill(startX, startY, fillHex) {
     if (this.selectionMask && !this.selectionMask[startY * this.width + startX]) return;
 
@@ -506,7 +479,6 @@ export class PaintEditor {
     this.ctx.putImageData(imgData, 0, 0);
   }
 
-  // 自動選択 (Magic Wand)
   _magicWand(startX, startY) {
     const d = this.ctx.getImageData(0, 0, this.width, this.height).data;
     const sIdx = (startY * this.width + startX) * 4;
@@ -534,7 +506,6 @@ export class PaintEditor {
     this._drawOverlay();
   }
 
-  // 同色選択 (Color Range)
   _colorSelect(startX, startY) {
     const d = this.ctx.getImageData(0, 0, this.width, this.height).data;
     const sIdx = (startY * this.width + startX) * 4;
@@ -549,7 +520,6 @@ export class PaintEditor {
     this._drawOverlay();
   }
 
-  // 多角形選択の確定 (Ray-castingスキャン)
   _finalizePolySelect() {
     if (this.polyPoints.length < 3) return;
     this.selectionMask = new Uint8Array(this.width * this.height);
@@ -570,7 +540,6 @@ export class PaintEditor {
     this.polyPoints = [];
   }
 
-  // テキスト挿入
   _insertText(x, y) {
     const text = prompt('挿入するテキストを入力してください:');
     if (!text) return;
@@ -598,15 +567,11 @@ export class PaintEditor {
     }
   }
 
-  // 選択範囲・直線プレビューの点線オーバーレイ
   _drawOverlay(curPos = null) {
     this.oCtx.clearRect(0, 0, this.width, this.height);
 
-    // 1. 選択範囲の点線枠描画
     if (this.selectionMask) {
       this.oCtx.fillStyle = 'rgba(0, 150, 255, 0.25)';
-      this.oCtx.strokeStyle = '#00E5FF';
-      this.oCtx.lineWidth = 1;
       for (let y = 0; y < this.height; y++) {
         for (let x = 0; x < this.width; x++) {
           if (this.selectionMask[y * this.width + x]) {
@@ -616,15 +581,13 @@ export class PaintEditor {
       }
     }
 
-    // 2. 直線プレビュー
     if (this.currentTool === 'line' && this.lineStart && curPos) {
       this.oCtx.fillStyle = this.currentColor;
-      this._drawPixelPerfectLine(this.lineStart[0], this.lineStart[1], curPos[0], curPos[1], (px, py) => {
+      this._drawLineContinuous(this.lineStart[0], this.lineStart[1], curPos[0], curPos[1], (px, py) => {
         this.oCtx.fillRect(px, py, 1, 1);
       });
     }
 
-    // 3. 矩形選択プレビュー
     if (this.currentTool === 'rectSelect' && this.selStart && curPos) {
       this.oCtx.strokeStyle = '#FFFF00';
       this.oCtx.setLineDash([2, 2]);
@@ -636,7 +599,6 @@ export class PaintEditor {
       this.oCtx.setLineDash([]);
     }
 
-    // 4. 多角形選択の線分
     if (this.polyPoints.length > 0) {
       this.oCtx.strokeStyle = '#00FF66';
       this.oCtx.beginPath();
@@ -648,7 +610,6 @@ export class PaintEditor {
     }
   }
 
-  // キーバインド設定ダイアログ
   _openKeybindingDialog() {
     const d = document.getElementById('modal-keybindings');
     const tbody = document.querySelector('#table-keybindings tbody');
@@ -656,7 +617,7 @@ export class PaintEditor {
 
     const labels = {
       pencil: 'ドットブラシ',
-      line: '直線 (ピクセルパーフェクト)',
+      line: '直線 (連続)',
       bucket: '塗りつぶし',
       rectSelect: '矩形選択',
       polySelect: '多角形選択',
