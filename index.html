@@ -5,13 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PNG 矩形・平行四辺形乗算合成ツール Web</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Google Drive Picker API -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
 </head>
 <body>
   <div id="app-container">
-    <!-- サイドバー -->
     <aside id="sidebar">
       <!-- 画像・プロジェクト管理 -->
       <section class="panel">
@@ -20,20 +18,20 @@
           <button id="btn-load-base">ベースPNGを開く</button>
           <button id="btn-load-mask">マスク画像を開く</button>
         </div>
-        <div class="btn-group">
+        <div class="btn-group mt-05">
           <button id="btn-load-folder">📁 ローカルフォルダ</button>
           <button id="btn-google-drive">☁️ Google Drive</button>
         </div>
         <div class="info-text" id="lbl-base-info">ベース: 未読込</div>
         <div class="info-text" id="lbl-mask-info">マスク: 未読込</div>
-        <div class="btn-group mt-1">
+        <div class="btn-group mt-05">
           <button id="btn-save-proj">プロジェクト保存</button>
           <button id="btn-save-proj-as">別名保存</button>
           <button id="btn-load-proj">再開 (読込)</button>
         </div>
       </section>
 
-      <!-- タブメニュー -->
+      <!-- ★タブナビゲーション（確実に配置）★ -->
       <nav class="tab-nav">
         <button class="tab-btn active" data-tab="tab-layer">レイヤー・変形</button>
         <button class="tab-btn" data-tab="tab-tone">トーン＆ブレンド</button>
@@ -47,7 +45,7 @@
           <button id="btn-add-multiply">＋ 乗算追加</button>
           <button id="btn-add-structure">＋ 小物追加</button>
         </div>
-        <div class="btn-group">
+        <div class="btn-group mt-05">
           <button id="btn-copy-layer">📋 コピー(相対参照)</button>
           <button id="btn-del-layer">－ 削除</button>
         </div>
@@ -62,7 +60,7 @@
           <legend>レイヤー種別＆透過オプション</legend>
           <label><input type="radio" name="layer-type" value="multiply" checked> 乗算 (テクスチャ)</label>
           <label><input type="radio" name="layer-type" value="structure"> ストラクチャー (小物)</label>
-          <label class="mt-05"><input type="checkbox" id="chk-trans-e7ffff"> ストラクチャの #E7FFFF を透過色 (#C0C0C000) にする</label>
+          <label><input type="checkbox" id="chk-trans-e7ffff"> ストラクチャの #E7FFFF を透過色 (#C0C0C000) にする</label>
         </fieldset>
 
         <fieldset class="sub-panel">
@@ -73,7 +71,7 @@
           </div>
           <button id="btn-eyedropper" class="w-100 mt-05">🎯 スポイトで選択 (マスク画像を表示)</button>
           <div class="row mt-05">
-            <label>一覧から選ぶ:</label>
+            <label style="min-width: 75px;">一覧から選ぶ:</label>
             <select id="mask-color-combo"><option value="">(全体 / マスクなし)</option></select>
           </div>
           <button id="btn-clear-mask" class="w-100 mt-05">マスク解除 (全体適用に戻す)</button>
@@ -102,10 +100,10 @@
           <label><input type="radio" name="transform-mode" value="box" checked> 矩形リサイズ (軸平行)</label>
           <label><input type="radio" name="transform-mode" value="affine"> 自由3頂点 (平行四辺形)</label>
           <label><input type="radio" name="transform-mode" value="free"> 自由4頂点 (透視投影)</label>
-          <label class="mt-05"><input type="checkbox" id="chk-fill-all"> 現在の変形で画像全体にマッピング (全域タイリング)</label>
+          <label><input type="checkbox" id="chk-fill-all"> 現在の変形で画像全体にマッピング (全域タイリング)</label>
           <div class="row mt-05">
             <label><input type="checkbox" id="chk-pixel-snap" checked> 📍 ピクセルスナップ</label>
-            <button id="btn-snap-now">現在位置をスナップ</button>
+            <button id="btn-snap-now" style="margin-left:auto;">現在位置をスナップ</button>
           </div>
         </fieldset>
 
@@ -133,7 +131,7 @@
         <fieldset class="sub-panel">
           <legend>トーン設定対象の選択</legend>
           <div class="row">
-            <label>設定対象:</label>
+            <label style="min-width: 60px;">設定対象:</label>
             <select id="combo-tone-target"><option value="__ALL__">全体 (デフォルト)</option></select>
           </div>
           <label class="mt-05"><input type="checkbox" id="chk-tone-override" disabled> このマスク色の個別トーン設定を有効化</label>
@@ -143,9 +141,9 @@
           <legend>トーン＆ハイライトブレンドパラメータ</legend>
           <div class="row">
             <span>最も暗い色:</span>
-            <span class="color-swatch" id="dark-color-swatch"></span>
+            <span class="color-swatch" id="dark-color-swatch" style="background:#000018;"></span>
             <span id="lbl-dark-color">#000018</span>
-            <button id="btn-pick-dark">色選択</button>
+            <button id="btn-pick-dark" style="margin-left:auto;">色選択</button>
           </div>
           <button id="btn-reset-dark" class="w-100 mt-05">デフォルト黒(#000018)に戻す</button>
 
@@ -166,8 +164,8 @@
             <label><input type="checkbox" id="chk-enable-dodge" checked> 最大明るさを超えた部分をNormalブレンド</label>
             <div class="row mt-05">
               <span>ブレンド色:</span>
-              <span class="color-swatch" id="dodge-color-swatch"></span>
-              <button id="btn-pick-dodge">色変更</button>
+              <span class="color-swatch" id="dodge-color-swatch" style="background:#FFFFFF;"></span>
+              <button id="btn-pick-dodge" style="margin-left:auto;">色変更</button>
             </div>
             <label class="mt-05">ブレンド最大強さ %:</label>
             <div class="row">
@@ -217,13 +215,12 @@
           <input type="text" id="gdrive-api-key" placeholder="AIzaSy...">
           <label class="mt-05">Client ID:</label>
           <input type="text" id="gdrive-client-id" placeholder="xxxx.apps.googleusercontent.com">
-          <p class="desc-text">※GitHub Pages等の静的公開環境では、ご自身のGoogle Cloudコンソールで発行したクライアント情報を入力して利用します。</p>
+          <p class="desc-text">※GitHub Pages等の環境では、ご自身のGoogle Cloudで発行したクライアント情報を入力して利用します。</p>
         </fieldset>
       </div>
 
-      <!-- 下部PNGエクスポート -->
-      <div class="sidebar-footer">
-        <button id="btn-save-png" class="btn-primary w-100">合成結果をPNG保存 (#C0C0C000透過・特殊色回避)</button>
+      <div style="margin-top:auto; padding-top:8px;">
+        <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存 (#C0C0C000透過・特殊色回避)</button>
       </div>
     </aside>
 
@@ -235,7 +232,7 @@
         <button id="btn-zoom-in">＋</button>
         <button id="btn-zoom-reset">等倍 (100%)</button>
         <button id="btn-zoom-fit">全体表示 (Fit)</button>
-        <span class="guide-text">操作: 中/右ドラッグ or Space+ドラッグでスクロール | ホイールで拡縮</span>
+        <span class="guide-text">中/右ドラッグ or Space+ドラッグ: スクロール | ホイール: 拡縮</span>
       </div>
       <div id="canvas-viewport">
         <canvas id="main-canvas"></canvas>
@@ -244,10 +241,10 @@
     </main>
   </div>
 
-  <!-- 自前HSVカラーピッカーモーダル -->
+  <!-- HSV カラーピッカーモーダル -->
   <dialog id="modal-color-picker">
     <div class="picker-content">
-      <h3>HSV カラーピッカー</h3>
+      <h3 style="font-size:13px; margin-bottom:8px;">HSV カラーピッカー</h3>
       <div class="swatch-compare">
         <span>元色: <i id="picker-old-swatch"></i></span>
         <span>新色: <i id="picker-new-swatch"></i></span>
@@ -255,19 +252,19 @@
       </div>
       <div class="hsv-sliders">
         <div class="hsv-row">
-          <span>色相 (H):</span>
+          <span style="width:50px;">色相(H):</span>
           <input type="range" id="picker-h" min="0" max="360" step="1">
-          <span id="picker-h-val">0°</span>
+          <span id="picker-h-val" style="width:35px; text-align:right;">0°</span>
         </div>
         <div class="hsv-row">
-          <span>彩度 (S):</span>
+          <span style="width:50px;">彩度(S):</span>
           <input type="range" id="picker-s" min="0" max="100" step="1">
-          <span id="picker-s-val">0%</span>
+          <span id="picker-s-val" style="width:35px; text-align:right;">0%</span>
         </div>
         <div class="hsv-row">
-          <span>明度 (V):</span>
+          <span style="width:50px;">明度(V):</span>
           <input type="range" id="picker-v" min="0" max="100" step="1">
-          <span id="picker-v-val">100%</span>
+          <span id="picker-v-val" style="width:35px; text-align:right;">100%</span>
         </div>
       </div>
       <div class="quick-palette" id="picker-palette"></div>
@@ -278,10 +275,9 @@
     </div>
   </dialog>
 
-  <!-- 非表示のファイル入力（フォールバック用） -->
   <input type="file" id="input-file-hidden" style="display: none;">
 
-  <!-- メインスクリプト -->
+  <!-- 分割JSの読み込み -->
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

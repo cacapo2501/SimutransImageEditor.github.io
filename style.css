@@ -19,7 +19,6 @@ body {
   width: 100vw;
 }
 
-/* サイドバー */
 #sidebar {
   width: 440px;
   min-width: 440px;
@@ -58,7 +57,6 @@ body {
   padding: 0 4px;
 }
 
-/* ボタン・インプット */
 button {
   background: #3e3e3e;
   color: #e0e0e0;
@@ -75,17 +73,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-primary { background: #005a9e; border-color: #0078d4; color: #fff; font-weight: bold; }
 .btn-primary:hover { background: #0078d4; }
 
-.btn-group {
-  display: flex;
-  gap: 4px;
-}
-
+.btn-group { display: flex; gap: 4px; }
 .btn-group button { flex: 1; }
 .w-100 { width: 100%; }
 .mt-05 { margin-top: 4px; }
 .mt-1 { margin-top: 8px; }
 
 select, input[type="text"] {
+  width: 100%;
   background: #1e1e1e;
   border: 1px solid #444;
   color: #e0e0e0;
@@ -100,21 +95,9 @@ input[type="range"] {
   cursor: pointer;
 }
 
-.row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.step-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.btn-step, .btn-blur-step {
-  padding: 2px 6px;
-}
+.row { display: flex; align-items: center; gap: 6px; }
+.step-row { display: flex; align-items: center; gap: 4px; }
+.btn-step, .btn-blur-step { padding: 2px 6px; }
 
 .val-badge {
   font-family: Consolas, monospace;
@@ -125,54 +108,73 @@ input[type="range"] {
   font-size: 11px;
 }
 
-.info-text {
-  font-size: 10px;
-  color: #888;
-  margin-top: 4px;
-}
+.info-text { font-size: 10px; color: #888; margin-top: 4px; }
+.desc-text { font-size: 10px; color: #777; margin-top: 4px; }
 
-.desc-text {
-  font-size: 10px;
-  color: #777;
-  margin-top: 4px;
-}
-
-/* タブ */
+/* ★タブ切り替えボタン★ */
 .tab-nav {
-  display: flex;
+  display: flex !important;
+  width: 100%;
   background: #202020;
-  border-radius: 3px;
+  border-radius: 4px;
   overflow: hidden;
-  border: 1px solid #383838;
+  border: 1px solid #444;
+  margin: 4px 0;
 }
 
 .tab-btn {
   flex: 1;
-  background: transparent;
+  background: #282828;
   border: none;
-  border-radius: 0;
-  padding: 7px 4px;
+  border-right: 1px solid #383838;
+  padding: 8px 4px;
   font-size: 11px;
-  color: #888;
+  color: #aaa;
+  cursor: pointer;
+  text-align: center;
 }
 
+.tab-btn:last-child { border-right: none; }
 .tab-btn.active {
-  background: #333;
+  background: #3e3e3e;
   color: #fff;
   font-weight: bold;
   border-bottom: 2px solid #0078d4;
 }
 
+/* ★タブコンテンツの表示/非表示★ */
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-/* カラープレビュー・スウォッチ */
-.color-preview-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+#layer-listbox {
+  width: 100% !important;
+  height: 90px !important;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  color: #eee;
+  border-radius: 3px;
+  padding: 4px;
+  margin: 6px 0;
+  display: block;
 }
 
+fieldset.sub-panel label {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0 !important;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+fieldset.sub-panel label input[type="radio"],
+fieldset.sub-panel label input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #0078d4;
+}
+
+.color-preview-row { display: flex; align-items: center; gap: 6px; }
 .color-swatch {
   display: inline-block;
   width: 24px;
@@ -182,7 +184,6 @@ input[type="range"] {
   background-color: #fff;
 }
 
-/* マスク乗算テーブル */
 #tint-tree-container {
   max-height: 150px;
   overflow-y: auto;
@@ -204,7 +205,6 @@ input[type="range"] {
 
 #tint-table tr.selected { background: #005a9e; }
 
-/* メインキャンバス */
 #canvas-container {
   flex: 1;
   display: flex;
@@ -242,7 +242,6 @@ input[type="range"] {
   overflow: hidden;
   position: relative;
   background: #181818;
-  cursor: default;
 }
 
 #main-canvas {
@@ -263,7 +262,6 @@ input[type="range"] {
   padding: 0 8px;
 }
 
-/* HSV モーダル */
 #modal-color-picker {
   border: 1px solid #555;
   border-radius: 6px;
@@ -274,115 +272,9 @@ input[type="range"] {
 }
 
 #modal-color-picker::backdrop { background: rgba(0, 0, 0, 0.6); }
-
 .picker-content { width: 340px; }
-.swatch-compare {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 10px 0;
-}
-
-.swatch-compare i {
-  display: inline-block;
-  width: 40px;
-  height: 24px;
-  border: 1px solid #666;
-  vertical-align: middle;
-}
-
-.hsv-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0;
-  font-size: 12px;
-}
-
-.quick-palette {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 4px;
-  margin: 10px 0;
-}
-
-.palette-btn {
-  height: 24px;
-  border: 1px solid #555;
-  border-radius: 2px;
-}
-
-/* タブナビゲーションの表示を確実にする */
-.tab-nav {
-  display: flex !important;
-  width: 100%;
-  background: #202020;
-  border-radius: 4px;
-  overflow: hidden;
-  border: 1px solid #444;
-  margin: 6px 0;
-}
-
-.tab-btn {
-  flex: 1;
-  background: #282828;
-  border: none;
-  border-right: 1px solid #383838;
-  padding: 8px 4px;
-  font-size: 11px;
-  color: #aaa;
-  cursor: pointer;
-  text-align: center;
-}
-
-.tab-btn:last-child {
-  border-right: none;
-}
-
-.tab-btn.active {
-  background: #3e3e3e;
-  color: #fff;
-  font-weight: bold;
-  border-bottom: 2px solid #0078d4;
-}
-
-/* レイヤー一覧リストボックスの潰れを解消 */
-#layer-listbox {
-  width: 100% !important;
-  height: 90px !important;
-  background: #1e1e1e;
-  border: 1px solid #444;
-  color: #eee;
-  border-radius: 3px;
-  padding: 4px;
-  margin: 6px 0;
-  display: block;
-}
-
-/* ラジオボタン・チェックボックスを整然と縦並びにする */
-fieldset.sub-panel label {
-  display: flex !important;
-  align-items: center;
-  gap: 6px;
-  margin: 5px 0 !important;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-fieldset.sub-panel label input[type="radio"],
-fieldset.sub-panel label input[type="checkbox"] {
-  margin: 0;
-  cursor: pointer;
-  accent-color: #0078d4;
-}
-
-/* セレクトボックスの横幅 */
-select {
-  width: 100%;
-  background: #1e1e1e;
-  border: 1px solid #444;
-  color: #e0e0e0;
-  border-radius: 3px;
-  padding: 4px;
-  font-size: 11px;
-}
+.swatch-compare { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+.swatch-compare i { display: inline-block; width: 40px; height: 24px; border: 1px solid #666; vertical-align: middle; }
+.hsv-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+.quick-palette { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 10px 0; }
+.palette-btn { height: 24px; border: 1px solid #555; border-radius: 2px; }
