@@ -4,281 +4,231 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PNG 矩形・平行四辺形乗算合成ツール Web</title>
+  <link rel="stylesheet" href="style.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; user-select: none; }
-    body { background-color: #1a1a1a; color: #e0e0e0; overflow: hidden; height: 100vh; }
-    #app-container { display: flex; height: 100vh; width: 100vw; }
-    #sidebar { width: 440px; min-width: 440px; background-color: #262626; border-right: 1px solid #3d3d3d; display: flex; flex-direction: column; padding: 8px; overflow-y: auto; gap: 8px; }
-    .panel { background: #303030; border-radius: 4px; padding: 8px; border: 1px solid #404040; }
-    .panel-title { font-size: 13px; margin-bottom: 6px; color: #bbb; }
-    .sub-panel { border: 1px solid #444; border-radius: 4px; padding: 8px; margin-top: 6px; }
-    .sub-panel legend { font-size: 11px; color: #999; padding: 0 4px; }
-    button { background: #3e3e3e; color: #e0e0e0; border: 1px solid #555; border-radius: 3px; padding: 5px 8px; font-size: 11px; cursor: pointer; transition: background 0.15s; }
-    button:hover { background: #4e4e4e; }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: #005a9e; border-color: #0078d4; color: #fff; font-weight: bold; }
-    .btn-primary:hover { background: #0078d4; }
-    .btn-group { display: flex; gap: 4px; }
-    .btn-group button { flex: 1; }
-    .w-100 { width: 100%; }
-    .mt-05 { margin-top: 4px; }
-    .mt-1 { margin-top: 8px; }
-    select, input[type="text"] { width: 100%; background: #1e1e1e; border: 1px solid #444; color: #e0e0e0; border-radius: 3px; padding: 4px; font-size: 11px; }
-    input[type="range"] { flex: 1; accent-color: #0078d4; cursor: pointer; }
-    .row { display: flex; align-items: center; gap: 6px; }
-    .step-row { display: flex; align-items: center; gap: 4px; }
-    .btn-step, .btn-blur-step { padding: 2px 6px; }
-    .val-badge { font-family: Consolas, monospace; font-weight: bold; color: #55b5ff; min-width: 45px; text-align: right; font-size: 11px; }
-    .info-text { font-size: 10px; color: #888; margin-top: 4px; }
-    .desc-text { font-size: 10px; color: #777; margin-top: 4px; }
-    
-    /* タブ切り替えボタンのスタイル */
-    .tab-nav { display: flex !important; width: 100%; background: #202020; border-radius: 4px; overflow: hidden; border: 1px solid #444; margin: 4px 0; }
-    .tab-btn { flex: 1; background: #282828; border: none; border-right: 1px solid #383838; padding: 8px 4px; font-size: 11px; color: #aaa; cursor: pointer; text-align: center; }
-    .tab-btn:last-child { border-right: none; }
-    .tab-btn.active { background: #3e3e3e; color: #fff; font-weight: bold; border-bottom: 2px solid #0078d4; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-
-    #layer-listbox { width: 100% !important; height: 90px !important; background: #1e1e1e; border: 1px solid #444; color: #eee; border-radius: 3px; padding: 4px; margin: 6px 0; display: block; }
-    fieldset.sub-panel label { display: flex !important; align-items: center; gap: 6px; margin: 5px 0 !important; font-size: 11px; cursor: pointer; }
-    fieldset.sub-panel label input[type="radio"], fieldset.sub-panel label input[type="checkbox"] { margin: 0; cursor: pointer; accent-color: #0078d4; }
-    .color-preview-row { display: flex; align-items: center; gap: 6px; }
-    .color-swatch { display: inline-block; width: 24px; height: 16px; border: 1px solid #666; border-radius: 2px; background-color: #fff; }
-    #tint-tree-container { max-height: 150px; overflow-y: auto; border: 1px solid #444; margin-top: 6px; background: #1e1e1e; }
-    #tint-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    #tint-table th, #tint-table td { padding: 4px 6px; border-bottom: 1px solid #333; }
-    #tint-table tr.selected { background: #005a9e; }
-    #canvas-container { flex: 1; display: flex; flex-direction: column; background-color: #1a1a1a; position: relative; }
-    #zoom-toolbar { height: 36px; background: #222; border-bottom: 1px solid #333; display: flex; align-items: center; padding: 0 8px; gap: 6px; }
-    #lbl-zoom { font-family: Consolas, monospace; font-weight: bold; font-size: 12px; min-width: 45px; text-align: center; }
-    .guide-text { font-size: 10px; color: #666; margin-left: auto; }
-    #canvas-viewport { flex: 1; overflow: hidden; position: relative; background: #181818; }
-    #main-canvas { position: absolute; top: 0; left: 0; image-rendering: pixelated; }
-    #status-bar { height: 24px; background: #1e1e1e; border-top: 1px solid #333; font-size: 11px; color: #888; display: flex; align-items: center; padding: 0 8px; }
-    #modal-color-picker { border: 1px solid #555; border-radius: 6px; background: #2a2a2a; color: #eee; padding: 16px; margin: auto; }
-    #modal-color-picker::backdrop { background: rgba(0, 0, 0, 0.6); }
-    .picker-content { width: 340px; }
-    .swatch-compare { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
-    .swatch-compare i { display: inline-block; width: 40px; height: 24px; border: 1px solid #666; vertical-align: middle; }
-    .hsv-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
-    .quick-palette { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 10px 0; }
-    .palette-btn { height: 24px; border: 1px solid #555; border-radius: 2px; }
-  </style>
 </head>
 <body>
   <div id="app-container">
+    <!-- サイドバー：全機能が縦スクロールで常時アクセス可能 -->
     <aside id="sidebar">
-      <section class="panel">
-        <h3 class="panel-title">画像・プロジェクト</h3>
-        <div class="btn-group">
-          <button id="btn-load-base">ベースPNGを開く</button>
-          <button id="btn-load-mask">マスク画像を開く</button>
-        </div>
-        <div class="btn-group mt-05">
-          <button id="btn-load-folder">📁 ローカルフォルダ</button>
-          <button id="btn-google-drive">☁️ Google Drive</button>
-        </div>
-        <div class="info-text" id="lbl-base-info">ベース: 未読込</div>
-        <div class="info-text" id="lbl-mask-info">マスク: 未読込</div>
-        <div class="btn-group mt-05">
-          <button id="btn-save-proj">プロジェクト保存</button>
-          <button id="btn-save-proj-as">別名保存</button>
-          <button id="btn-load-proj">再開 (読込)</button>
-        </div>
-      </section>
-
-      <!-- ★タブ切り替えボタン★ -->
-      <nav class="tab-nav">
-        <button class="tab-btn active" data-tab="tab-layer">レイヤー・変形</button>
-        <button class="tab-btn" data-tab="tab-tone">トーン＆ブレンド</button>
-        <button class="tab-btn" data-tab="tab-tint">マスク乗算(Tint)</button>
-        <button class="tab-btn" data-tab="tab-info">特殊色・設定</button>
-      </nav>
-
-      <!-- タブ1: レイヤー・変形 -->
-      <div id="tab-layer" class="tab-content active">
-        <div class="btn-group">
-          <button id="btn-add-multiply">＋ 乗算追加</button>
-          <button id="btn-add-structure">＋ 小物追加</button>
-        </div>
-        <div class="btn-group mt-05">
-          <button id="btn-copy-layer">📋 コピー(相対参照)</button>
-          <button id="btn-del-layer">－ 削除</button>
-        </div>
-        <select id="layer-listbox" size="5"></select>
-        <div class="btn-group">
-          <button id="btn-layer-up">▲ 上へ</button>
-          <button id="btn-layer-down">▼ 下へ</button>
-          <button id="btn-layer-replace">画像差替</button>
-        </div>
-
-        <fieldset class="sub-panel">
-          <legend>レイヤー種別＆透過オプション</legend>
-          <label><input type="radio" name="layer-type" value="multiply" checked> 乗算 (テクスチャ)</label>
-          <label><input type="radio" name="layer-type" value="structure"> ストラクチャー (小物)</label>
-          <label><input type="checkbox" id="chk-trans-e7ffff"> ストラクチャの #E7FFFF を透過色 (#C0C0C000) にする</label>
-        </fieldset>
-
-        <fieldset class="sub-panel">
-          <legend>適用マスクカラー設定 (このレイヤー)</legend>
-          <div class="color-preview-row">
-            <span class="color-swatch" id="layer-mask-swatch"></span>
-            <span id="lbl-layer-mask">適用先: 全体 (マスクなし)</span>
-          </div>
-          <button id="btn-eyedropper" class="w-100 mt-05">🎯 スポイトで選択 (マスク画像を表示)</button>
-          <div class="row mt-05">
-            <label style="min-width: 75px;">一覧から選ぶ:</label>
-            <select id="mask-color-combo"><option value="">(全体 / マスクなし)</option></select>
-          </div>
-          <button id="btn-clear-mask" class="w-100 mt-05">マスク解除 (全体適用に戻す)</button>
-        </fieldset>
-
-        <fieldset class="sub-panel">
-          <legend>パターン繰り返し (タイル)</legend>
-          <div class="step-row">
-            <span>横(X):</span><span class="val-badge" id="lbl-tile-x">1.0</span>
-            <button class="btn-step" data-axis="x" data-delta="-1.0">-1</button>
-            <button class="btn-step" data-axis="x" data-delta="-0.1">-0.1</button>
-            <button class="btn-step" data-axis="x" data-delta="0.1">+0.1</button>
-            <button class="btn-step" data-axis="x" data-delta="1.0">+1</button>
-          </div>
-          <div class="step-row mt-05">
-            <span>縦(Y):</span><span class="val-badge" id="lbl-tile-y">1.0</span>
-            <button class="btn-step" data-axis="y" data-delta="-1.0">-1</button>
-            <button class="btn-step" data-axis="y" data-delta="-0.1">-0.1</button>
-            <button class="btn-step" data-axis="y" data-delta="0.1">+0.1</button>
-            <button class="btn-step" data-axis="y" data-delta="1.0">+1</button>
-          </div>
-        </fieldset>
-
-        <fieldset class="sub-panel">
-          <legend>変形モード＆ピクセルスナップ</legend>
-          <label><input type="radio" name="transform-mode" value="box" checked> 矩形リサイズ (軸平行)</label>
-          <label><input type="radio" name="transform-mode" value="affine"> 自由3頂点 (平行四辺形)</label>
-          <label><input type="radio" name="transform-mode" value="free"> 自由4頂点 (透視投影)</label>
-          <label><input type="checkbox" id="chk-fill-all"> 現在の変形で画像全体にマッピング (全域タイリング)</label>
-          <div class="row mt-05">
-            <label><input type="checkbox" id="chk-pixel-snap" checked> 📍 ピクセルスナップ</label>
-            <button id="btn-snap-now" style="margin-left:auto;">現在位置をスナップ</button>
-          </div>
-        </fieldset>
-
-        <div class="row mt-05">
-          <label>不透明度:</label>
-          <span class="val-badge" id="lbl-opacity">100%</span>
-          <input type="range" id="slider-opacity" min="0" max="1" step="0.01" value="1">
-        </div>
-        <label class="mt-05"><input type="checkbox" id="chk-layer-visible" checked> レイヤーを表示</label>
-      </div>
-
-      <!-- タブ2: トーン＆ブレンド -->
-      <div id="tab-tone" class="tab-content">
-        <fieldset class="sub-panel">
-          <legend>画像全体のぼかし (SpecialColor完全保護)</legend>
-          <label><input type="checkbox" id="chk-enable-blur" checked> SpecialColorを除外して画像全体をぼかす</label>
-          <div class="row mt-05">
-            <span>半径:</span><span class="val-badge" id="lbl-blur-radius">0.00px</span>
-            <button class="btn-blur-step" data-delta="-0.05">-0.05</button>
-            <input type="range" id="slider-blur" min="0" max="10" step="0.05" value="0">
-            <button class="btn-blur-step" data-delta="0.05">+0.05</button>
-          </div>
-        </fieldset>
-
-        <fieldset class="sub-panel">
-          <legend>トーン設定対象の選択</legend>
-          <div class="row">
-            <label style="min-width: 60px;">設定対象:</label>
-            <select id="combo-tone-target"><option value="__ALL__">全体 (デフォルト)</option></select>
-          </div>
-          <label class="mt-05"><input type="checkbox" id="chk-tone-override" disabled> このマスク色の個別トーン設定を有効化</label>
-        </fieldset>
-
-        <fieldset class="sub-panel" id="tone-params-frame">
-          <legend>トーン＆ハイライトブレンドパラメータ</legend>
-          <div class="row">
-            <span>最も暗い色:</span>
-            <span class="color-swatch" id="dark-color-swatch" style="background:#000018;"></span>
-            <span id="lbl-dark-color">#000018</span>
-            <button id="btn-pick-dark" style="margin-left:auto;">色選択</button>
-          </div>
-          <button id="btn-reset-dark" class="w-100 mt-05">デフォルト黒(#000018)に戻す</button>
-
-          <label class="mt-05">最小の明るさ % [=暗色]:</label>
-          <div class="row">
-            <span class="val-badge" id="lbl-min-dark">0.0%</span>
-            <input type="range" id="slider-min-dark" min="0" max="100" step="0.5" value="0">
-          </div>
-
-          <label class="mt-05">最大の明るさ % [=白/ハイライト開始]:</label>
-          <div class="row">
-            <span class="val-badge" id="lbl-max-bright">100.0%</span>
-            <input type="range" id="slider-max-bright" min="0" max="100" step="0.5" value="100">
-          </div>
-
-          <fieldset class="sub-panel mt-05">
-            <legend>ハイライト Normalブレンド</legend>
-            <label><input type="checkbox" id="chk-enable-dodge" checked> 最大明るさを超えた部分をNormalブレンド</label>
-            <div class="row mt-05">
-              <span>ブレンド色:</span>
-              <span class="color-swatch" id="dodge-color-swatch" style="background:#FFFFFF;"></span>
-              <button id="btn-pick-dodge" style="margin-left:auto;">色変更</button>
-            </div>
-            <label class="mt-05">ブレンド最大強さ %:</label>
-            <div class="row">
-              <span class="val-badge" id="lbl-dodge-strength">100.0%</span>
-              <input type="range" id="slider-dodge-strength" min="0" max="150" step="1" value="100">
-            </div>
-          </fieldset>
-        </fieldset>
-      </div>
-
-      <!-- タブ3: マスクカラー乗算(Tint) -->
-      <div id="tab-tint" class="tab-content">
-        <label><input type="checkbox" id="chk-enable-tint" checked> マスク範囲のカラー乗算を有効化</label>
-        <p class="desc-text">各マスク色の範囲に指定カラーを乗算します。</p>
-        <div id="tint-tree-container">
-          <table id="tint-table">
-            <thead><tr><th>マスク色</th><th>乗算指定色 (Tint)</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <fieldset class="sub-panel mt-05">
-          <legend>選択中のマスク乗算色編集</legend>
-          <div class="row">
-            <span class="color-swatch" id="sel-tint-swatch"></span>
-            <span id="lbl-sel-tint-info">色を選択してください</span>
+      
+      <!-- セクション1: 画像・プロジェクト -->
+      <details class="accordion-panel" open>
+        <summary>画像・プロジェクト</summary>
+        <div class="panel-body">
+          <div class="btn-group">
+            <button id="btn-load-base">ベースPNGを開く</button>
+            <button id="btn-load-mask">マスク画像を開く</button>
           </div>
           <div class="btn-group mt-05">
-            <button id="btn-pick-tint">色変更</button>
-            <button id="btn-reset-tint">元色に戻す</button>
+            <button id="btn-load-folder">📁 ローカルフォルダ</button>
+            <button id="btn-google-drive">☁️ Google Drive</button>
           </div>
-        </fieldset>
-        <button id="btn-reset-all-tints" class="w-100 mt-05">全マスク色をデフォルトに戻す</button>
-      </div>
-
-      <!-- タブ4: 特殊色・設定 -->
-      <div id="tab-info" class="tab-content">
-        <fieldset class="sub-panel">
-          <legend>特殊色CSV (編集除外・衝突回避)</legend>
-          <div class="row">
-            <input type="file" id="file-csv" accept=".csv">
+          <div class="info-text" id="lbl-base-info">ベース: 未読込</div>
+          <div class="info-text" id="lbl-mask-info">マスク: 未読込</div>
+          <div class="btn-group mt-05">
+            <button id="btn-save-proj">プロジェクト保存</button>
+            <button id="btn-save-proj-as">別名保存</button>
+            <button id="btn-load-proj">再開 (読込)</button>
           </div>
-          <div class="info-text mt-05" id="lbl-csv-info">特殊色: 0件登録済</div>
-        </fieldset>
-        <fieldset class="sub-panel mt-05">
-          <legend>Google Drive 認証設定</legend>
-          <label>API Key:</label>
-          <input type="text" id="gdrive-api-key" placeholder="AIzaSy...">
-          <label class="mt-05">Client ID:</label>
-          <input type="text" id="gdrive-client-id" placeholder="xxxx.apps.googleusercontent.com">
-          <p class="desc-text">※GitHub Pages等の環境では、ご自身のGoogle Cloudで発行したクライアント情報を入力して利用します。</p>
-        </fieldset>
-      </div>
+        </div>
+      </details>
 
-      <div style="margin-top:auto; padding-top:8px;">
+      <!-- セクション2: レイヤー・変形 -->
+      <details class="accordion-panel" open>
+        <summary>レイヤー・変形操作</summary>
+        <div class="panel-body">
+          <div class="btn-group">
+            <button id="btn-add-multiply">＋ 乗算追加</button>
+            <button id="btn-add-structure">＋ 小物追加</button>
+          </div>
+          <div class="btn-group mt-05">
+            <button id="btn-copy-layer">📋 コピー(相対参照)</button>
+            <button id="btn-del-layer">－ 削除</button>
+          </div>
+          <select id="layer-listbox" size="5"></select>
+          <div class="btn-group">
+            <button id="btn-layer-up">▲ 上へ</button>
+            <button id="btn-layer-down">▼ 下へ</button>
+            <button id="btn-layer-replace">画像差替</button>
+          </div>
+
+          <fieldset class="sub-panel">
+            <legend>レイヤー種別＆透過オプション</legend>
+            <label><input type="radio" name="layer-type" value="multiply" checked> 乗算 (テクスチャ)</label>
+            <label><input type="radio" name="layer-type" value="structure"> ストラクチャー (小物)</label>
+            <label><input type="checkbox" id="chk-trans-e7ffff"> ストラクチャの #E7FFFF を透過色 (#C0C0C000) にする</label>
+          </fieldset>
+
+          <fieldset class="sub-panel">
+            <legend>適用マスクカラー設定 (このレイヤー)</legend>
+            <div class="color-preview-row">
+              <span class="color-swatch" id="layer-mask-swatch"></span>
+              <span id="lbl-layer-mask">適用先: 全体 (マスクなし)</span>
+            </div>
+            <button id="btn-eyedropper" class="w-100 mt-05">🎯 スポイトで選択 (マスク画像を表示)</button>
+            <div class="row mt-05">
+              <label style="min-width: 75px;">一覧から選ぶ:</label>
+              <select id="mask-color-combo"><option value="">(全体 / マスクなし)</option></select>
+            </div>
+            <button id="btn-clear-mask" class="w-100 mt-05">マスク解除 (全体適用に戻す)</button>
+          </fieldset>
+
+          <fieldset class="sub-panel">
+            <legend>パターン繰り返し (タイル)</legend>
+            <div class="step-row">
+              <span>横(X):</span><span class="val-badge" id="lbl-tile-x">1.0</span>
+              <button class="btn-step" data-axis="x" data-delta="-1.0">-1</button>
+              <button class="btn-step" data-axis="x" data-delta="-0.1">-0.1</button>
+              <button class="btn-step" data-axis="x" data-delta="0.1">+0.1</button>
+              <button class="btn-step" data-axis="x" data-delta="1.0">+1</button>
+            </div>
+            <div class="step-row mt-05">
+              <span>縦(Y):</span><span class="val-badge" id="lbl-tile-y">1.0</span>
+              <button class="btn-step" data-axis="y" data-delta="-1.0">-1</button>
+              <button class="btn-step" data-axis="y" data-delta="-0.1">-0.1</button>
+              <button class="btn-step" data-axis="y" data-delta="0.1">+0.1</button>
+              <button class="btn-step" data-axis="y" data-delta="1.0">+1</button>
+            </div>
+          </fieldset>
+
+          <fieldset class="sub-panel">
+            <legend>変形モード＆ピクセルスナップ</legend>
+            <label><input type="radio" name="transform-mode" value="box" checked> 矩形リサイズ (軸平行)</label>
+            <label><input type="radio" name="transform-mode" value="affine"> 自由3頂点 (平行四辺形)</label>
+            <label><input type="radio" name="transform-mode" value="free"> 自由4頂点 (透視投影)</label>
+            <label><input type="checkbox" id="chk-fill-all"> 現在の変形で画像全体にマッピング (全域タイリング)</label>
+            <div class="row mt-05">
+              <label><input type="checkbox" id="chk-pixel-snap" checked> 📍 ピクセルスナップ</label>
+              <button id="btn-snap-now" style="margin-left:auto;">現在位置をスナップ</button>
+            </div>
+          </fieldset>
+
+          <div class="row mt-05">
+            <label>不透明度:</label>
+            <span class="val-badge" id="lbl-opacity">100%</span>
+            <input type="range" id="slider-opacity" min="0" max="1" step="0.01" value="1">
+          </div>
+          <label class="mt-05"><input type="checkbox" id="chk-layer-visible" checked> レイヤーを表示</label>
+        </div>
+      </details>
+
+      <!-- セクション3: トーン＆ハイライトブレンド -->
+      <details class="accordion-panel" open>
+        <summary>トーン＆ハイライトブレンド</summary>
+        <div class="panel-body">
+          <fieldset class="sub-panel">
+            <legend>画像全体のぼかし (SpecialColor完全保護)</legend>
+            <label><input type="checkbox" id="chk-enable-blur" checked> SpecialColorを除外して画像全体をぼかす</label>
+            <div class="row mt-05">
+              <span>半径:</span><span class="val-badge" id="lbl-blur-radius">0.00px</span>
+              <button class="btn-blur-step" data-delta="-0.05">-0.05</button>
+              <input type="range" id="slider-blur" min="0" max="10" step="0.05" value="0">
+              <button class="btn-blur-step" data-delta="0.05">+0.05</button>
+            </div>
+          </fieldset>
+
+          <fieldset class="sub-panel">
+            <legend>トーン設定対象の選択</legend>
+            <div class="row">
+              <label style="min-width: 60px;">設定対象:</label>
+              <select id="combo-tone-target"><option value="__ALL__">全体 (デフォルト)</option></select>
+            </div>
+            <label class="mt-05"><input type="checkbox" id="chk-tone-override" disabled> このマスク色の個別トーン設定を有効化</label>
+          </fieldset>
+
+          <fieldset class="sub-panel" id="tone-params-frame">
+            <legend>パラメータ調整</legend>
+            <div class="row">
+              <span>最も暗い色:</span>
+              <span class="color-swatch" id="dark-color-swatch" style="background:#000018;"></span>
+              <span id="lbl-dark-color">#000018</span>
+              <button id="btn-pick-dark" style="margin-left:auto;">色選択</button>
+            </div>
+            <button id="btn-reset-dark" class="w-100 mt-05">デフォルト黒(#000018)に戻す</button>
+
+            <label class="mt-05">最小の明るさ % [=暗色]:</label>
+            <div class="row">
+              <span class="val-badge" id="lbl-min-dark">0.0%</span>
+              <input type="range" id="slider-min-dark" min="0" max="100" step="0.5" value="0">
+            </div>
+
+            <label class="mt-05">最大の明るさ % [=白/ハイライト開始]:</label>
+            <div class="row">
+              <span class="val-badge" id="lbl-max-bright">100.0%</span>
+              <input type="range" id="slider-max-bright" min="0" max="100" step="0.5" value="100">
+            </div>
+
+            <fieldset class="sub-panel mt-05">
+              <legend>ハイライト Normalブレンド</legend>
+              <label><input type="checkbox" id="chk-enable-dodge" checked> 最大明るさを超えた部分をNormalブレンド</label>
+              <div class="row mt-05">
+                <span>ブレンド色:</span>
+                <span class="color-swatch" id="dodge-color-swatch" style="background:#FFFFFF;"></span>
+                <button id="btn-pick-dodge" style="margin-left:auto;">色変更</button>
+              </div>
+              <label class="mt-05">ブレンド最大強さ %:</label>
+              <div class="row">
+                <span class="val-badge" id="lbl-dodge-strength">100.0%</span>
+                <input type="range" id="slider-dodge-strength" min="0" max="150" step="1" value="100">
+              </div>
+            </fieldset>
+          </fieldset>
+        </div>
+      </details>
+
+      <!-- セクション4: マスクカラー乗算 (Tint) -->
+      <details class="accordion-panel">
+        <summary>マスクカラー乗算 (Tint)</summary>
+        <div class="panel-body">
+          <label><input type="checkbox" id="chk-enable-tint" checked> マスク範囲のカラー乗算を有効化</label>
+          <p class="desc-text">各マスク色の範囲に指定カラーを乗算します。</p>
+          <div id="tint-tree-container">
+            <table id="tint-table">
+              <thead><tr><th>マスク色</th><th>乗算指定色 (Tint)</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <fieldset class="sub-panel mt-05">
+            <legend>選択中のマスク乗算色編集</legend>
+            <div class="row">
+              <span class="color-swatch" id="sel-tint-swatch"></span>
+              <span id="lbl-sel-tint-info">色を選択してください</span>
+            </div>
+            <div class="btn-group mt-05">
+              <button id="btn-pick-tint">色変更</button>
+              <button id="btn-reset-tint">元色に戻す</button>
+            </div>
+          </fieldset>
+          <button id="btn-reset-all-tints" class="w-100 mt-05">全マスク色をデフォルトに戻す</button>
+        </div>
+      </details>
+
+      <!-- セクション5: 特殊色・外部連携設定 -->
+      <details class="accordion-panel">
+        <summary>特殊色・外部連携設定</summary>
+        <div class="panel-body">
+          <fieldset class="sub-panel">
+            <legend>特殊色CSV (編集除外・衝突回避)</legend>
+            <div class="row">
+              <input type="file" id="file-csv" accept=".csv">
+            </div>
+            <div class="info-text mt-05" id="lbl-csv-info">特殊色: 0件登録済</div>
+          </fieldset>
+          <fieldset class="sub-panel mt-05">
+            <legend>Google Drive 認証設定</legend>
+            <label>API Key:</label>
+            <input type="text" id="gdrive-api-key" placeholder="AIzaSy...">
+            <label class="mt-05">Client ID:</label>
+            <input type="text" id="gdrive-client-id" placeholder="xxxx.apps.googleusercontent.com">
+            <p class="desc-text">※GitHub Pages等の環境では、ご自身のGoogle Cloudで発行したクライアント情報を入力して利用します。</p>
+          </fieldset>
+        </div>
+      </details>
+
+      <!-- 最下部固定: PNG保存 -->
+      <div class="sidebar-footer">
         <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存 (#C0C0C000透過・特殊色回避)</button>
       </div>
     </aside>
@@ -336,1245 +286,7 @@
 
   <input type="file" id="input-file-hidden" style="display: none;">
 
-  <!-- ★全ロジック埋め込みスクリプト (CORS不要・ローカルダブルクリック完全対応)★ -->
-  <script>
-    // --- 1. Color Utils ---
-    function rgbToHex(r, g, b) {
-      const toHex = (c) => Math.round(Math.max(0, Math.min(255, c))).toString(16).padStart(2, '0').toUpperCase();
-      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-    }
-    function hexToRgb(hex) {
-      let clean = hex.replace('#', '').trim();
-      if (clean.length === 3) clean = clean.split('').map(c => c + c).join('');
-      if (clean.length !== 6) return [0, 0, 0];
-      return [parseInt(clean.substring(0, 2), 16) || 0, parseInt(clean.substring(2, 4), 16) || 0, parseInt(clean.substring(4, 6), 16) || 0];
-    }
-    function hexToHsv(hex) {
-      const [r, g, b] = hexToRgb(hex).map(v => v / 255);
-      const max = Math.max(r, g, b), min = Math.min(r, g, b);
-      const diff = max - min;
-      let h = 0;
-      if (diff !== 0) {
-        if (max === r) h = ((g - b) / diff) % 6;
-        else if (max === g) h = (b - r) / diff + 2;
-        else h = (r - g) / diff + 4;
-        h = Math.round(h * 60);
-        if (h < 0) h += 360;
-      }
-      return { h, s: max === 0 ? 0 : Math.round((diff / max) * 100), v: Math.round(max * 100) };
-    }
-    function hsvToHex(h, s, v) {
-      s /= 100; v /= 100;
-      const c = v * s;
-      const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-      const m = v - c;
-      let r = 0, g = 0, b = 0;
-      if (h < 60) { r = c; g = x; }
-      else if (h < 120) { r = x; g = c; }
-      else if (h < 180) { g = c; b = x; }
-      else if (h < 240) { g = x; b = c; }
-      else if (h < 300) { r = x; b = c; }
-      else { r = c; b = x; }
-      return rgbToHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
-    }
-    function parseSpecialColorsCsv(csvText) {
-      const set = new Set();
-      csvText.split(/\r?\n/).forEach(line => {
-        const t = line.trim();
-        if (!t || t.includes('SpecialColor')) return;
-        const hex = (t.split(',')[0].trim().startsWith('#') ? t.split(',')[0].trim() : `#${t.split(',')[0].trim()}`).toUpperCase();
-        if (/^#[0-9A-F]{6}$/i.test(hex)) set.add(hex);
-      });
-      return set;
-    }
-    function resolveSpecialColorConflicts(rgbaArray, width, height, specialColorSet) {
-      let count = 0;
-      for (let i = 0; i < rgbaArray.length; i += 4) {
-        if (rgbaArray[i + 3] === 0) continue;
-        const hex = rgbToHex(rgbaArray[i], rgbaArray[i + 1], rgbaArray[i + 2]);
-        if (specialColorSet.has(hex)) {
-          count++;
-          rgbaArray[i] = rgbaArray[i] > 0 ? rgbaArray[i] - 1 : rgbaArray[i] + 1;
-        }
-      }
-      return count;
-    }
-
-    // --- 2. Transform & Perspective Matrix ---
-    function getPerspectiveTransform(src, dst) {
-      const a = [], b = [];
-      for (let i = 0; i < 4; i++) {
-        const [sx, sy] = src[i], [dx, dy] = dst[i];
-        a.push([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy]); b.push(dx);
-        a.push([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy]); b.push(dy);
-      }
-      for (let i = 0; i < 8; i++) {
-        let maxRow = i;
-        for (let k = i + 1; k < 8; k++) if (Math.abs(a[k][i]) > Math.abs(a[maxRow][i])) maxRow = k;
-        [a[i], a[maxRow]] = [a[maxRow], a[i]]; [b[i], b[maxRow]] = [b[maxRow], b[i]];
-        for (let k = i + 1; k < 8; k++) {
-          const c = -a[k][i] / a[i][i];
-          for (let j = i; j < 8; j++) a[k][j] = i === j ? 0 : a[k][j] + c * a[i][j];
-          b[k] += c * b[i];
-        }
-      }
-      const h = new Array(9);
-      for (let i = 7; i >= 0; i--) {
-        let sum = 0;
-        for (let j = i + 1; j < 8; j++) sum += a[i][j] * h[j];
-        h[i] = (b[i] - sum) / a[i][i];
-      }
-      h[8] = 1;
-      return h;
-    }
-    function invertMatrix3x3(m) {
-      const [a, b, c, d, e, f, g, h, k] = m;
-      const A = e * k - f * h, B = -(d * k - f * g), C = d * h - e * g;
-      const det = a * A + b * B + c * C;
-      if (Math.abs(det) < 1e-12) return null;
-      const inv = 1.0 / det;
-      return [
-        A * inv, (c * h - b * k) * inv, (b * f - c * e) * inv,
-        B * inv, (a * k - c * g) * inv, (c * d - a * f) * inv,
-        C * inv, (b * g - a * h) * inv, (a * e - b * d) * inv
-      ];
-    }
-    function sampleWarpedTexture(srcImageData, corners, targetW, targetH, fillAll, transformMode) {
-      const srcW = srcImageData.width, srcH = srcImageData.height;
-      const H = getPerspectiveTransform([[0, 0], [srcW, 0], [srcW, srcH], [0, srcH]], corners);
-      const invH = invertMatrix3x3(H);
-      if (!invH) return null;
-      const out = new Float32Array(targetW * targetH * 4);
-      const useWrap = fillAll && (transformMode === 'box' || transformMode === 'affine');
-      const src = srcImageData.data;
-      for (let y = 0; y < targetH; y++) {
-        for (let x = 0; x < targetW; x++) {
-          const denom = invH[6] * x + invH[7] * y + invH[8];
-          if (Math.abs(denom) < 1e-7) continue;
-          let u = (invH[0] * x + invH[1] * y + invH[2]) / denom;
-          let v = (invH[3] * x + invH[4] * y + invH[5]) / denom;
-          if (useWrap) {
-            u = ((u % srcW) + srcW) % srcW;
-            v = ((v % srcH) + srcH) % srcH;
-          } else {
-            if (u < 0 || u >= srcW || v < 0 || v >= srcH) continue;
-          }
-          const sIdx = (Math.floor(v) * srcW + Math.floor(u)) * 4;
-          const idx = (y * targetW + x) * 4;
-          out[idx] = src[sIdx] / 255.0;
-          out[idx + 1] = src[sIdx + 1] / 255.0;
-          out[idx + 2] = src[sIdx + 2] / 255.0;
-          out[idx + 3] = src[sIdx + 3] / 255.0;
-        }
-      }
-      return out;
-    }
-    function applyProtectedBlur(pixelsF32, width, height, blurRadius, invalidMask) {
-      if (blurRadius <= 0.001) return pixelsF32;
-      const sigma = blurRadius;
-      const kRadius = Math.max(1, Math.ceil(sigma * 3));
-      const kSize = kRadius * 2 + 1;
-      const kernel = new Float32Array(kSize);
-      let kSum = 0;
-      for (let i = -kRadius; i <= kRadius; i++) {
-        const val = Math.exp(-(i * i) / (2 * sigma * sigma));
-        kernel[i + kRadius] = val;
-        kSum += val;
-      }
-      for (let i = 0; i < kSize; i++) kernel[i] /= kSum;
-
-      const total = width * height;
-      const tempImg = new Float32Array(total * 3), tempW = new Float32Array(total);
-      const outImg = new Float32Array(total * 3), outW = new Float32Array(total);
-
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const idx = y * width + x;
-          let r = 0, g = 0, b = 0, w = 0;
-          for (let k = -kRadius; k <= kRadius; k++) {
-            const nx = Math.min(width - 1, Math.max(0, x + k));
-            const nIdx = y * width + nx;
-            if (!invalidMask[nIdx]) {
-              const kw = kernel[k + kRadius];
-              r += pixelsF32[nIdx * 3] * kw; g += pixelsF32[nIdx * 3 + 1] * kw; b += pixelsF32[nIdx * 3 + 2] * kw;
-              w += kw;
-            }
-          }
-          tempImg[idx * 3] = r; tempImg[idx * 3 + 1] = g; tempImg[idx * 3 + 2] = b; tempW[idx] = w;
-        }
-      }
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const idx = y * width + x;
-          let r = 0, g = 0, b = 0, w = 0;
-          for (let k = -kRadius; k <= kRadius; k++) {
-            const ny = Math.min(height - 1, Math.max(0, y + k));
-            const nIdx = ny * width + x;
-            const kw = kernel[k + kRadius];
-            r += tempImg[nIdx * 3] * kw; g += tempImg[nIdx * 3 + 1] * kw; b += tempImg[nIdx * 3 + 2] * kw;
-            w += tempW[nIdx] * kw;
-          }
-          outImg[idx * 3] = r; outImg[idx * 3 + 1] = g; outImg[idx * 3 + 2] = b; outW[idx] = w;
-        }
-      }
-      const res = new Float32Array(pixelsF32.length);
-      for (let i = 0; i < total; i++) {
-        if (invalidMask[i] || outW[i] < 1e-5) {
-          res[i * 3] = pixelsF32[i * 3]; res[i * 3 + 1] = pixelsF32[i * 3 + 1]; res[i * 3 + 2] = pixelsF32[i * 3 + 2];
-        } else {
-          res[i * 3] = Math.min(1.0, Math.max(0, outImg[i * 3] / outW[i]));
-          res[i * 3 + 1] = Math.min(1.0, Math.max(0, outImg[i * 3 + 1] / outW[i]));
-          res[i * 3 + 2] = Math.min(1.0, Math.max(0, outImg[i * 3 + 2] / outW[i]));
-        }
-      }
-      return res;
-    }
-
-    // --- 3. Layer Class ---
-    class Layer {
-      constructor(opts) {
-        this.sourceLayer = opts.sourceLayer || null;
-        this._visible = opts.visible !== undefined ? opts.visible : true;
-        if (!this.sourceLayer) {
-          this._name = opts.name || '';
-          this._imageElement = opts.imageElement || null;
-          this._opacity = opts.opacity !== undefined ? opts.opacity : 1.0;
-          this._transformMode = opts.transformMode || 'box';
-          this._tileX = Math.max(0.01, opts.tileX || 1.0);
-          this._tileY = Math.max(0.01, opts.tileY || 1.0);
-          this._targetMaskColor = opts.targetMaskColor ? [...opts.targetMaskColor] : null;
-          this._layerType = opts.layerType || 'multiply';
-          this._fillAll = opts.fillAll || false;
-          this._transparentE7ffff = opts.transparentE7ffff || false;
-          this._cachedImageData = null;
-          if (this._imageElement) this._prepareImageData();
-        } else {
-          this._opacity = opts.opacity !== undefined ? opts.opacity : 1.0;
-          this._transformMode = opts.transformMode || 'box';
-          this._tileX = opts.tileX || 1.0;
-          this._tileY = opts.tileY || 1.0;
-          this._targetMaskColor = opts.targetMaskColor || null;
-          this._layerType = opts.layerType || 'multiply';
-          this._fillAll = opts.fillAll || false;
-          this._transparentE7ffff = opts.transparentE7ffff || false;
-        }
-        if (opts.corners) {
-          this.corners = opts.corners.map(([x, y]) => [x, y]);
-        } else {
-          this.resetTransform(opts.canvasW || 256, opts.canvasH || 256);
-        }
-      }
-      get name() { return this.sourceLayer ? this.sourceLayer.name : this._name; }
-      get imageElement() { return this.sourceLayer ? this.sourceLayer.imageElement : this._imageElement; }
-      get opacity() { return this.sourceLayer ? this.sourceLayer.opacity : this._opacity; }
-      set opacity(v) { if (this.sourceLayer) this.sourceLayer.opacity = v; else this._opacity = v; }
-      get tileX() { return this.sourceLayer ? this.sourceLayer.tileX : this._tileX; }
-      set tileX(v) { if (this.sourceLayer) this.sourceLayer.tileX = v; else this._tileX = Math.max(0.01, v); }
-      get tileY() { return this.sourceLayer ? this.sourceLayer.tileY : this._tileY; }
-      set tileY(v) { if (this.sourceLayer) this.sourceLayer.tileY = v; else this._tileY = Math.max(0.01, v); }
-      get targetMaskColor() { return this.sourceLayer ? this.sourceLayer.targetMaskColor : this._targetMaskColor; }
-      set targetMaskColor(v) { if (this.sourceLayer) this.sourceLayer.targetMaskColor = v; else this._targetMaskColor = v ? [...v] : null; }
-      get transformMode() { return this.sourceLayer ? this.sourceLayer.transformMode : this._transformMode; }
-      set transformMode(v) { if (this.sourceLayer) this.sourceLayer.transformMode = v; else this._transformMode = v; }
-      get layerType() { return this.sourceLayer ? this.sourceLayer.layerType : this._layerType; }
-      set layerType(v) { if (this.sourceLayer) this.sourceLayer.layerType = v; else this._layerType = v; }
-      get fillAll() { return this.sourceLayer ? this.sourceLayer.fillAll : this._fillAll; }
-      set fillAll(v) { if (this.sourceLayer) this.sourceLayer.fillAll = v; else this._fillAll = v; }
-      get transparentE7ffff() { return this.sourceLayer ? this.sourceLayer.transparentE7ffff : this._transparentE7ffff; }
-      set transparentE7ffff(v) { if (this.sourceLayer) this.sourceLayer.transparentE7ffff = v; else this._transparentE7ffff = v; }
-      get visible() { return this._visible; }
-      set visible(v) { this._visible = v; }
-
-      _prepareImageData() {
-        const img = this.imageElement;
-        const c = document.createElement('canvas');
-        c.width = img.naturalWidth || img.width; c.height = img.naturalHeight || img.height;
-        const ctx = c.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        this._cachedImageData = ctx.getImageData(0, 0, c.width, c.height);
-      }
-      resetTransform(canvasW, canvasH) {
-        const ow = this.imageElement ? (this.imageElement.naturalWidth || 64) : 64;
-        const oh = this.imageElement ? (this.imageElement.naturalHeight || 64) : 64;
-        const initW = Math.min(ow * this.tileX, canvasW * 0.6);
-        const initH = initW * ((oh * this.tileY) / Math.max(1e-4, ow * this.tileX));
-        const cx = canvasW / 2, cy = canvasH / 2;
-        this.corners = [
-          [cx - initW / 2, cy - initH / 2], [cx + initW / 2, cy - initH / 2],
-          [cx + initW / 2, cy + initH / 2], [cx - initW / 2, cy + initH / 2]
-        ];
-      }
-      _getTiledImageData() {
-        const base = this.sourceLayer ? this.sourceLayer._cachedImageData : this._cachedImageData;
-        if (!base) return null;
-        const repX = Math.ceil(this.tileX), repY = Math.ceil(this.tileY);
-        const tW = Math.max(1, Math.round(base.width * this.tileX)), tH = Math.max(1, Math.round(base.height * this.tileY));
-        const c = document.createElement('canvas'); c.width = tW; c.height = tH;
-        const ctx = c.getContext('2d');
-        const tc = document.createElement('canvas'); tc.width = base.width; tc.height = base.height;
-        tc.getContext('2d').putImageData(base, 0, 0);
-        for (let y = 0; y < repY; y++) {
-          for (let x = 0; x < repX; x++) ctx.drawImage(tc, x * base.width, y * base.height);
-        }
-        return ctx.getImageData(0, 0, tW, tH);
-      }
-      getMultiplierMap(targetW, targetH, maskRgbData) {
-        if (this.layerType !== 'multiply' || !this.visible || this.opacity <= 0) return new Float32Array(targetW * targetH).fill(1.0);
-        const tiled = this._getTiledImageData();
-        if (!tiled) return new Float32Array(targetW * targetH).fill(1.0);
-        const sampled = sampleWarpedTexture(tiled, this.corners, targetW, targetH, this.fillAll, this.transformMode);
-        if (!sampled) return new Float32Array(targetW * targetH).fill(1.0);
-        const out = new Float32Array(targetW * targetH).fill(1.0);
-        const tCol = this.targetMaskColor;
-        for (let i = 0; i < targetW * targetH; i++) {
-          if (tCol && maskRgbData) {
-            if (maskRgbData[i * 3] !== tCol[0] || maskRgbData[i * 3 + 1] !== tCol[1] || maskRgbData[i * 3 + 2] !== tCol[2]) continue;
-          }
-          const alpha = sampled[i * 4 + 3] * this.opacity;
-          const gray = 0.299 * sampled[i * 4] + 0.587 * sampled[i * 4 + 1] + 0.114 * sampled[i * 4 + 2];
-          out[i] = 1.0 - alpha * (1.0 - gray);
-        }
-        return out;
-      }
-      getWarpedStructure(targetW, targetH, maskRgbData) {
-        if (this.layerType !== 'structure' || !this.visible || this.opacity <= 0) return null;
-        const tiled = this._getTiledImageData();
-        if (!tiled) return null;
-        if (this.transparentE7ffff) {
-          const d = tiled.data;
-          for (let i = 0; i < d.length; i += 4) {
-            if (d[i] === 231 && d[i + 1] === 255 && d[i + 2] === 255) {
-              d[i] = 192; d[i + 1] = 192; d[i + 2] = 192; d[i + 3] = 0;
-            }
-          }
-        }
-        const sampled = sampleWarpedTexture(tiled, this.corners, targetW, targetH, this.fillAll, this.transformMode);
-        if (!sampled) return null;
-        const tCol = this.targetMaskColor;
-        for (let i = 0; i < targetW * targetH; i++) {
-          if (tCol && maskRgbData) {
-            if (maskRgbData[i * 3] !== tCol[0] || maskRgbData[i * 3 + 1] !== tCol[1] || maskRgbData[i * 3 + 2] !== tCol[2]) {
-              sampled[i * 4 + 3] = 0;
-            }
-          }
-          sampled[i * 4 + 3] *= this.opacity;
-        }
-        return sampled;
-      }
-      toDict(layerList) {
-        const srcIdx = this.sourceLayer ? layerList.indexOf(this.sourceLayer) : null;
-        return {
-          name: this.name,
-          corners: this.corners.map(([x, y]) => [x, y]),
-          opacity: Number(this.opacity),
-          visible: Boolean(this.visible),
-          transform_mode: this.transformMode,
-          tile_x: Number(this.tileX),
-          tile_y: Number(this.tileY),
-          target_mask_color: this.targetMaskColor ? [...this.targetMaskColor] : null,
-          layer_type: this.layerType,
-          fill_all: Boolean(this.fillAll),
-          transparent_e7ffff: Boolean(this.transparentE7ffff),
-          source_idx: srcIdx !== -1 ? srcIdx : null
-        };
-      }
-    }
-
-    // --- 4. Main App Controller ---
-    class AdvancedMultiplyApp {
-      constructor() {
-        this.baseImage = null;
-        this.baseW = 0; this.baseH = 0;
-        this.baseRgb = null; this.baseAlpha = null;
-        this.isBgMask = null; this.editableMask = null;
-        this.maskImage = null; this.maskRgb = null;
-        this.maskColors = [];
-        this.maskTintColors = new Map();
-        this.enableMaskTint = true;
-        this.specialColors = new Set();
-        this.layers = [];
-        this.activeIdx = -1;
-
-        this.globalTone = {
-          dark_color_hex: '#000018',
-          min_dark_pct: 0.0,
-          max_bright_pct: 100.0,
-          dodge_color_hex: '#FFFFFF',
-          dodge_max_strength: 100.0,
-          enable_dodge: true
-        };
-        this.maskToneOverrides = new Map();
-        this.enableBlur = true;
-        this.blurRadius = 0.0;
-        this.pixelSnap = true;
-
-        this.zoomLevel = 1.0;
-        this.panX = 60; this.panY = 60;
-        this.isPanning = false; this.spacePressed = false;
-        this.dragMode = null; this.isEyedropper = false;
-        this.isDirty = false;
-
-        this.canvas = document.getElementById('main-canvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.viewport = document.getElementById('canvas-viewport');
-
-        this._initTabs();
-        this._bindEvents();
-        this.render();
-      }
-
-      _initTabs() {
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-          btn.onclick = () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById(btn.dataset.tab).classList.add('active');
-          };
-        });
-      }
-
-      markDirty() { this.isDirty = true; }
-
-      async loadBaseFromFile(file) {
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
-          this.baseImage = img;
-          this.baseW = img.naturalWidth; this.baseH = img.naturalHeight;
-          const off = document.createElement('canvas'); off.width = this.baseW; off.height = this.baseH;
-          const ctx = off.getContext('2d'); ctx.drawImage(img, 0, 0);
-          const d = ctx.getImageData(0, 0, this.baseW, this.baseH).data;
-          const total = this.baseW * this.baseH;
-          this.baseRgb = new Uint8Array(total * 3);
-          this.baseAlpha = new Uint8Array(total);
-          this.isBgMask = new Uint8Array(total);
-          this.editableMask = new Uint8Array(total);
-          for (let i = 0; i < total; i++) {
-            const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
-            this.baseRgb[i * 3] = r; this.baseRgb[i * 3 + 1] = g; this.baseRgb[i * 3 + 2] = b;
-            this.baseAlpha[i] = a;
-            if ((r === 231 && g === 255 && b === 255) || a === 0) this.isBgMask[i] = 1;
-            if (r === g && g === b && this.isBgMask[i] === 0) this.editableMask[i] = 1;
-          }
-          document.getElementById('lbl-base-info').textContent = `ベース: ${file.name} (${this.baseW}x${this.baseH})`;
-          this.isDirty = false;
-          this.zoomFit();
-        };
-        img.src = url;
-      }
-
-      async loadMaskFromFile(file) {
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
-          this.maskImage = img;
-          const off = document.createElement('canvas'); off.width = this.baseW; off.height = this.baseH;
-          const ctx = off.getContext('2d'); ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(img, 0, 0, this.baseW, this.baseH);
-          const d = ctx.getImageData(0, 0, this.baseW, this.baseH).data;
-          const total = this.baseW * this.baseH;
-          this.maskRgb = new Uint8Array(total * 3);
-          const colorCount = new Map();
-          for (let i = 0; i < total; i++) {
-            const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
-            this.maskRgb[i * 3] = r; this.maskRgb[i * 3 + 1] = g; this.maskRgb[i * 3 + 2] = b;
-            const hex = rgbToHex(r, g, b);
-            colorCount.set(hex, (colorCount.get(hex) || 0) + 1);
-            if (!this.maskTintColors.has(hex)) this.maskTintColors.set(hex, hex);
-          }
-          this.maskColors = Array.from(colorCount.entries()).sort((a, b) => b[1] - a[1]).map(([hex, count]) => ({ hex, count }));
-          this._updateMaskCombos();
-          this._updateTintTable();
-          document.getElementById('lbl-mask-info').textContent = `マスク: ${file.name}`;
-          this.markDirty();
-          this.render();
-        };
-        img.src = url;
-      }
-
-      _updateMaskCombos() {
-        const comboLayer = document.getElementById('mask-color-combo');
-        const comboTone = document.getElementById('combo-tone-target');
-        comboLayer.innerHTML = '<option value="">(全体 / マスクなし)</option>';
-        comboTone.innerHTML = '<option value="__ALL__">全体 (デフォルト)</option>';
-        this.maskColors.forEach(({ hex, count }) => {
-          const opt = `<option value="${hex}">${hex} (${count}px)</option>`;
-          comboLayer.innerHTML += opt; comboTone.innerHTML += opt;
-        });
-      }
-
-      _updateTintTable() {
-        const tbody = document.querySelector('#tint-table tbody');
-        tbody.innerHTML = '';
-        this.maskColors.forEach(({ hex }) => {
-          const tintHex = this.maskTintColors.get(hex) || hex;
-          const tr = document.createElement('tr');
-          tr.innerHTML = `<td><span class="color-swatch" style="background:${hex}"></span> ${hex}</td>
-                          <td><span class="color-swatch" style="background:${tintHex}"></span> ${tintHex}</td>`;
-          tr.onclick = () => {
-            document.querySelectorAll('#tint-table tr').forEach(r => r.classList.remove('selected'));
-            tr.classList.add('selected');
-            document.getElementById('sel-tint-swatch').style.backgroundColor = tintHex;
-            document.getElementById('lbl-sel-tint-info').textContent = `${hex} -> ${tintHex}`;
-            this.selectedMaskTint = hex;
-          };
-          tbody.appendChild(tr);
-        });
-      }
-
-      computeFinalImage() {
-        if (!this.baseRgb) return null;
-        const total = this.baseW * this.baseH;
-        let multAccum = new Float32Array(total).fill(1.0);
-
-        this.layers.forEach(layer => {
-          if (layer.visible && layer.layerType === 'multiply') {
-            const mMap = layer.getMultiplierMap(this.baseW, this.baseH, this.maskRgb);
-            for (let i = 0; i < total; i++) multAccum[i] *= mMap[i];
-          }
-        });
-
-        const outRgb = new Float32Array(total * 3);
-        const outAlpha = new Float32Array(total);
-
-        for (let i = 0; i < total; i++) {
-          outAlpha[i] = this.baseAlpha[i] / 255.0;
-          if (this.editableMask[i]) {
-            const bg = this.baseRgb[i * 3] / 255.0;
-            const mVal = multAccum[i];
-            let cfg = this.globalTone;
-            if (this.maskRgb) {
-              const mHex = rgbToHex(this.maskRgb[i * 3], this.maskRgb[i * 3 + 1], this.maskRgb[i * 3 + 2]);
-              const oCfg = this.maskToneOverrides.get(mHex);
-              if (oCfg && oCfg.enabled) cfg = oCfg;
-            }
-            const lMin = cfg.min_dark_pct / 100.0;
-            let lMax = cfg.max_bright_pct / 100.0;
-            if (lMax <= lMin) lMax = lMin + 0.001;
-            const u = Math.min(1.0, Math.max(0.0, (bg - lMin) / (lMax - lMin)));
-            const [dr, dg, db] = hexToRgb(cfg.dark_color_hex).map(v => v / 255);
-            let tr = ((1.0 - u) * dr + u) * mVal;
-            let tg = ((1.0 - u) * dg + u) * mVal;
-            let tb = ((1.0 - u) * db + u) * mVal;
-            if (this.enableMaskTint && this.maskRgb) {
-              const mHex = rgbToHex(this.maskRgb[i * 3], this.maskRgb[i * 3 + 1], this.maskRgb[i * 3 + 2]);
-              const tintHex = this.maskTintColors.get(mHex) || mHex;
-              const [trCol, tgCol, tbCol] = hexToRgb(tintHex).map(v => v / 255);
-              tr *= trCol; tg *= tgCol; tb *= tbCol;
-            }
-            outRgb[i * 3] = tr; outRgb[i * 3 + 1] = tg; outRgb[i * 3 + 2] = tb;
-          } else {
-            outRgb[i * 3] = this.baseRgb[i * 3] / 255.0;
-            outRgb[i * 3 + 1] = this.baseRgb[i * 3 + 1] / 255.0;
-            outRgb[i * 3 + 2] = this.baseRgb[i * 3 + 2] / 255.0;
-          }
-        }
-
-        // ハイライトNormalブレンド (超過明るさ(%) × ブレンド最大強さ(%))
-        for (let i = 0; i < total; i++) {
-          if (!this.editableMask[i]) continue;
-          const bg = this.baseRgb[i * 3] / 255.0;
-          let cfg = this.globalTone;
-          if (this.maskRgb) {
-            const mHex = rgbToHex(this.maskRgb[i * 3], this.maskRgb[i * 3 + 1], this.maskRgb[i * 3 + 2]);
-            const oCfg = this.maskToneOverrides.get(mHex);
-            if (oCfg && oCfg.enabled) cfg = oCfg;
-          }
-          if (cfg.enable_dodge) {
-            const lMax = cfg.max_bright_pct / 100.0;
-            if (lMax < 1.0 && bg > lMax) {
-              const t = (bg - lMax) / (1.0 - lMax + 1e-6);
-              const s = Math.min(1.0, Math.max(0.0, t * (cfg.dodge_max_strength / 100.0)));
-              const [br, bgCol, bb] = hexToRgb(cfg.dodge_color_hex).map(v => v / 255);
-              outRgb[i * 3] = (1.0 - s) * outRgb[i * 3] + s * br;
-              outRgb[i * 3 + 1] = (1.0 - s) * outRgb[i * 3 + 1] + s * bgCol;
-              outRgb[i * 3 + 2] = (1.0 - s) * outRgb[i * 3 + 2] + s * bb;
-            }
-          }
-        }
-
-        // ストラクチャー上乗せ合成
-        this.layers.forEach(layer => {
-          if (layer.visible && layer.layerType === 'structure') {
-            const sData = layer.getWarpedStructure(this.baseW, this.baseH, this.maskRgb);
-            if (!sData) return;
-            for (let i = 0; i < total; i++) {
-              const sa = sData[i * 4 + 3];
-              if (sa > 0.001) {
-                if (this.isBgMask[i]) {
-                  outRgb[i * 3] = 192 / 255; outRgb[i * 3 + 1] = 192 / 255; outRgb[i * 3 + 2] = 192 / 255;
-                  outAlpha[i] = 0.0;
-                } else {
-                  outRgb[i * 3] = outRgb[i * 3] * (1.0 - sa) + sData[i * 4] * sa;
-                  outRgb[i * 3 + 1] = outRgb[i * 3 + 1] * (1.0 - sa) + sData[i * 4 + 1] * sa;
-                  outRgb[i * 3 + 2] = outRgb[i * 3 + 2] * (1.0 - sa) + sData[i * 4 + 2] * sa;
-                  outAlpha[i] = Math.min(1.0, outAlpha[i] + sa * (1.0 - outAlpha[i]));
-                }
-              }
-            }
-          }
-        });
-
-        // SpecialColor保護ぼかし
-        if (this.enableBlur && this.blurRadius > 0.001) {
-          const invalid = new Uint8Array(total);
-          for (let i = 0; i < total; i++) {
-            if (this.isBgMask[i]) invalid[i] = 1;
-            else {
-              const hex = rgbToHex(outRgb[i * 3] * 255, outRgb[i * 3 + 1] * 255, outRgb[i * 3 + 2] * 255);
-              if (this.specialColors.has(hex)) invalid[i] = 1;
-            }
-          }
-          const blurred = applyProtectedBlur(outRgb, this.baseW, this.baseH, this.blurRadius, invalid);
-          for (let i = 0; i < outRgb.length; i++) outRgb[i] = blurred[i];
-        }
-
-        const res = new Uint8ClampedArray(total * 4);
-        for (let i = 0; i < total; i++) {
-          res[i * 4] = Math.round(outRgb[i * 3] * 255);
-          res[i * 4 + 1] = Math.round(outRgb[i * 3 + 1] * 255);
-          res[i * 4 + 2] = Math.round(outRgb[i * 3 + 2] * 255);
-          res[i * 4 + 3] = Math.round(outAlpha[i] * 255);
-        }
-        return res;
-      }
-
-      render() {
-        if (!this.baseW || !this.baseH) {
-          this.canvas.width = this.viewport.clientWidth;
-          this.canvas.height = this.viewport.clientHeight;
-          this.ctx.fillStyle = '#202020';
-          this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-          this.ctx.fillStyle = '#666';
-          this.ctx.font = '14px sans-serif';
-          this.ctx.textAlign = 'center';
-          this.ctx.fillText('ベースPNGを読み込んでください', this.canvas.width / 2, this.canvas.height / 2);
-          return;
-        }
-
-        const vw = Math.round(this.baseW * this.zoomLevel);
-        const vh = Math.round(this.baseH * this.zoomLevel);
-        this.canvas.width = this.viewport.clientWidth;
-        this.canvas.height = this.viewport.clientHeight;
-        this.ctx.fillStyle = '#181818';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        let imgData;
-        if (this.isEyedropper && this.maskImage) {
-          const off = document.createElement('canvas'); off.width = this.baseW; off.height = this.baseH;
-          const oCtx = off.getContext('2d'); oCtx.drawImage(this.maskImage, 0, 0, this.baseW, this.baseH);
-          imgData = oCtx.getImageData(0, 0, this.baseW, this.baseH);
-        } else {
-          const pixels = this.computeFinalImage();
-          if (!pixels) return;
-          imgData = new ImageData(pixels, this.baseW, this.baseH);
-        }
-
-        const tc = document.createElement('canvas'); tc.width = this.baseW; tc.height = this.baseH;
-        tc.getContext('2d').putImageData(imgData, 0, 0);
-        this.ctx.imageSmoothingEnabled = this.zoomLevel < 1.0;
-        this.ctx.drawImage(tc, this.panX, this.panY, vw, vh);
-
-        if (this.isEyedropper) {
-          this.ctx.fillStyle = '#FFFF00'; this.ctx.font = 'bold 12px sans-serif';
-          this.ctx.fillText('【マスク画像表示中】適用したい色をクリックしてください (Escでキャンセル)', this.panX + 10, this.panY - 12);
-        } else {
-          this._drawOverlay();
-        }
-      }
-
-      _drawOverlay() {
-        if (this.activeIdx < 0 || this.activeIdx >= this.layers.length) return;
-        const layer = this.layers[this.activeIdx];
-        const pts = layer.corners.map(([x, y]) => [x * this.zoomLevel + this.panX, y * this.zoomLevel + this.panY]);
-        this.ctx.lineWidth = 1.5;
-        this.ctx.strokeStyle = layer.layerType === 'structure' ? '#FF9900' : (layer.transformMode === 'affine' ? '#00FF66' : '#00E5FF');
-        this.ctx.setLineDash([4, 3]);
-        this.ctx.beginPath();
-        this.ctx.moveTo(pts[0][0], pts[0][1]);
-        for (let i = 1; i < 4; i++) this.ctx.lineTo(pts[i][0], pts[i][1]);
-        this.ctx.closePath();
-        this.ctx.stroke();
-        this.ctx.setLineDash([]);
-        const cols = ['#FF3366', '#FFCC00', '#00E5FF', '#00FF66'];
-        pts.forEach(([hx, hy], i) => {
-          this.ctx.fillStyle = cols[i]; this.ctx.strokeStyle = '#FFFFFF'; this.ctx.lineWidth = 1.5;
-          this.ctx.beginPath(); this.ctx.arc(hx, hy, 6, 0, Math.PI * 2); this.ctx.fill(); this.ctx.stroke();
-        });
-      }
-
-      setZoom(z, center) {
-        const newZ = Math.max(0.1, Math.min(32.0, z));
-        if (center && this.baseW) {
-          const [cx, cy] = center;
-          this.panX = cx - ((cx - this.panX) / this.zoomLevel) * newZ;
-          this.panY = cy - ((cy - this.panY) / this.zoomLevel) * newZ;
-        }
-        this.zoomLevel = newZ;
-        document.getElementById('lbl-zoom').textContent = `${Math.round(this.zoomLevel * 100)}%`;
-        this.render();
-      }
-
-      zoomFit() {
-        if (!this.baseW || !this.baseH) return;
-        const s = Math.min((this.viewport.clientWidth - 100) / this.baseW, (this.viewport.clientHeight - 100) / this.baseH, 4.0);
-        this.zoomLevel = Math.max(0.2, s);
-        this.panX = (this.viewport.clientWidth - this.baseW * this.zoomLevel) / 2;
-        this.panY = (this.viewport.clientHeight - this.baseH * this.zoomLevel) / 2;
-        document.getElementById('lbl-zoom').textContent = `${Math.round(this.zoomLevel * 100)}%`;
-        this.render();
-      }
-
-      _bindEvents() {
-        // 画像選択
-        document.getElementById('btn-load-base').onclick = () => {
-          const inp = document.getElementById('input-file-hidden');
-          inp.accept = '.png';
-          inp.onchange = () => { if (inp.files[0]) this.loadBaseFromFile(inp.files[0]); };
-          inp.click();
-        };
-        document.getElementById('btn-load-mask').onclick = () => {
-          const inp = document.getElementById('input-file-hidden');
-          inp.accept = '.png';
-          inp.onchange = () => { if (inp.files[0]) this.loadMaskFromFile(inp.files[0]); };
-          inp.click();
-        };
-
-        // レイヤー追加
-        document.getElementById('btn-add-multiply').onclick = () => this._addLayer('multiply');
-        document.getElementById('btn-add-structure').onclick = () => this._addLayer('structure');
-        document.getElementById('btn-copy-layer').onclick = () => this._copyLayer();
-        document.getElementById('btn-del-layer').onclick = () => this._delLayer();
-        document.getElementById('layer-listbox').onchange = (e) => this._selectLayer(e.target.selectedIndex);
-
-        // レイヤープロパティ同期
-        document.querySelectorAll('input[name="layer-type"]').forEach(r => {
-          r.onchange = (e) => {
-            if (this.activeIdx >= 0) {
-              this.layers[this.activeIdx].layerType = e.target.value;
-              this._refreshLayerList(); this.markDirty(); this.render();
-            }
-          };
-        });
-        document.getElementById('chk-trans-e7ffff').onchange = (e) => {
-          if (this.activeIdx >= 0) { this.layers[this.activeIdx].transparentE7ffff = e.target.checked; this.markDirty(); this.render(); }
-        };
-        document.getElementById('chk-fill-all').onchange = (e) => {
-          if (this.activeIdx >= 0) { this.layers[this.activeIdx].fillAll = e.target.checked; this.markDirty(); this.render(); }
-        };
-        document.querySelectorAll('input[name="transform-mode"]').forEach(r => {
-          r.onchange = (e) => {
-            if (this.activeIdx >= 0) { this.layers[this.activeIdx].transformMode = e.target.value; this.markDirty(); this.render(); }
-          };
-        });
-        document.getElementById('slider-opacity').oninput = (e) => {
-          if (this.activeIdx >= 0) {
-            this.layers[this.activeIdx].opacity = parseFloat(e.target.value);
-            document.getElementById('lbl-opacity').textContent = `${Math.round(e.target.value * 100)}%`;
-            this.markDirty(); this.render();
-          }
-        };
-        document.getElementById('chk-layer-visible').onchange = (e) => {
-          if (this.activeIdx >= 0) { this.layers[this.activeIdx].visible = e.target.checked; this.markDirty(); this.render(); }
-        };
-
-        // タイルステップ
-        document.querySelectorAll('.btn-step').forEach(btn => {
-          btn.onclick = () => {
-            if (this.activeIdx < 0) return;
-            const l = this.layers[this.activeIdx];
-            const d = parseFloat(btn.dataset.delta);
-            if (btn.dataset.axis === 'x') l.tileX = Math.max(0.01, roundVal(l.tileX + d));
-            else l.tileY = Math.max(0.01, roundVal(l.tileY + d));
-            document.getElementById('lbl-tile-x').textContent = l.tileX.toFixed(1);
-            document.getElementById('lbl-tile-y').textContent = l.tileY.toFixed(1);
-            this.markDirty(); this.render();
-          };
-        });
-
-        // ぼかし
-        document.getElementById('chk-enable-blur').onchange = (e) => { this.enableBlur = e.target.checked; this.markDirty(); this.render(); };
-        document.getElementById('slider-blur').oninput = (e) => {
-          this.blurRadius = parseFloat(e.target.value);
-          document.getElementById('lbl-blur-radius').textContent = `${this.blurRadius.toFixed(2)}px`;
-          this.markDirty(); this.render();
-        };
-        document.querySelectorAll('.btn-blur-step').forEach(btn => {
-          btn.onclick = () => {
-            this.blurRadius = Math.max(0, Math.min(10, roundVal(this.blurRadius + parseFloat(btn.dataset.delta))));
-            document.getElementById('slider-blur').value = this.blurRadius;
-            document.getElementById('lbl-blur-radius').textContent = `${this.blurRadius.toFixed(2)}px`;
-            this.markDirty(); this.render();
-          };
-        });
-
-        // スナップ
-        document.getElementById('chk-pixel-snap').onchange = (e) => { this.pixelSnap = e.target.checked; };
-        document.getElementById('btn-snap-now').onclick = () => {
-          if (this.activeIdx >= 0) {
-            this.layers[this.activeIdx].corners = this.layers[this.activeIdx].corners.map(([x, y]) => [Math.round(x), Math.round(y)]);
-            this.markDirty(); this.render();
-          }
-        };
-
-        // スポイト
-        document.getElementById('btn-eyedropper').onclick = () => this._toggleEyedropper();
-        document.getElementById('mask-color-combo').onchange = (e) => {
-          if (this.activeIdx < 0) return;
-          this.layers[this.activeIdx].targetMaskColor = e.target.value ? hexToRgb(e.target.value) : null;
-          this._syncActiveLayerUI(); this.markDirty(); this.render();
-        };
-        document.getElementById('btn-clear-mask').onclick = () => {
-          if (this.activeIdx < 0) return;
-          this.layers[this.activeIdx].targetMaskColor = null;
-          this._syncActiveLayerUI(); this.markDirty(); this.render();
-        };
-
-        // トーン対象切替
-        document.getElementById('combo-tone-target').onchange = (e) => this._onToneTargetChanged(e.target.value);
-        document.getElementById('chk-tone-override').onchange = (e) => {
-          const sel = document.getElementById('combo-tone-target').value;
-          if (sel !== '__ALL__') {
-            if (!this.maskToneOverrides.has(sel)) this.maskToneOverrides.set(sel, { ...this.globalTone, enabled: false });
-            this.maskToneOverrides.get(sel).enabled = e.target.checked;
-            this.markDirty(); this.render();
-          }
-        };
-
-        // トーンスライダー同期
-        document.getElementById('slider-min-dark').oninput = (e) => {
-          this._getActiveTone().min_dark_pct = parseFloat(e.target.value);
-          document.getElementById('lbl-min-dark').textContent = `${parseFloat(e.target.value).toFixed(1)}%`;
-          this.markDirty(); this.render();
-        };
-        document.getElementById('slider-max-bright').oninput = (e) => {
-          this._getActiveTone().max_bright_pct = parseFloat(e.target.value);
-          document.getElementById('lbl-max-bright').textContent = `${parseFloat(e.target.value).toFixed(1)}%`;
-          this.markDirty(); this.render();
-        };
-        document.getElementById('chk-enable-dodge').onchange = (e) => {
-          this._getActiveTone().enable_dodge = e.target.checked;
-          this.markDirty(); this.render();
-        };
-        document.getElementById('slider-dodge-strength').oninput = (e) => {
-          this._getActiveTone().dodge_max_strength = parseFloat(e.target.value);
-          document.getElementById('lbl-dodge-strength').textContent = `${parseFloat(e.target.value).toFixed(1)}%`;
-          this.markDirty(); this.render();
-        };
-
-        // カラーピッカー連携
-        document.getElementById('btn-pick-dark').onclick = async () => {
-          const cfg = this._getActiveTone();
-          const col = await openColorPicker(cfg.dark_color_hex);
-          if (col) {
-            cfg.dark_color_hex = col;
-            document.getElementById('dark-color-swatch').style.backgroundColor = col;
-            document.getElementById('lbl-dark-color').textContent = col;
-            this.markDirty(); this.render();
-          }
-        };
-        document.getElementById('btn-reset-dark').onclick = () => {
-          const cfg = this._getActiveTone();
-          cfg.dark_color_hex = '#000018';
-          document.getElementById('dark-color-swatch').style.backgroundColor = '#000018';
-          document.getElementById('lbl-dark-color').textContent = '#000018';
-          this.markDirty(); this.render();
-        };
-        document.getElementById('btn-pick-dodge').onclick = async () => {
-          const cfg = this._getActiveTone();
-          const col = await openColorPicker(cfg.dodge_color_hex);
-          if (col) {
-            cfg.dodge_color_hex = col;
-            document.getElementById('dodge-color-swatch').style.backgroundColor = col;
-            this.markDirty(); this.render();
-          }
-        };
-        document.getElementById('btn-pick-tint').onclick = async () => {
-          if (!this.selectedMaskTint) return alert('マスク色を一覧から選択してください。');
-          const cur = this.maskTintColors.get(this.selectedMaskTint) || this.selectedMaskTint;
-          const col = await openColorPicker(cur);
-          if (col) {
-            this.maskTintColors.set(this.selectedMaskTint, col);
-            this._updateTintTable(); this.markDirty(); this.render();
-          }
-        };
-        document.getElementById('btn-reset-tint').onclick = () => {
-          if (!this.selectedMaskTint) return;
-          this.maskTintColors.set(this.selectedMaskTint, this.selectedMaskTint);
-          this._updateTintTable(); this.markDirty(); this.render();
-        };
-        document.getElementById('btn-reset-all-tints').onclick = () => {
-          this.maskColors.forEach(({ hex }) => this.maskTintColors.set(hex, hex));
-          this._updateTintTable(); this.markDirty(); this.render();
-        };
-
-        // 特殊色CSV
-        document.getElementById('file-csv').onchange = (e) => {
-          const file = e.target.files[0];
-          if (file) {
-            const r = new FileReader();
-            r.onload = () => {
-              this.specialColors = parseSpecialColorsCsv(r.result);
-              document.getElementById('lbl-csv-info').textContent = `特殊色: ${this.specialColors.size}件登録済`;
-              this.markDirty(); this.render();
-            };
-            r.readAsText(file);
-          }
-        };
-
-        // キャンバスマウスドラッグ
-        this.viewport.onwheel = (e) => {
-          e.preventDefault();
-          this.setZoom(this.zoomLevel * (e.deltaY < 0 ? 1.25 : 0.8), [e.clientX - this.viewport.offsetLeft, e.clientY - this.viewport.offsetTop]);
-        };
-        window.onkeydown = (e) => {
-          if (e.code === 'Space') { this.spacePressed = true; this.viewport.style.cursor = 'grab'; }
-          if (e.key === 'Escape' && this.isEyedropper) this._toggleEyedropper();
-        };
-        window.onkeyup = (e) => {
-          if (e.code === 'Space') { this.spacePressed = false; this.viewport.style.cursor = 'default'; }
-        };
-        this.viewport.onmousedown = (e) => {
-          if (this.spacePressed || e.button === 1 || e.button === 2) {
-            this.isPanning = true;
-            this.panStart = [e.clientX - this.panX, e.clientY - this.panY];
-            this.viewport.style.cursor = 'grabbing';
-            return;
-          }
-          if (this.isEyedropper) { this._pickColorFromCanvas(e); return; }
-          this._handleCanvasMouseDown(e);
-        };
-        window.onmousemove = (e) => {
-          if (this.isPanning) {
-            this.panX = e.clientX - this.panStart[0];
-            this.panY = e.clientY - this.panStart[1];
-            this.render(); return;
-          }
-          if (this.dragMode && this.activeIdx >= 0) this._handleCornerDrag(e);
-        };
-        window.onmouseup = () => {
-          if (this.isPanning) { this.isPanning = false; this.viewport.style.cursor = this.spacePressed ? 'grab' : 'default'; }
-          if (this.dragMode) { this.dragMode = null; this.markDirty(); this.render(); }
-        };
-
-        // ズームバー
-        document.getElementById('btn-zoom-in').onclick = () => this.setZoom(this.zoomLevel * 1.25);
-        document.getElementById('btn-zoom-out').onclick = () => this.setZoom(this.zoomLevel * 0.8);
-        document.getElementById('btn-zoom-reset').onclick = () => this.setZoom(1.0);
-        document.getElementById('btn-zoom-fit').onclick = () => this.zoomFit();
-
-        // 保存・読込
-        document.getElementById('btn-save-proj').onclick = () => this.saveProject();
-        document.getElementById('btn-save-proj-as').onclick = () => this.saveProject(true);
-        document.getElementById('btn-load-proj').onclick = () => {
-          const inp = document.getElementById('input-file-hidden');
-          inp.accept = '.proj.json';
-          inp.onchange = () => { if (inp.files[0]) this.loadProject(inp.files[0]); };
-          inp.click();
-        };
-        document.getElementById('btn-save-png').onclick = () => this.exportPng();
-      }
-
-      _getActiveTone() {
-        const sel = document.getElementById('combo-tone-target').value;
-        if (sel === '__ALL__') return this.globalTone;
-        if (!this.maskToneOverrides.has(sel)) this.maskToneOverrides.set(sel, { ...this.globalTone, enabled: false });
-        return this.maskToneOverrides.get(sel);
-      }
-
-      _onToneTargetChanged(sel) {
-        const chk = document.getElementById('chk-tone-override');
-        if (sel === '__ALL__') {
-          chk.disabled = true; chk.checked = false;
-          this._loadToneToUI(this.globalTone);
-        } else {
-          chk.disabled = false;
-          const cfg = this.maskToneOverrides.get(sel) || { ...this.globalTone, enabled: false };
-          chk.checked = cfg.enabled;
-          this._loadToneToUI(cfg);
-        }
-      }
-
-      _loadToneToUI(cfg) {
-        document.getElementById('dark-color-swatch').style.backgroundColor = cfg.dark_color_hex;
-        document.getElementById('lbl-dark-color').textContent = cfg.dark_color_hex;
-        document.getElementById('slider-min-dark').value = cfg.min_dark_pct;
-        document.getElementById('lbl-min-dark').textContent = `${cfg.min_dark_pct.toFixed(1)}%`;
-        document.getElementById('slider-max-bright').value = cfg.max_bright_pct;
-        document.getElementById('lbl-max-bright').textContent = `${cfg.max_bright_pct.toFixed(1)}%`;
-        document.getElementById('chk-enable-dodge').checked = cfg.enable_dodge;
-        document.getElementById('dodge-color-swatch').style.backgroundColor = cfg.dodge_color_hex;
-        document.getElementById('slider-dodge-strength').value = cfg.dodge_max_strength;
-        document.getElementById('lbl-dodge-strength').textContent = `${cfg.dodge_max_strength.toFixed(1)}%`;
-      }
-
-      _toggleEyedropper() {
-        this.isEyedropper = !this.isEyedropper;
-        document.getElementById('btn-eyedropper').textContent = this.isEyedropper ? '❌ スポイト中止 (プレビューに戻る)' : '🎯 スポイトで選択 (マスク画像を表示)';
-        document.getElementById('status-bar').textContent = this.isEyedropper ? '【マスク画像表示中】適用したい色をクリックしてください (Escでキャンセル)' : '準備完了 | スポイト: OFF';
-        this.render();
-      }
-
-      _pickColorFromCanvas(e) {
-        if (!this.maskRgb) return;
-        const rect = this.viewport.getBoundingClientRect();
-        const ix = Math.floor((e.clientX - rect.left - this.panX) / this.zoomLevel);
-        const iy = Math.floor((e.clientY - rect.top - this.panY) / this.zoomLevel);
-        if (ix >= 0 && ix < this.baseW && iy >= 0 && iy < this.baseH) {
-          const idx = (iy * this.baseW + ix) * 3;
-          if (this.activeIdx >= 0) {
-            this.layers[this.activeIdx].targetMaskColor = [this.maskRgb[idx], this.maskRgb[idx + 1], this.maskRgb[idx + 2]];
-            this._syncActiveLayerUI(); this.markDirty();
-          }
-          this._toggleEyedropper();
-        }
-      }
-
-      async _addLayer(layerType) {
-        if (!this.baseImage) return alert('先にベース画像を読み込んでください。');
-        const inp = document.getElementById('input-file-hidden');
-        inp.accept = '.png';
-        inp.onchange = () => {
-          if (!inp.files[0]) return;
-          const url = URL.createObjectURL(inp.files[0]);
-          const img = new Image();
-          img.onload = () => {
-            const l = new Layer({
-              name: inp.files[0].name, imageElement: img,
-              canvasW: this.baseW, canvasH: this.baseH, layerType: layerType
-            });
-            this.layers.push(l);
-            this._refreshLayerList(); this._selectLayer(this.layers.length - 1);
-            this.markDirty(); this.render();
-          };
-          img.src = url;
-        };
-        inp.click();
-      }
-
-      _copyLayer() {
-        if (this.activeIdx < 0) return;
-        const src = this.layers[this.activeIdx];
-        const master = src.sourceLayer || src;
-        const copy = new Layer({
-          name: master.name, imageElement: master.imageElement,
-          canvasW: this.baseW, canvasH: this.baseH,
-          corners: src.corners.map(([x, y]) => [x + 10, y + 10]),
-          sourceLayer: master, fillAll: master.fillAll, transparentE7ffff: master.transparentE7ffff
-        });
-        this.layers.push(copy);
-        this._refreshLayerList(); this._selectLayer(this.layers.length - 1);
-        this.markDirty(); this.render();
-      }
-
-      _delLayer() {
-        if (this.activeIdx < 0) return;
-        this.layers.splice(this.activeIdx, 1);
-        this._refreshLayerList(); this._selectLayer(Math.min(this.activeIdx, this.layers.length - 1));
-        this.markDirty(); this.render();
-      }
-
-      _selectLayer(idx) {
-        this.activeIdx = idx;
-        document.getElementById('layer-listbox').selectedIndex = idx;
-        this._syncActiveLayerUI();
-        this.render();
-      }
-
-      _syncActiveLayerUI() {
-        if (this.activeIdx < 0 || this.activeIdx >= this.layers.length) return;
-        const l = this.layers[this.activeIdx];
-        document.querySelector(`input[name="layer-type"][value="${l.layerType}"]`).checked = true;
-        document.getElementById('chk-trans-e7ffff').checked = l.transparentE7ffff;
-        document.getElementById('chk-fill-all').checked = l.fillAll;
-        document.getElementById('slider-opacity').value = l.opacity;
-        document.getElementById('lbl-opacity').textContent = `${Math.round(l.opacity * 100)}%`;
-        document.getElementById('chk-layer-visible').checked = l.visible;
-        document.querySelector(`input[name="transform-mode"][value="${l.transformMode}"]`).checked = true;
-        document.getElementById('lbl-tile-x').textContent = l.tileX.toFixed(1);
-        document.getElementById('lbl-tile-y').textContent = l.tileY.toFixed(1);
-        if (l.targetMaskColor) {
-          const hex = rgbToHex(...l.targetMaskColor);
-          document.getElementById('layer-mask-swatch').style.backgroundColor = hex;
-          document.getElementById('lbl-layer-mask').textContent = `適用先: ${hex}`;
-          document.getElementById('mask-color-combo').value = hex;
-        } else {
-          document.getElementById('layer-mask-swatch').style.backgroundColor = '#FFFFFF';
-          document.getElementById('lbl-layer-mask').textContent = '適用先: 全体 (マスクなし)';
-          document.getElementById('mask-color-combo').value = '';
-        }
-      }
-
-      _refreshLayerList() {
-        const lb = document.getElementById('layer-listbox');
-        lb.innerHTML = '';
-        this.layers.forEach((l, i) => {
-          const tag = l.sourceLayer ? '[小物(参照)]' : (l.layerType === 'structure' ? '[小物]' : '[乗算]');
-          const opt = document.createElement('option');
-          opt.textContent = `${tag} ${l.name}`;
-          lb.appendChild(opt);
-        });
-      }
-
-      _handleCanvasMouseDown(e) {
-        if (this.activeIdx < 0) return;
-        const rect = this.viewport.getBoundingClientRect();
-        const mx = (e.clientX - rect.left - this.panX) / this.zoomLevel;
-        const my = (e.clientY - rect.top - this.panY) / this.zoomLevel;
-        const layer = this.layers[this.activeIdx];
-        this.dragStartPos = [mx, my];
-        this.dragStartCorners = layer.corners.map(([x, y]) => [x, y]);
-        for (let i = 0; i < 4; i++) {
-          if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= 8 / this.zoomLevel) {
-            this.dragMode = `corner_${i}`; return;
-          }
-        }
-      }
-
-      _handleCornerDrag(e) {
-        const rect = this.viewport.getBoundingClientRect();
-        const mx = (e.clientX - rect.left - this.panX) / this.zoomLevel;
-        const my = (e.clientY - rect.top - this.panY) / this.zoomLevel;
-        const dx = mx - this.dragStartPos[0], dy = my - this.dragStartPos[1];
-        const layer = this.layers[this.activeIdx];
-        const idx = parseInt(this.dragMode.split('_')[1]);
-
-        if (layer.transformMode === 'free') {
-          let nx = this.dragStartCorners[idx][0] + dx, ny = this.dragStartCorners[idx][1] + dy;
-          if (this.pixelSnap) { nx = Math.round(nx); ny = Math.round(ny); }
-          layer.corners[idx] = [nx, ny];
-        } else if (layer.transformMode === 'affine') {
-          let nx = this.dragStartCorners[idx][0] + dx, ny = this.dragStartCorners[idx][1] + dy;
-          if (this.pixelSnap) { nx = Math.round(nx); ny = Math.round(ny); }
-          const p = this.dragStartCorners.map(([x, y]) => [x, y]);
-          if (idx === 0) { p[0] = [nx, ny]; p[2] = [p[1][0] + p[3][0] - nx, p[1][1] + p[3][1] - ny]; }
-          else if (idx === 1) { p[1] = [nx, ny]; p[2] = [nx + p[3][0] - p[0][0], ny + p[3][1] - p[0][1]]; }
-          else if (idx === 3) { p[3] = [nx, ny]; p[2] = [p[1][0] + nx - p[0][0], p[1][1] + ny - p[0][1]]; }
-          else if (idx === 2) { p[2] = [nx, ny]; p[0] = [p[1][0] + p[3][0] - nx, p[1][1] + p[3][1] - ny]; }
-          layer.corners = this.pixelSnap ? p.map(([x, y]) => [Math.round(x), Math.round(y)]) : p;
-        } else {
-          let curX = this.dragStartCorners[idx][0] + dx, curY = this.dragStartCorners[idx][1] + dy;
-          const [oppX, oppY] = this.dragStartCorners[(idx + 2) % 4];
-          let xMin = Math.min(oppX, curX), xMax = Math.max(oppX, curX);
-          let yMin = Math.min(oppY, curY), yMax = Math.max(oppY, curY);
-          if (this.pixelSnap) { xMin = Math.round(xMin); xMax = Math.round(xMax); yMin = Math.round(yMin); yMax = Math.round(yMax); }
-          layer.corners = [[xMin, yMin], [xMax, yMin], [xMax, yMax], [xMin, yMax]];
-        }
-        this.render();
-      }
-
-      saveProject() {
-        if (!this.baseImage) return alert('保存するデータがありません。');
-        const tintObj = {}, overridesObj = {};
-        this.maskTintColors.forEach((v, k) => { tintObj[k] = v; });
-        this.maskToneOverrides.forEach((v, k) => { overridesObj[k] = v; });
-        const data = {
-          version: '13.0',
-          global_tone_config: this.globalTone,
-          enable_mask_tint: this.enableMaskTint,
-          mask_tint_colors: tintObj,
-          mask_tone_overrides: overridesObj,
-          enable_blur: this.enableBlur,
-          blur_radius: this.blurRadius,
-          pixel_snap: this.pixelSnap,
-          layers: this.layers.map(l => l.toDict(this.layers)),
-          active_idx: this.activeIdx
-        };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'project.proj.json'; a.click();
-        this.isDirty = false;
-        document.getElementById('status-bar').textContent = 'プロジェクトを保存しました。';
-      }
-
-      loadProject(file) {
-        const r = new FileReader();
-        r.onload = () => {
-          try {
-            const data = JSON.parse(r.result);
-            if (data.global_tone_config) this.globalTone = data.global_tone_config;
-            if (data.mask_tint_colors) {
-              this.maskTintColors.clear();
-              Object.entries(data.mask_tint_colors).forEach(([k, v]) => this.maskTintColors.set(k, v));
-            }
-            if (data.mask_tone_overrides) {
-              this.maskToneOverrides.clear();
-              Object.entries(data.mask_tone_overrides).forEach(([k, v]) => this.maskToneOverrides.set(k, v));
-            }
-            this.enableBlur = data.enable_blur !== undefined ? data.enable_blur : true;
-            this.blurRadius = data.blur_radius || 0.0;
-            this.pixelSnap = data.pixel_snap !== undefined ? data.pixel_snap : true;
-            document.getElementById('chk-enable-blur').checked = this.enableBlur;
-            document.getElementById('slider-blur').value = this.blurRadius;
-            document.getElementById('lbl-blur-radius').textContent = `${this.blurRadius.toFixed(2)}px`;
-            document.getElementById('chk-pixel-snap').checked = this.pixelSnap;
-            this._onToneTargetChanged('__ALL__');
-            this.isDirty = false;
-            this.render();
-            alert('プロジェクト設定を復元しました。(ベース画像とレイヤー画像は再度読み込んでください)');
-          } catch (e) { alert('プロジェクトの読み込みに失敗しました: ' + e); }
-        };
-        r.readAsText(file);
-      }
-
-      exportPng() {
-        const pixels = this.computeFinalImage();
-        if (!pixels) return alert('保存できる画像がありません。');
-        const conflicts = resolveSpecialColorConflicts(pixels, this.baseW, this.baseH, this.specialColors);
-        const c = document.createElement('canvas'); c.width = this.baseW; c.height = this.baseH;
-        c.getContext('2d').putImageData(new ImageData(pixels, this.baseW, this.baseH), 0, 0);
-        c.toBlob(blob => {
-          const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-          a.download = 'export_result.png'; a.click();
-          if (conflicts > 0) alert(`画像を保存しました。\n※ SpecialColorと一致した ${conflicts} ピクセルのR成分を補正しました。`);
-        }, 'image/png');
-      }
-    }
-
-    // ヘルパー
-    function roundVal(v) { return Math.round(v * 100) / 100; }
-    function openColorPicker(initHex) {
-      const modal = document.getElementById('modal-color-picker');
-      const oldS = document.getElementById('picker-old-swatch');
-      const newS = document.getElementById('picker-new-swatch');
-      const hexLbl = document.getElementById('picker-hex-label');
-      const slH = document.getElementById('picker-h'), slS = document.getElementById('picker-s'), slV = document.getElementById('picker-v');
-      const vH = document.getElementById('picker-h-val'), vS = document.getElementById('picker-s-val'), vV = document.getElementById('picker-v-val');
-
-      oldS.style.backgroundColor = initHex;
-      const { h, s, v } = hexToHsv(initHex);
-      slH.value = h; slS.value = s; slV.value = v;
-      vH.textContent = `${h}°`; vS.textContent = `${s}%`; vV.textContent = `${v}%`;
-      newS.style.backgroundColor = initHex; hexLbl.textContent = initHex;
-
-      const pal = document.getElementById('picker-palette');
-      pal.innerHTML = '';
-      ['#FFFFFF', '#C0C0C0', '#808080', '#000000', '#FF3333', '#FFAA00', '#FFFF33', '#33CC33', '#00E5FF', '#3366FF', '#9933FF', '#FF3399'].forEach(hx => {
-        const b = document.createElement('button'); b.className = 'palette-btn'; b.style.backgroundColor = hx;
-        b.onclick = () => {
-          const res = hexToHsv(hx); slH.value = res.h; slS.value = res.s; slV.value = res.v;
-          vH.textContent = `${res.h}°`; vS.textContent = `${res.s}%`; vV.textContent = `${res.v}%`;
-          newS.style.backgroundColor = hx; hexLbl.textContent = hx;
-        };
-        pal.appendChild(b);
-      });
-
-      const update = () => {
-        const cur = hsvToHex(parseInt(slH.value), parseInt(slS.value), parseInt(slV.value));
-        vH.textContent = `${slH.value}°`; vS.textContent = `${slS.value}%`; vV.textContent = `${slV.value}%`;
-        newS.style.backgroundColor = cur; hexLbl.textContent = cur;
-      };
-      slH.oninput = update; slS.oninput = update; slV.oninput = update;
-
-      modal.showModal();
-      return new Promise(resolve => {
-        document.getElementById('btn-picker-ok').onclick = () => { modal.close(); resolve(hexLbl.textContent); };
-        document.getElementById('btn-picker-cancel').onclick = () => { modal.close(); resolve(null); };
-      });
-    }
-
-    window.addEventListener('DOMContentLoaded', () => { new AdvancedMultiplyApp(); });
-  </script>
+  <!-- 分割JS -->
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

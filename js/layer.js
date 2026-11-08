@@ -1,56 +1,36 @@
 import { sampleWarpedTexture } from './transform.js';
 
 export class Layer {
-  constructor({
-    name = '',
-    imageElement = null,
-    canvasW = 256,
-    canvasH = 256,
-    corners = null,
-    opacity = 1.0,
-    visible = true,
-    transformMode = 'box',
-    tileX = 1.0,
-    tileY = 1.0,
-    targetMaskColor = null,
-    layerType = 'multiply',
-    fillAll = false,
-    transparentE7ffff = false,
-    sourceLayer = null
-  }) {
-    this.sourceLayer = sourceLayer;
-    this._visible = visible;
-
-    if (!sourceLayer) {
-      this._name = name;
-      this._imageElement = imageElement;
-      this._opacity = opacity;
-      this._transformMode = transformMode;
-      this._tileX = Math.max(0.01, tileX);
-      this._tileY = Math.max(0.01, tileY);
-      this._targetMaskColor = targetMaskColor ? [...targetMaskColor] : null;
-      this._layerType = layerType;
-      this._fillAll = fillAll;
-      this._transparentE7ffff = transparentE7ffff;
+  constructor(opts) {
+    this.sourceLayer = opts.sourceLayer || null;
+    this._visible = opts.visible !== undefined ? opts.visible : true;
+    if (!this.sourceLayer) {
+      this._name = opts.name || '';
+      this._imageElement = opts.imageElement || null;
+      this._opacity = opts.opacity !== undefined ? opts.opacity : 1.0;
+      this._transformMode = opts.transformMode || 'box';
+      this._tileX = Math.max(0.01, opts.tileX || 1.0);
+      this._tileY = Math.max(0.01, opts.tileY || 1.0);
+      this._targetMaskColor = opts.targetMaskColor ? [...opts.targetMaskColor] : null;
+      this._layerType = opts.layerType || 'multiply';
+      this._fillAll = opts.fillAll || false;
+      this._transparentE7ffff = opts.transparentE7ffff || false;
       this._cachedImageData = null;
-      if (imageElement) this._prepareImageData();
+      if (this._imageElement) this._prepareImageData();
     } else {
-      this._name = null;
-      this._imageElement = null;
-      this._opacity = opacity;
-      this._transformMode = transformMode;
-      this._tileX = tileX;
-      this._tileY = tileY;
-      this._targetMaskColor = targetMaskColor;
-      this._layerType = layerType;
-      this._fillAll = fillAll;
-      this._transparentE7ffff = transparentE7ffff;
+      this._opacity = opts.opacity !== undefined ? opts.opacity : 1.0;
+      this._transformMode = opts.transformMode || 'box';
+      this._tileX = opts.tileX || 1.0;
+      this._tileY = opts.tileY || 1.0;
+      this._targetMaskColor = opts.targetMaskColor || null;
+      this._layerType = opts.layerType || 'multiply';
+      this._fillAll = opts.fillAll || false;
+      this._transparentE7ffff = opts.transparentE7ffff || false;
     }
-
-    if (corners) {
-      this.corners = corners.map(([x, y]) => [x, y]);
+    if (opts.corners) {
+      this.corners = opts.corners.map(([x, y]) => [x, y]);
     } else {
-      this.resetTransform(canvasW, canvasH);
+      this.resetTransform(opts.canvasW || 256, opts.canvasH || 256);
     }
   }
 
@@ -77,12 +57,11 @@ export class Layer {
 
   _prepareImageData() {
     const img = this.imageElement;
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth || img.width;
-    canvas.height = img.naturalHeight || img.height;
-    const ctx = canvas.getContext('2d');
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth || img.width; c.height = img.naturalHeight || img.height;
+    const ctx = c.getContext('2d');
     ctx.drawImage(img, 0, 0);
-    this._cachedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    this._cachedImageData = ctx.getImageData(0, 0, c.width, c.height);
   }
 
   resetTransform(canvasW, canvasH) {
@@ -90,118 +69,74 @@ export class Layer {
     const oh = this.imageElement ? (this.imageElement.naturalHeight || 64) : 64;
     const initW = Math.min(ow * this.tileX, canvasW * 0.6);
     const initH = initW * ((oh * this.tileY) / Math.max(1e-4, ow * this.tileX));
-    const cx = canvasW / 2;
-    const cy = canvasH / 2;
+    const cx = canvasW / 2, cy = canvasH / 2;
     this.corners = [
-      [cx - initW / 2, cy - initH / 2],
-      [cx + initW / 2, cy - initH / 2],
-      [cx + initW / 2, cy + initH / 2],
-      [cx - initW / 2, cy + initH / 2]
+      [cx - initW / 2, cy - initH / 2], [cx + initW / 2, cy - initH / 2],
+      [cx + initW / 2, cy + initH / 2], [cx - initW / 2, cy + initH / 2]
     ];
   }
 
-  // 小数タイリング画像を生成
   _getTiledImageData() {
-    const baseData = this.sourceLayer ? this.sourceLayer._cachedImageData : this._cachedImageData;
-    if (!baseData) return null;
-
-    const repX = Math.ceil(this.tileX);
-    const repY = Math.ceil(this.tileY);
-    const targetW = Math.max(1, Math.round(baseData.width * this.tileX));
-    const targetH = Math.max(1, Math.round(baseData.height * this.tileY));
-
-    const canvas = document.createElement('canvas');
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext('2d');
-
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = baseData.width;
-    tempCanvas.height = baseData.height;
-    tempCanvas.getContext('2d').putImageData(baseData, 0, 0);
-
+    const base = this.sourceLayer ? this.sourceLayer._cachedImageData : this._cachedImageData;
+    if (!base) return null;
+    const repX = Math.ceil(this.tileX), repY = Math.ceil(this.tileY);
+    const tW = Math.max(1, Math.round(base.width * this.tileX)), tH = Math.max(1, Math.round(base.height * this.tileY));
+    const c = document.createElement('canvas'); c.width = tW; c.height = tH;
+    const ctx = c.getContext('2d');
+    const tc = document.createElement('canvas'); tc.width = base.width; tc.height = base.height;
+    tc.getContext('2d').putImageData(base, 0, 0);
     for (let y = 0; y < repY; y++) {
-      for (let x = 0; x < repX; x++) {
-        ctx.drawImage(tempCanvas, x * baseData.width, y * baseData.height);
-      }
+      for (let x = 0; x < repX; x++) ctx.drawImage(tc, x * base.width, y * base.height);
     }
-
-    return ctx.getImageData(0, 0, targetW, targetH);
+    return ctx.getImageData(0, 0, tW, tH);
   }
 
   getMultiplierMap(targetW, targetH, maskRgbData) {
-    if (this.layerType !== 'multiply' || !this.visible || this.opacity <= 0) {
-      return new Float32Array(targetW * targetH).fill(1.0);
-    }
-
-    const tiledData = this._getTiledImageData();
-    if (!tiledData) return new Float32Array(targetW * targetH).fill(1.0);
-
-    const sampled = sampleWarpedTexture(tiledData, this.corners, targetW, targetH, this.fillAll, this.transformMode);
+    if (this.layerType !== 'multiply' || !this.visible || this.opacity <= 0) return new Float32Array(targetW * targetH).fill(1.0);
+    const tiled = this._getTiledImageData();
+    if (!tiled) return new Float32Array(targetW * targetH).fill(1.0);
+    const sampled = sampleWarpedTexture(tiled, this.corners, targetW, targetH, this.fillAll, this.transformMode);
     if (!sampled) return new Float32Array(targetW * targetH).fill(1.0);
-
-    const multMap = new Float32Array(targetW * targetH).fill(1.0);
+    const out = new Float32Array(targetW * targetH).fill(1.0);
     const tCol = this.targetMaskColor;
-
     for (let i = 0; i < targetW * targetH; i++) {
       if (tCol && maskRgbData) {
-        const mr = maskRgbData[i * 3], mg = maskRgbData[i * 3 + 1], mb = maskRgbData[i * 3 + 2];
-        if (mr !== tCol[0] || mg !== tCol[1] || mb !== tCol[2]) continue;
+        if (maskRgbData[i * 3] !== tCol[0] || maskRgbData[i * 3 + 1] !== tCol[1] || maskRgbData[i * 3 + 2] !== tCol[2]) continue;
       }
-
-      const r = sampled[i * 4];
-      const g = sampled[i * 4 + 1];
-      const b = sampled[i * 4 + 2];
       const alpha = sampled[i * 4 + 3] * this.opacity;
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-
-      multMap[i] = 1.0 - alpha * (1.0 - gray);
+      const gray = 0.299 * sampled[i * 4] + 0.587 * sampled[i * 4 + 1] + 0.114 * sampled[i * 4 + 2];
+      out[i] = 1.0 - alpha * (1.0 - gray);
     }
-
-    return multMap;
+    return out;
   }
 
   getWarpedStructure(targetW, targetH, maskRgbData) {
     if (this.layerType !== 'structure' || !this.visible || this.opacity <= 0) return null;
-
-    const tiledData = this._getTiledImageData();
-    if (!tiledData) return null;
-
-    // 24bitカラー画像の #E7FFFF 透過前処理
+    const tiled = this._getTiledImageData();
+    if (!tiled) return null;
     if (this.transparentE7ffff) {
-      const d = tiledData.data;
+      const d = tiled.data;
       for (let i = 0; i < d.length; i += 4) {
         if (d[i] === 231 && d[i + 1] === 255 && d[i + 2] === 255) {
-          d[i] = 192;
-          d[i + 1] = 192;
-          d[i + 2] = 192;
-          d[i + 3] = 0; // 透過
+          d[i] = 192; d[i + 1] = 192; d[i + 2] = 192; d[i + 3] = 0;
         }
       }
     }
-
-    const sampled = sampleWarpedTexture(tiledData, this.corners, targetW, targetH, this.fillAll, this.transformMode);
+    const sampled = sampleWarpedTexture(tiled, this.corners, targetW, targetH, this.fillAll, this.transformMode);
     if (!sampled) return null;
-
     const tCol = this.targetMaskColor;
-    if (tCol && maskRgbData) {
-      for (let i = 0; i < targetW * targetH; i++) {
-        const mr = maskRgbData[i * 3], mg = maskRgbData[i * 3 + 1], mb = maskRgbData[i * 3 + 2];
-        if (mr !== tCol[0] || mg !== tCol[1] || mb !== tCol[2]) {
+    for (let i = 0; i < targetW * targetH; i++) {
+      if (tCol && maskRgbData) {
+        if (maskRgbData[i * 3] !== tCol[0] || maskRgbData[i * 3 + 1] !== tCol[1] || maskRgbData[i * 3 + 2] !== tCol[2]) {
           sampled[i * 4 + 3] = 0;
         }
       }
-    }
-
-    // 不透明度の反映
-    for (let i = 0; i < targetW * targetH; i++) {
       sampled[i * 4 + 3] *= this.opacity;
     }
-
     return sampled;
   }
 
-  toDict(layerList = []) {
+  toDict(layerList) {
     const srcIdx = this.sourceLayer ? layerList.indexOf(this.sourceLayer) : null;
     return {
       name: this.name,

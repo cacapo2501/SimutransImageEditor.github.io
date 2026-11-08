@@ -31,17 +31,31 @@ body {
   gap: 8px;
 }
 
-.panel {
+/* アコーディオンパネル */
+.accordion-panel {
   background: #303030;
   border-radius: 4px;
-  padding: 8px;
   border: 1px solid #404040;
+  overflow: hidden;
 }
 
-.panel-title {
-  font-size: 13px;
-  margin-bottom: 6px;
-  color: #bbb;
+.accordion-panel summary {
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #ddd;
+  background: #2a2a2a;
+  cursor: pointer;
+  border-bottom: 1px solid #3d3d3d;
+  outline: none;
+}
+
+.accordion-panel summary:hover {
+  background: #353535;
+}
+
+.panel-body {
+  padding: 8px;
 }
 
 .sub-panel {
@@ -57,6 +71,7 @@ body {
   padding: 0 4px;
 }
 
+/* ボタンスタイル */
 button {
   background: #3e3e3e;
   color: #e0e0e0;
@@ -79,6 +94,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .mt-05 { margin-top: 4px; }
 .mt-1 { margin-top: 8px; }
 
+/* フォームコントロール */
 select, input[type="text"] {
   width: 100%;
   background: #1e1e1e;
@@ -111,41 +127,7 @@ input[type="range"] {
 .info-text { font-size: 10px; color: #888; margin-top: 4px; }
 .desc-text { font-size: 10px; color: #777; margin-top: 4px; }
 
-/* ★タブ切り替えボタン★ */
-.tab-nav {
-  display: flex !important;
-  width: 100%;
-  background: #202020;
-  border-radius: 4px;
-  overflow: hidden;
-  border: 1px solid #444;
-  margin: 4px 0;
-}
-
-.tab-btn {
-  flex: 1;
-  background: #282828;
-  border: none;
-  border-right: 1px solid #383838;
-  padding: 8px 4px;
-  font-size: 11px;
-  color: #aaa;
-  cursor: pointer;
-  text-align: center;
-}
-
-.tab-btn:last-child { border-right: none; }
-.tab-btn.active {
-  background: #3e3e3e;
-  color: #fff;
-  font-weight: bold;
-  border-bottom: 2px solid #0078d4;
-}
-
-/* ★タブコンテンツの表示/非表示★ */
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
+/* レイヤー一覧ボックスの幅確保 */
 #layer-listbox {
   width: 100% !important;
   height: 90px !important;
@@ -158,6 +140,7 @@ input[type="range"] {
   display: block;
 }
 
+/* ラジオボタン・チェックボックスの縦並び化 */
 fieldset.sub-panel label {
   display: flex !important;
   align-items: center;
@@ -205,6 +188,12 @@ fieldset.sub-panel label input[type="checkbox"] {
 
 #tint-table tr.selected { background: #005a9e; }
 
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+/* メインキャンバス */
 #canvas-container {
   flex: 1;
   display: flex;
@@ -262,6 +251,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   padding: 0 8px;
 }
 
+/* モーダル */
 #modal-color-picker {
   border: 1px solid #555;
   border-radius: 6px;
