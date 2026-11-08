@@ -35,7 +35,7 @@
       </details>
 
       <!-- セクション2: レイヤー・変形操作 -->
-      <details class="accordion-panel" id="accordion-layer">
+      <details class="accordion-panel" id="accordion-layer" open>
         <summary>レイヤー・変形操作</summary>
         <div class="panel-body">
           <div class="btn-group">
@@ -92,11 +92,11 @@
             </div>
           </fieldset>
 
-          <!-- ★変形メニュー（ドロップダウン形式）★ -->
+          <!-- ★変形モード・スナップ・不透明度を正しく内包★ -->
           <fieldset class="sub-panel">
             <legend>変形モード＆ピクセルスナップ</legend>
             <div class="row">
-              <label style="min-width: 80px; font-weight: bold;">変形の種類:</label>
+              <label style="min-width: 75px; font-weight: bold;">変形の種類:</label>
               <select id="select-transform-mode">
                 <option value="box">矩形リサイズ (軸平行)</option>
                 <option value="affine">自由3頂点 (平行四辺形)</option>
@@ -111,13 +111,14 @@
           </fieldset>
 
           <div class="row mt-05">
-            <label>不透明度:</label>
+            <label style="min-width: 50px;">不透明度:</label>
             <span class="val-badge" id="lbl-opacity">100%</span>
             <input type="range" id="slider-opacity" min="0" max="1" step="0.01" value="1">
           </div>
           <label class="mt-05"><input type="checkbox" id="chk-layer-visible" checked> レイヤーを表示</label>
         </div>
       </details>
+      <!-- ここで「レイヤー・変形操作」が完全に閉じます -->
 
       <!-- セクション3: トーン＆ハイライトブレンド -->
       <details class="accordion-panel">

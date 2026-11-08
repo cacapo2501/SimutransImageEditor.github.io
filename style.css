@@ -19,16 +19,38 @@ body {
   width: 100vw;
 }
 
+/* サイドバーの画面突き抜け防止とスクロールの有効化 */
 #sidebar {
   width: 440px;
   min-width: 440px;
+  height: 100vh;           /* 画面高さいっぱいに固定 */
+  max-height: 100vh;
+  min-height: 0;          /* Flexboxのオーバーフローバグを防止 */
   background-color: #262626;
   border-right: 1px solid #3d3d3d;
   display: flex;
   flex-direction: column;
   padding: 8px;
-  overflow-y: auto;
+  overflow-y: auto;       /* 内容が多いときは縦スクロールバーを出す */
   gap: 8px;
+}
+
+/* フィールドセットの枠線が途切れるのを防止 */
+fieldset.sub-panel {
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 6px;
+  display: block;
+  overflow: visible;      /* 内部要素の見切れを防止 */
+}
+
+/* 最下部ボタンのマージン */
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 8px;
+  padding-bottom: 4px;
+  flex-shrink: 0;         /* スクロール時に潰れないように固定 */
 }
 
 /* アコーディオンパネル */
