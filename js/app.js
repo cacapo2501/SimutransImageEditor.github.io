@@ -18,7 +18,9 @@ class AdvancedMultiplyApp {
     this.baseName = 'base.png';
     this.baseW = 0; this.baseH = 0;
     this.baseRgb = null; this.baseAlpha = null;
-    this.isBgMask = null; this.editableMask = null;
+    this.isBgMask = null;
+    this.editableMask = null;
+    this.isBaseSpecialColor = null; // ベース画像本来のSpecialColorピクセル
 
     this.maskImage = null;
     this.maskName = 'mask.png';
@@ -74,6 +76,7 @@ class AdvancedMultiplyApp {
           if (parsed.size > 0) {
             this.specialColors = parsed;
             if (infoLabel) infoLabel.textContent = `特殊色: ${this.specialColors.size}件登録済 (GitHubデフォルト)`;
+            this._recomputeBaseSpecialColors();
             this.render();
             return;
           }
@@ -83,39 +86,41 @@ class AdvancedMultiplyApp {
     if (infoLabel && this.specialColors.size === 0) infoLabel.textContent = '特殊色: 0件登録済 (手動選択可)';
   }
 
-  markDirty() { this.isDirty = true; }
-
-  // ★ ベース画像からマスク画像を自動生成する処理 ★
-  autoGenerateMaskFromBase() {
-    if (!this.baseImage || !this.baseRgb) return;
-
-    // 1. ベース画像内の編集可能グレー階調の最小値・最大値を調査
-    let minGray = 255;
-    let maxGray = 0;
-    let grayFound = false;
-
-    for (let i = 0; i < this.baseW * this.baseH; i++) {
+  // SpecialColor読み込み時にベース画像の特殊色ピクセルを再特定
+  _recomputeBaseSpecialColors() {
+    if (!this.baseRgb || !this.specialColors || this.specialColors.size === 0) return;
+    const total = this.baseW * this.baseH;
+    this.isBaseSpecialColor = new Uint8Array(total);
+    for (let i = 0; i < total; i++) {
       if (this.isBgMask[i]) continue;
       const r = this.baseRgb[i * 3], g = this.baseRgb[i * 3 + 1], b = this.baseRgb[i * 3 + 2];
       const hex = rgbToHex(r, g, b);
-      if (this.specialColors && this.specialColors.has(hex)) continue;
+      if (this.specialColors.has(hex)) {
+        this.isBaseSpecialColor[i] = 1;
+        this.editableMask[i] = 0;
+      }
+    }
+  }
 
+  markDirty() { this.isDirty = true; }
+
+  autoGenerateMaskFromBase() {
+    if (!this.baseImage || !this.baseRgb) return;
+
+    let minGray = 255, maxGray = 0, grayFound = false;
+    for (let i = 0; i < this.baseW * this.baseH; i++) {
+      if (this.isBgMask[i] || (this.isBaseSpecialColor && this.isBaseSpecialColor[i])) continue;
+      const r = this.baseRgb[i * 3], g = this.baseRgb[i * 3 + 1], b = this.baseRgb[i * 3 + 2];
       if (r === g && g === b) {
         grayFound = true;
         if (r < minGray) minGray = r;
         if (r > maxGray) maxGray = r;
       }
     }
+    if (!grayFound) { minGray = 0; maxGray = 255; }
 
-    if (!grayFound) {
-      minGray = 0;
-      maxGray = 255;
-    }
-
-    // 2. マスクピクセル配列を作成
     const mCanvas = document.createElement('canvas');
-    mCanvas.width = this.baseW;
-    mCanvas.height = this.baseH;
+    mCanvas.width = this.baseW; mCanvas.height = this.baseH;
     const mCtx = mCanvas.getContext('2d');
     const mImgData = mCtx.createImageData(this.baseW, this.baseH);
     const mData = mImgData.data;
@@ -127,35 +132,16 @@ class AdvancedMultiplyApp {
       const hex = rgbToHex(r, g, b);
 
       if (this.isBgMask[i] || a === 0) {
-        // 背景色 (#E7FFFF または透過)
-        mData[idx] = 231;
-        mData[idx + 1] = 255;
-        mData[idx + 2] = 255;
-        mData[idx + 3] = a;
-      } else if (this.specialColors && this.specialColors.has(hex)) {
-        // SpecialColor はそのまま保持
-        mData[idx] = r;
-        mData[idx + 1] = g;
-        mData[idx + 2] = b;
-        mData[idx + 3] = 255;
+        mData[idx] = 231; mData[idx + 1] = 255; mData[idx + 2] = 255; mData[idx + 3] = a;
+      } else if (this.isBaseSpecialColor && this.isBaseSpecialColor[i]) {
+        mData[idx] = r; mData[idx + 1] = g; mData[idx + 2] = b; mData[idx + 3] = 255;
       } else if (r === g && g === b) {
-        // グレー: 明るい色=#FFC0C0 (H=0°), 暗い色=#C0C0FF (H=240°) 色相スカラー変化
         const t = maxGray > minGray ? (r - minGray) / (maxGray - minGray) : 0.5;
-        const h = Math.round(240 * (1.0 - t)); // 暗い方(t=0)が240°、明るい方(t=1)が0°
-        const s = Math.round((63 / 255) * 100); // 25% (パステル)
-        const v = 100;
-        const [mr, mg, mb] = hexToRgb(hsvToHex(h, s, v));
-
-        mData[idx] = mr;
-        mData[idx + 1] = mg;
-        mData[idx + 2] = mb;
-        mData[idx + 3] = 255;
+        const h = Math.round(240 * (1.0 - t));
+        const [mr, mg, mb] = hexToRgb(hsvToHex(h, 25, 100));
+        mData[idx] = mr; mData[idx + 1] = mg; mData[idx + 2] = mb; mData[idx + 3] = 255;
       } else {
-        // SpecialColorでもグレーでもない色 -> #800000
-        mData[idx] = 128;
-        mData[idx + 1] = 0;
-        mData[idx + 2] = 0;
-        mData[idx + 3] = 255;
+        mData[idx] = 128; mData[idx + 1] = 0; mData[idx + 2] = 0; mData[idx + 3] = 255;
       }
     }
 
@@ -169,6 +155,7 @@ class AdvancedMultiplyApp {
     maskImg.src = mCanvas.toDataURL('image/png');
   }
 
+  // ★ ベース画像の適用と SpecialColor ピクセルの特定 ★
   applyBaseImage(img, name) {
     this.baseImage = img;
     this.baseName = name || 'base.png';
@@ -186,17 +173,28 @@ class AdvancedMultiplyApp {
     this.baseAlpha = new Uint8Array(total);
     this.isBgMask = new Uint8Array(total);
     this.editableMask = new Uint8Array(total);
+    this.isBaseSpecialColor = new Uint8Array(total);
 
     for (let i = 0; i < total; i++) {
       const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
       this.baseRgb[i * 3] = r; this.baseRgb[i * 3 + 1] = g; this.baseRgb[i * 3 + 2] = b;
       this.baseAlpha[i] = a;
-      if ((r === 231 && g === 255 && b === 255) || a === 0) this.isBgMask[i] = 1;
-      if (r === g && g === b && this.isBgMask[i] === 0) this.editableMask[i] = 1;
+
+      if ((r === 231 && g === 255 && b === 255) || a === 0) {
+        this.isBgMask[i] = 1;
+      } else {
+        const hex = rgbToHex(r, g, b);
+        // ベース画像で元々SpecialColorであるピクセルを記録
+        if (this.specialColors && this.specialColors.has(hex)) {
+          this.isBaseSpecialColor[i] = 1;
+        } else if (r === g && g === b) {
+          this.editableMask[i] = 1;
+        }
+      }
     }
+
     document.getElementById('lbl-base-info').textContent = `ベース: ${this.baseName} (${this.baseW}x${this.baseH})`;
 
-    // ベース画像があり、マスク画像がまだない場合は自動生成
     if (!this.maskImage) {
       this.autoGenerateMaskFromBase();
     }
@@ -439,10 +437,8 @@ class AdvancedMultiplyApp {
       if (f) this.loadMaskFromFile(f);
     };
 
-    // ペイントエディタ起動
     document.getElementById('btn-paint-base').onclick = () => this.paintEditor.open('base');
     document.getElementById('btn-paint-mask').onclick = () => {
-      // マスク画像がない場合はベース画像を元に自動生成してから開く
       if (!this.maskImage && this.baseImage) {
         this.autoGenerateMaskFromBase();
       }
@@ -636,6 +632,7 @@ class AdvancedMultiplyApp {
         r.onload = () => {
           this.specialColors = parseSpecialColorsCsv(r.result);
           document.getElementById('lbl-csv-info').textContent = `特殊色: ${this.specialColors.size}件登録済 (手動選択)`;
+          this._recomputeBaseSpecialColors();
           this.markDirty(); this.render();
         };
         r.readAsText(file);

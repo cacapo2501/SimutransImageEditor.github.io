@@ -1,4 +1,4 @@
-import { hexToRgb, rgbToHex, hsvToHex } from './color-utils.js';
+import { hexToRgb, rgbToHex } from './color-utils.js';
 
 export class PaintEditor {
   constructor(app) {
@@ -7,7 +7,6 @@ export class PaintEditor {
     this.width = 0;
     this.height = 0;
 
-    // キャンバス・コンテキスト
     this.modal = document.getElementById('modal-paint-editor');
     this.canvas = document.getElementById('paint-canvas');
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
@@ -15,7 +14,7 @@ export class PaintEditor {
     this.oCtx = this.overlayCanvas.getContext('2d');
     this.viewport = document.getElementById('paint-viewport');
 
-    // 画像スポイトサンプラーモーダル要素
+    // スポイトサンプラー
     this.samplerModal = document.getElementById('modal-image-sampler');
     this.samplerCanvas = document.getElementById('sampler-canvas');
     this.samplerCtx = this.samplerCanvas.getContext('2d', { willReadFrequently: true });
@@ -29,7 +28,7 @@ export class PaintEditor {
     this.samplerPanStart = [0, 0];
     this.samplerMouseDownPos = [0, 0];
 
-    // 色置換モーダル要素
+    // 色置換
     this.replaceModal = document.getElementById('modal-color-replace');
     this.replaceRules = [];
 
@@ -55,6 +54,7 @@ export class PaintEditor {
       pencil: 'KeyB',
       line: 'KeyL',
       bucket: 'KeyG',
+      picker: 'KeyI',
       rectSelect: 'KeyM',
       polySelect: 'KeyP',
       wand: 'KeyW',
@@ -166,7 +166,6 @@ export class PaintEditor {
     this._drawOverlay();
   }
 
-  // ★ パレット描画：マスク画像編集時はグレースケール枠を完全排除 ★
   _renderPaletteUI() {
     const container = document.getElementById('paint-palette-slots');
     const emptyMsg = document.getElementById('paint-palette-empty-msg');
@@ -176,7 +175,6 @@ export class PaintEditor {
     let colors = [];
 
     if (this.targetType === 'base') {
-      // ベース画像編集時：グレースケール生成ツールを表示
       document.getElementById('base-palette-tools').style.display = 'block';
       document.getElementById('mask-palette-tools').style.display = 'none';
 
@@ -187,7 +185,6 @@ export class PaintEditor {
         colors.push(...Array.from(this.app.specialColors));
       }
     } else {
-      // ★ マスク画像編集時：グレースケール生成ツールを完全に非表示 ★
       document.getElementById('base-palette-tools').style.display = 'none';
       document.getElementById('mask-palette-tools').style.display = 'block';
       colors = [...pm.maskPalette];
@@ -265,7 +262,6 @@ export class PaintEditor {
       this._drawOverlay();
     };
 
-    // グレースケール生成 (ベース画像用)
     document.getElementById('btn-gen-base-palette').onclick = () => {
       const pm = this.app.paletteManager;
       pm.basePaletteConfig.brightestHex = document.getElementById('inp-gray-max').value.trim() || '#FEFEFE';
@@ -275,7 +271,6 @@ export class PaintEditor {
       this._renderPaletteUI();
     };
 
-    // マスクパレットに任意色を追加 (HSVカラーピッカー)
     document.getElementById('btn-add-mask-custom-color').onclick = async () => {
       const picked = await this.app.colorPicker.open(this.currentColor || '#FFFFFF');
       if (picked) {
@@ -285,12 +280,10 @@ export class PaintEditor {
       }
     };
 
-    // 画像スポイトモーダル起動
     document.getElementById('btn-open-image-sampler').onclick = () => {
       this._openSamplerModal();
     };
 
-    // 色置換モーダル起動
     document.getElementById('btn-open-color-replace').onclick = () => {
       this._openColorReplaceDialog();
     };
@@ -387,7 +380,7 @@ export class PaintEditor {
     });
   }
 
-  // --- ★ 画像スポイトモーダル制御 (拡大・縮小・平行移動対応) ★ ---
+  // --- 画像スポイトモーダル ---
   _openSamplerModal() {
     this.samplerPickedColors.clear();
     this._renderSamplerPickedUI();
@@ -435,7 +428,6 @@ export class PaintEditor {
   _bindSamplerEvents() {
     document.getElementById('btn-close-sampler').onclick = () => this.samplerModal.close();
 
-    // ズームバー
     document.getElementById('btn-sampler-zoom-in').onclick = () => {
       this.samplerZoom = Math.min(32, this.samplerZoom * 1.25);
       this._updateSamplerTransform();
@@ -450,7 +442,6 @@ export class PaintEditor {
     };
     document.getElementById('btn-sampler-zoom-fit').onclick = () => this._fitSamplerImage();
 
-    // ホイールズーム
     this.samplerViewport.onwheel = (e) => {
       e.preventDefault();
       const delta = e.deltaY < 0 ? 1.25 : 0.8;
@@ -466,7 +457,6 @@ export class PaintEditor {
       this._updateSamplerTransform();
     };
 
-    // 平行移動 (ドラッグ) と スポイト採取 (クリック) の両立
     this.samplerViewport.onmousedown = (e) => {
       this.samplerIsPanning = true;
       this.samplerMouseDownPos = [e.clientX, e.clientY];
@@ -485,7 +475,6 @@ export class PaintEditor {
       if (!this.samplerIsPanning || !this.samplerModal.open) return;
       this.samplerIsPanning = false;
 
-      // 移動距離が5px未満の場合はクリックとみなし、ピクセル色を採取
       const dist = Math.hypot(e.clientX - this.samplerMouseDownPos[0], e.clientY - this.samplerMouseDownPos[1]);
       if (dist < 5 && this.samplerLoadedImg) {
         const rect = this.samplerViewport.getBoundingClientRect();
@@ -505,7 +494,6 @@ export class PaintEditor {
       }
     });
 
-    // URL読込
     document.getElementById('btn-sampler-load-url').onclick = async () => {
       const url = document.getElementById('inp-sampler-url').value.trim();
       if (!url) return alert('画像のURLを入力してください。');
@@ -517,7 +505,6 @@ export class PaintEditor {
       }
     };
 
-    // ローカルファイル読込
     document.getElementById('btn-sampler-local-file').onclick = () => {
       const inp = document.createElement('input');
       inp.type = 'file';
@@ -569,7 +556,7 @@ export class PaintEditor {
     });
   }
 
-  // --- ★ 色置換・複数色置換モーダル制御 ★ ---
+  // --- 色置換モーダル ---
   _openColorReplaceDialog() {
     this.replaceRules = [
       { from: this.currentColor, to: '#FFFFFF' }
@@ -636,7 +623,6 @@ export class PaintEditor {
       this._renderReplaceRulesUI();
     };
 
-    // 置換実行
     document.getElementById('btn-execute-replace').onclick = () => {
       this._executeColorReplace();
     };
@@ -664,7 +650,7 @@ export class PaintEditor {
         if (mask && !mask[pIdx]) continue;
 
         const idx = pIdx * 4;
-        if (d[idx + 3] === 0) continue; // 完全透過ピクセルはスキップ
+        if (d[idx + 3] === 0) continue;
 
         const r = d[idx], g = d[idx + 1], b = d[idx + 2];
 
@@ -686,9 +672,26 @@ export class PaintEditor {
     alert(`色置換が完了しました。（${replacedCount} ピクセルを置換）`);
   }
 
-  // --- 描画ロジック ---
+  // --- 描画・スポイト処理 ---
   _handleToolStart(x, y) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
+
+    // ★ 現在編集中の画像から色を取得するスポイト機能 ★
+    if (this.currentTool === 'picker') {
+      const p = this.ctx.getImageData(x, y, 1, 1).data;
+      if (p[3] > 0) {
+        const hex = rgbToHex(p[0], p[1], p[2]);
+        this.currentColor = hex;
+        this._updateCurrentColorUI();
+        if (this.targetType === 'mask') {
+          this.app.paletteManager.addColorToMaskPalette(hex);
+          this._renderPaletteUI();
+        }
+      }
+      this.isDrawing = false;
+      return;
+    }
+
     this.isDrawing = true;
     this.lastDrawPos = [x, y];
 
@@ -955,6 +958,7 @@ export class PaintEditor {
       pencil: 'ドットブラシ',
       line: '直線 (連続)',
       bucket: '塗りつぶし',
+      picker: 'スポイト (色取得)',
       rectSelect: '矩形選択',
       polySelect: '多角形選択',
       wand: '自動選択 (Magic Wand)',

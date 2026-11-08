@@ -2,13 +2,12 @@ import { rgbToHex, hexToRgb } from './color-utils.js';
 import { applyProtectedBlur } from './transform.js';
 
 export class RenderEngine {
-  // ピクセル合成パイプライン計算
   static compute(app) {
     if (!app.baseRgb) return null;
     const total = app.baseW * app.baseH;
     let multAccum = new Float32Array(total).fill(1.0);
 
-    // 1. 乗算テクスチャの積算
+    // 1. 乗算テクスチャ積算 (editableMask のみ)
     app.layers.forEach(layer => {
       if (layer.visible && layer.layerType === 'multiply') {
         const mMap = layer.getMultiplierMap(app.baseW, app.baseH, app.maskRgb);
@@ -19,9 +18,18 @@ export class RenderEngine {
     const outRgb = new Float32Array(total * 3);
     const outAlpha = new Float32Array(total);
 
-    // 2. ベース画像のトーン変換 ＆ テクスチャ乗算 ＆ マスクTint
+    // 2. ベース画像合成 (SpecialColorピクセルは一切変更せず維持)
     for (let i = 0; i < total; i++) {
       outAlpha[i] = app.baseAlpha[i] / 255.0;
+
+      // ★ ベース画像のSpecialColorピクセルは全編集の対象外 ★
+      if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) {
+        outRgb[i * 3] = app.baseRgb[i * 3] / 255.0;
+        outRgb[i * 3 + 1] = app.baseRgb[i * 3 + 1] / 255.0;
+        outRgb[i * 3 + 2] = app.baseRgb[i * 3 + 2] / 255.0;
+        continue;
+      }
+
       if (app.editableMask[i]) {
         const bg = app.baseRgb[i * 3] / 255.0;
         const mVal = multAccum[i];
@@ -60,9 +68,11 @@ export class RenderEngine {
       }
     }
 
-    // 3. ハイライトNormalブレンド (乗算完了後に適用)
+    // 3. ハイライトブレンド (editableMask のみ)
     for (let i = 0; i < total; i++) {
       if (!app.editableMask[i]) continue;
+      if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;
+
       const bg = app.baseRgb[i * 3] / 255.0;
       let cfg = app.globalTone;
       if (app.maskRgb) {
@@ -84,12 +94,14 @@ export class RenderEngine {
       }
     }
 
-    // 4. ストラクチャー (小物) 上乗せ合成
+    // 4. ストラクチャー上乗せ (ベース画像のSpecialColorピクセルには上乗せしない)
     app.layers.forEach(layer => {
       if (layer.visible && layer.layerType === 'structure') {
         const sData = layer.getWarpedStructure(app.baseW, app.baseH, app.maskRgb);
         if (!sData) return;
         for (let i = 0; i < total; i++) {
+          if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;
+
           const sa = sData[i * 4 + 3];
           if (sa > 0.001) {
             if (app.isBgMask[i]) {
@@ -108,11 +120,12 @@ export class RenderEngine {
       }
     });
 
-    // 5. SpecialColor保護ぼかし
+    // 5. SpecialColor保護ぼかし (ベース画像のSpecialColorもinvalid設定)
     if (app.enableBlur && app.blurRadius > 0.001) {
       const invalid = new Uint8Array(total);
       for (let i = 0; i < total; i++) {
         if (app.isBgMask[i]) invalid[i] = 1;
+        else if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) invalid[i] = 1;
         else {
           const hex = rgbToHex(outRgb[i * 3] * 255, outRgb[i * 3 + 1] * 255, outRgb[i * 3 + 2] * 255);
           if (app.specialColors.has(hex)) invalid[i] = 1;
@@ -132,7 +145,6 @@ export class RenderEngine {
     return res;
   }
 
-  // 選択中レイヤーの枠線と四隅ハンドルのオーバーレイ描画
   static drawOverlay(ctx, layer, zoomLevel, panX, panY) {
     if (!layer) return;
     const pts = layer.corners.map(([x, y]) => [x * zoomLevel + panX, y * zoomLevel + panY]);
