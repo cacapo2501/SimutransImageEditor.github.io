@@ -4,6 +4,7 @@ export class Layer {
   constructor(opts) {
     this.sourceLayer = opts.sourceLayer || null;
     this._visible = opts.visible !== undefined ? opts.visible : true;
+
     if (!this.sourceLayer) {
       this._name = opts.name || '';
       this._imageElement = opts.imageElement || null;
@@ -18,6 +19,8 @@ export class Layer {
       this._cachedImageData = null;
       if (this._imageElement) this._prepareImageData();
     } else {
+      this._name = null;
+      this._imageElement = null;
       this._opacity = opts.opacity !== undefined ? opts.opacity : 1.0;
       this._transformMode = opts.transformMode || 'box';
       this._tileX = opts.tileX || 1.0;
@@ -26,9 +29,11 @@ export class Layer {
       this._layerType = opts.layerType || 'multiply';
       this._fillAll = opts.fillAll || false;
       this._transparentE7ffff = opts.transparentE7ffff || false;
+      this._cachedImageData = null;
     }
+
     if (opts.corners) {
-      this.corners = opts.corners.map(([x, y]) => [x, y]);
+      this.corners = opts.corners.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000]);
     } else {
       this.resetTransform(opts.canvasW || 256, opts.canvasH || 256);
     }
@@ -57,11 +62,24 @@ export class Layer {
 
   _prepareImageData() {
     const img = this.imageElement;
+    if (!img) return;
     const c = document.createElement('canvas');
-    c.width = img.naturalWidth || img.width; c.height = img.naturalHeight || img.height;
+    c.width = img.naturalWidth || img.width;
+    c.height = img.naturalHeight || img.height;
     const ctx = c.getContext('2d');
     ctx.drawImage(img, 0, 0);
     this._cachedImageData = ctx.getImageData(0, 0, c.width, c.height);
+  }
+
+  // PNG形式の可逆圧縮DataURLを取得（親レイヤーのみ保持）
+  getPngDataUrl() {
+    if (this.sourceLayer || !this.imageElement) return null;
+    const c = document.createElement('canvas');
+    c.width = this.imageElement.naturalWidth || this.imageElement.width;
+    c.height = this.imageElement.naturalHeight || this.imageElement.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(this.imageElement, 0, 0);
+    return c.toDataURL('image/png');
   }
 
   resetTransform(canvasW, canvasH) {
@@ -71,37 +89,54 @@ export class Layer {
     const initH = initW * ((oh * this.tileY) / Math.max(1e-4, ow * this.tileX));
     const cx = canvasW / 2, cy = canvasH / 2;
     this.corners = [
-      [cx - initW / 2, cy - initH / 2], [cx + initW / 2, cy - initH / 2],
-      [cx + initW / 2, cy + initH / 2], [cx - initW / 2, cy + initH / 2]
-    ];
+      [cx - initW / 2, cy - initH / 2],
+      [cx + initW / 2, cy - initH / 2],
+      [cx + initW / 2, cy + initH / 2],
+      [cx - initW / 2, cy + initH / 2]
+    ].map(([x, y]) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100]);
   }
 
   _getTiledImageData() {
     const base = this.sourceLayer ? this.sourceLayer._cachedImageData : this._cachedImageData;
     if (!base) return null;
     const repX = Math.ceil(this.tileX), repY = Math.ceil(this.tileY);
-    const tW = Math.max(1, Math.round(base.width * this.tileX)), tH = Math.max(1, Math.round(base.height * this.tileY));
-    const c = document.createElement('canvas'); c.width = tW; c.height = tH;
+    const tW = Math.max(1, Math.round(base.width * this.tileX));
+    const tH = Math.max(1, Math.round(base.height * this.tileY));
+
+    const c = document.createElement('canvas');
+    c.width = tW; c.height = tH;
     const ctx = c.getContext('2d');
-    const tc = document.createElement('canvas'); tc.width = base.width; tc.height = base.height;
+
+    const tc = document.createElement('canvas');
+    tc.width = base.width; tc.height = base.height;
     tc.getContext('2d').putImageData(base, 0, 0);
+
     for (let y = 0; y < repY; y++) {
-      for (let x = 0; x < repX; x++) ctx.drawImage(tc, x * base.width, y * base.height);
+      for (let x = 0; x < repX; x++) {
+        ctx.drawImage(tc, x * base.width, y * base.height);
+      }
     }
     return ctx.getImageData(0, 0, tW, tH);
   }
 
   getMultiplierMap(targetW, targetH, maskRgbData) {
-    if (this.layerType !== 'multiply' || !this.visible || this.opacity <= 0) return new Float32Array(targetW * targetH).fill(1.0);
+    if (this.layerType !== 'multiply' || !this.visible || this.opacity <= 0) {
+      return new Float32Array(targetW * targetH).fill(1.0);
+    }
     const tiled = this._getTiledImageData();
     if (!tiled) return new Float32Array(targetW * targetH).fill(1.0);
+
     const sampled = sampleWarpedTexture(tiled, this.corners, targetW, targetH, this.fillAll, this.transformMode);
     if (!sampled) return new Float32Array(targetW * targetH).fill(1.0);
+
     const out = new Float32Array(targetW * targetH).fill(1.0);
     const tCol = this.targetMaskColor;
+
     for (let i = 0; i < targetW * targetH; i++) {
       if (tCol && maskRgbData) {
-        if (maskRgbData[i * 3] !== tCol[0] || maskRgbData[i * 3 + 1] !== tCol[1] || maskRgbData[i * 3 + 2] !== tCol[2]) continue;
+        if (maskRgbData[i * 3] !== tCol[0] || maskRgbData[i * 3 + 1] !== tCol[1] || maskRgbData[i * 3 + 2] !== tCol[2]) {
+          continue;
+        }
       }
       const alpha = sampled[i * 4 + 3] * this.opacity;
       const gray = 0.299 * sampled[i * 4] + 0.587 * sampled[i * 4 + 1] + 0.114 * sampled[i * 4 + 2];
@@ -114,6 +149,7 @@ export class Layer {
     if (this.layerType !== 'structure' || !this.visible || this.opacity <= 0) return null;
     const tiled = this._getTiledImageData();
     if (!tiled) return null;
+
     if (this.transparentE7ffff) {
       const d = tiled.data;
       for (let i = 0; i < d.length; i += 4) {
@@ -122,8 +158,10 @@ export class Layer {
         }
       }
     }
+
     const sampled = sampleWarpedTexture(tiled, this.corners, targetW, targetH, this.fillAll, this.transformMode);
     if (!sampled) return null;
+
     const tCol = this.targetMaskColor;
     for (let i = 0; i < targetW * targetH; i++) {
       if (tCol && maskRgbData) {
@@ -136,21 +174,23 @@ export class Layer {
     return sampled;
   }
 
-  toDict(layerList) {
+  toDict(layerList = []) {
     const srcIdx = this.sourceLayer ? layerList.indexOf(this.sourceLayer) : null;
     return {
       name: this.name,
-      corners: this.corners.map(([x, y]) => [x, y]),
-      opacity: Number(this.opacity),
+      corners: this.corners.map(([x, y]) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100]),
+      opacity: Math.round(this.opacity * 100) / 100,
       visible: Boolean(this.visible),
       transform_mode: this.transformMode,
-      tile_x: Number(this.tileX),
-      tile_y: Number(this.tileY),
+      tile_x: Math.round(this.tileX * 100) / 100,
+      tile_y: Math.round(this.tileY * 100) / 100,
       target_mask_color: this.targetMaskColor ? [...this.targetMaskColor] : null,
       layer_type: this.layerType,
       fill_all: Boolean(this.fillAll),
       transparent_e7ffff: Boolean(this.transparentE7ffff),
-      source_idx: srcIdx !== -1 ? srcIdx : null
+      source_idx: (srcIdx !== null && srcIdx !== -1) ? srcIdx : null,
+      // 親レイヤーのみPNG圧縮DataURLを保持（子レイヤーはnullにして重複排除）
+      image_data: this.getPngDataUrl()
     };
   }
 }
