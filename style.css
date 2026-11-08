@@ -19,7 +19,7 @@ body {
   width: 100vw;
 }
 
-/* サイドバー：縦スクロールを完全に保証 */
+/* サイドバー外枠：全体の縦スクロールを維持しつつFlex崩れを防止 */
 #sidebar {
   width: 440px;
   min-width: 440px;
@@ -40,7 +40,6 @@ body {
   background: #303030;
   border-radius: 4px;
   border: 1px solid #404040;
-  overflow: visible; /* 見切れ防止 */
   flex-shrink: 0;
 }
 
@@ -59,25 +58,48 @@ body {
   background: #353535;
 }
 
+/* ★ アコーディオン内部の専用スクロール領域 ★ */
 .panel-body {
-  padding: 8px;
+  padding: 8px 10px 10px 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  max-height: 55vh;         /* 画面高さに応じて高さを制限 */
+  overflow-y: auto;         /* はみ出た場合にパネル内スクロールバーを生成 */
+  overflow-x: hidden;        /* 横揺れを防止 */
 }
 
-/* ★フィールドセット：Flex縦並びで内部の高さを100%自動計算★ */
+/* 内部スクロールバーの軽量スタイリング */
+.panel-body::-webkit-scrollbar,
+#sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.panel-body::-webkit-scrollbar-track,
+#sidebar::-webkit-scrollbar-track {
+  background: #202020;
+  border-radius: 3px;
+}
+.panel-body::-webkit-scrollbar-thumb,
+#sidebar::-webkit-scrollbar-thumb {
+  background: #505050;
+  border-radius: 3px;
+}
+.panel-body::-webkit-scrollbar-thumb:hover,
+#sidebar::-webkit-scrollbar-thumb:hover {
+  background: #707070;
+}
+
+/* サブパネル (fieldset) */
 fieldset.sub-panel {
   border: 1px solid #444;
   border-radius: 4px;
   padding: 8px 10px;
-  margin-top: 6px;
   display: flex !important;
   flex-direction: column !important;
   gap: 6px !important;
   min-width: 0 !important;
+  width: 100% !important;
   height: auto !important;
-  overflow: visible !important;
 }
 
 fieldset.sub-panel legend {
@@ -86,7 +108,7 @@ fieldset.sub-panel legend {
   padding: 0 4px;
 }
 
-/* ボタンスタイル */
+/* ボタン */
 button {
   background: #3e3e3e;
   color: #e0e0e0;
@@ -103,13 +125,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-primary { background: #005a9e; border-color: #0078d4; color: #fff; font-weight: bold; }
 .btn-primary:hover { background: #0078d4; }
 
-.btn-group { display: flex; gap: 4px; }
+.btn-group {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
 .btn-group button { flex: 1; }
 .w-100 { width: 100%; }
 .mt-05 { margin-top: 4px; }
 .mt-1 { margin-top: 8px; }
 
-/* 単独配置のインプット */
+/* 単独テキストボックス */
 input[type="text"] {
   width: 100%;
   background: #1e1e1e;
@@ -120,12 +146,13 @@ input[type="text"] {
   font-size: 11px;
 }
 
-/* ★横並び行(.row)：セレクトボックスやスライダーの突き抜けを防止★ */
+/* 1行レイアウト (.row) */
 .row {
   display: flex !important;
   align-items: center !important;
   gap: 6px !important;
   width: 100% !important;
+  min-width: 0 !important;
   min-height: 26px;
 }
 
@@ -153,14 +180,19 @@ input[type="range"] {
   cursor: pointer;
 }
 
-/* スナップボタンの改行・圧縮を防止 */
+/* スナップボタンの折り返し・切断防止 */
 #btn-snap-now {
   flex-shrink: 0 !important;
   white-space: nowrap !important;
   margin-left: auto;
 }
 
-.step-row { display: flex; align-items: center; gap: 4px; }
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
 .btn-step, .btn-blur-step { padding: 2px 6px; }
 
 .val-badge {
@@ -170,15 +202,17 @@ input[type="range"] {
   min-width: 45px;
   text-align: right;
   font-size: 11px;
+  flex-shrink: 0;
 }
 
-.info-text { font-size: 10px; color: #888; margin-top: 4px; }
-.desc-text { font-size: 10px; color: #777; margin-top: 4px; }
+.info-text { font-size: 10px; color: #888; margin-top: 2px; }
+.desc-text { font-size: 10px; color: #777; margin-top: 2px; }
 
 /* レイヤー一覧ボックス */
 #layer-listbox {
   width: 100% !important;
   height: 90px !important;
+  min-height: 90px !important;
   background: #1e1e1e;
   border: 1px solid #444;
   color: #eee;
@@ -187,7 +221,7 @@ input[type="range"] {
   display: block;
 }
 
-/* ラジオボタン・チェックボックスの整然とした縦並び */
+/* ラジオボタン・チェックボックス */
 fieldset.sub-panel label {
   display: flex !important;
   align-items: center !important;
@@ -202,9 +236,15 @@ fieldset.sub-panel label input[type="checkbox"] {
   margin: 0;
   cursor: pointer;
   accent-color: #0078d4;
+  flex-shrink: 0;
 }
 
-.color-preview-row { display: flex; align-items: center; gap: 6px; }
+.color-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .color-swatch {
   display: inline-block;
   width: 24px;
@@ -212,13 +252,14 @@ fieldset.sub-panel label input[type="checkbox"] {
   border: 1px solid #666;
   border-radius: 2px;
   background-color: #fff;
+  flex-shrink: 0;
 }
 
 #tint-tree-container {
-  max-height: 150px;
+  max-height: 140px;
   overflow-y: auto;
   border: 1px solid #444;
-  margin-top: 6px;
+  margin-top: 4px;
   background: #1e1e1e;
 }
 
@@ -235,14 +276,15 @@ fieldset.sub-panel label input[type="checkbox"] {
 
 #tint-table tr.selected { background: #005a9e; }
 
+/* 最下部固定保存エリア */
 .sidebar-footer {
   margin-top: auto;
-  padding-top: 8px;
-  padding-bottom: 4px;
+  padding-top: 6px;
+  padding-bottom: 2px;
   flex-shrink: 0;
 }
 
-/* メインキャンバス */
+/* メインキャンバス側 */
 #canvas-container {
   flex: 1;
   display: flex;
@@ -300,7 +342,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   padding: 0 8px;
 }
 
-/* モーダル */
+/* モーダルダイアログ */
 #modal-color-picker {
   border: 1px solid #555;
   border-radius: 6px;
