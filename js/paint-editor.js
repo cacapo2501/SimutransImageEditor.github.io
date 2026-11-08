@@ -3,7 +3,7 @@ import { hexToRgb, rgbToHex, hsvToHex } from './color-utils.js';
 export class PaintEditor {
   constructor(app) {
     this.app = app;
-    this.targetType = 'base'; // 'base' または 'mask'
+    this.targetType = 'base';
     this.width = 0;
     this.height = 0;
 
@@ -15,6 +15,13 @@ export class PaintEditor {
     this.oCtx = this.overlayCanvas.getContext('2d');
     this.viewport = document.getElementById('paint-viewport');
 
+    // スポイトサンプラーモーダル要素
+    this.samplerModal = document.getElementById('modal-image-sampler');
+    this.samplerCanvas = document.getElementById('sampler-canvas');
+    this.samplerCtx = this.samplerCanvas.getContext('2d', { willReadFrequently: true });
+    this.samplerPickedColors = new Set();
+    this.samplerLoadedImg = null;
+
     // 描画状態
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
@@ -25,21 +32,14 @@ export class PaintEditor {
     this.isDrawing = false;
     this.lastDrawPos = null;
 
-    // 直線プレビュー用
     this.lineStart = null;
-
-    // 多角形選択用頂点
     this.polyPoints = [];
-
-    // 選択範囲マスク (Uint8Array: 1=選択中, 0=非選択)
     this.selectionMask = null;
 
-    // Undo / Redo
     this.undoStack = [];
     this.redoStack = [];
     this.maxUndo = 25;
 
-    // キーバインド設定
     this.keybindings = {
       pencil: 'KeyB',
       line: 'KeyL',
@@ -53,6 +53,7 @@ export class PaintEditor {
 
     this._loadKeybindings();
     this._bindEvents();
+    this._bindSamplerEvents();
   }
 
   _loadKeybindings() {
@@ -66,7 +67,6 @@ export class PaintEditor {
     localStorage.setItem('paint_keybindings', JSON.stringify(this.keybindings));
   }
 
-  // エディタを開く（初期位置を確実に中央配置）
   open(targetType = 'base') {
     this.targetType = targetType;
     const srcImg = targetType === 'base' ? this.app.baseImage : this.app.maskImage;
@@ -83,7 +83,6 @@ export class PaintEditor {
     this.overlayCanvas.width = this.width;
     this.overlayCanvas.height = this.height;
 
-    // 初期画像転写
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.drawImage(srcImg, 0, 0);
 
@@ -94,11 +93,8 @@ export class PaintEditor {
     this._pushHistory();
 
     this._renderPaletteUI();
-
-    // 先にモーダルを表示してビューポートの確定サイズを取得可能にする
     this.modal.showModal();
 
-    // 表示後の正確な領域サイズからキャンバス中央座標を算出
     requestAnimationFrame(() => {
       const vw = this.viewport.clientWidth;
       const vh = this.viewport.clientHeight;
@@ -185,15 +181,28 @@ export class PaintEditor {
       const btn = document.createElement('button');
       btn.className = 'palette-color-btn';
       btn.style.backgroundColor = hex;
-      btn.title = hex;
+      btn.title = hex + (this.targetType === 'mask' ? ' (右クリックで削除)' : '');
       btn.onclick = () => {
         this.currentColor = hex;
         this._updateCurrentColorUI();
       };
+
+      // マスクパレットの場合、右クリックで削除
+      if (this.targetType === 'mask') {
+        btn.oncontextmenu = (e) => {
+          e.preventDefault();
+          if (confirm(`マスクパレットから色 ${hex} を削除しますか？`)) {
+            pm.removeColorFromMaskPalette(hex);
+            this._renderPaletteUI();
+          }
+        };
+      }
       container.appendChild(btn);
     });
 
-    this.currentColor = colors[0] || '#FFFFFF';
+    if (!colors.includes(this.currentColor)) {
+      this.currentColor = colors[0] || '#FFFFFF';
+    }
     this._updateCurrentColorUI();
   }
 
@@ -236,6 +245,7 @@ export class PaintEditor {
       this._drawOverlay();
     };
 
+    // グレースケール生成
     document.getElementById('btn-gen-base-palette').onclick = () => {
       const pm = this.app.paletteManager;
       pm.basePaletteConfig.brightestHex = document.getElementById('inp-gray-max').value.trim() || '#FEFEFE';
@@ -245,17 +255,19 @@ export class PaintEditor {
       this._renderPaletteUI();
     };
 
-    document.getElementById('btn-pick-mask-image').onclick = () => {
-      const inp = document.createElement('input');
-      inp.type = 'file';
-      inp.accept = 'image/*';
-      inp.onchange = async () => {
-        if (inp.files[0]) {
-          await this.app.paletteManager.extractColorsFromImage(inp.files[0]);
-          this._renderPaletteUI();
-        }
-      };
-      inp.click();
+    // ★ マスクパレットに任意色を追加 (HSVカラーピッカー呼出) ★
+    document.getElementById('btn-add-mask-custom-color').onclick = async () => {
+      const picked = await this.app.colorPicker.open(this.currentColor);
+      if (picked) {
+        this.app.paletteManager.addColorToMaskPalette(picked);
+        this.currentColor = picked;
+        this._renderPaletteUI();
+      }
+    };
+
+    // ★ 画像からスポイト抽出モーダルを開く ★
+    document.getElementById('btn-open-image-sampler').onclick = () => {
+      this._openSamplerModal();
     };
 
     document.getElementById('btn-paint-keybindings').onclick = () => this._openKeybindingDialog();
@@ -350,6 +362,117 @@ export class PaintEditor {
     });
   }
 
+  // --- ★ 画像スポイトモーダル制御 (複数ピクセル選択対応) ★ ---
+  _openSamplerModal() {
+    this.samplerPickedColors.clear();
+    this._renderSamplerPickedUI();
+    this.samplerModal.showModal();
+
+    if (!this.samplerLoadedImg && this.app.baseImage) {
+      this._drawSamplerImage(this.app.baseImage);
+    }
+  }
+
+  _drawSamplerImage(img) {
+    this.samplerLoadedImg = img;
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    this.samplerCanvas.width = w;
+    this.samplerCanvas.height = h;
+
+    this.samplerCtx.imageSmoothingEnabled = false;
+    this.samplerCtx.drawImage(img, 0, 0, w, h);
+  }
+
+  _bindSamplerEvents() {
+    document.getElementById('btn-close-sampler').onclick = () => this.samplerModal.close();
+
+    // URLから読込 (CORS安全ハンドリング)
+    document.getElementById('btn-sampler-load-url').onclick = async () => {
+      const url = document.getElementById('inp-sampler-url').value.trim();
+      if (!url) return alert('画像のURLを入力してください。');
+      try {
+        const img = await this.app.paletteManager.loadImageSafely(url);
+        this._drawSamplerImage(img);
+      } catch (err) {
+        alert(err.message || '画像の読み込みに失敗しました。');
+      }
+    };
+
+    // ローカルファイルから読込
+    document.getElementById('btn-sampler-local-file').onclick = () => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'image/*';
+      inp.onchange = async () => {
+        if (inp.files[0]) {
+          try {
+            const img = await this.app.paletteManager.loadImageSafely(inp.files[0]);
+            this._drawSamplerImage(img);
+          } catch (err) {
+            alert(err.message || '画像の読み込みに失敗しました。');
+          }
+        }
+      };
+      inp.click();
+    };
+
+    // キャンバスクリックでピクセル色取得 (複数可能)
+    this.samplerCanvas.onclick = (e) => {
+      if (!this.samplerLoadedImg) return;
+      const rect = this.samplerCanvas.getBoundingClientRect();
+      const scaleX = this.samplerCanvas.width / rect.width;
+      const scaleY = this.samplerCanvas.height / rect.height;
+      const px = Math.floor((e.clientX - rect.left) * scaleX);
+      const py = Math.floor((e.clientY - rect.top) * scaleY);
+
+      if (px >= 0 && px < this.samplerCanvas.width && py >= 0 && py < this.samplerCanvas.height) {
+        const p = this.samplerCtx.getImageData(px, py, 1, 1).data;
+        if (p[3] > 0) { // 透明以外
+          const hex = rgbToHex(p[0], p[1], p[2]);
+          this.samplerPickedColors.add(hex);
+          this._renderSamplerPickedUI();
+        }
+      }
+    };
+
+    // クリア
+    document.getElementById('btn-sampler-clear').onclick = () => {
+      this.samplerPickedColors.clear();
+      this._renderSamplerPickedUI();
+    };
+
+    // パレットへ一括反映
+    document.getElementById('btn-sampler-apply').onclick = () => {
+      if (this.samplerPickedColors.size === 0) {
+        return alert('画像上をクリックして色を1つ以上採取してください。');
+      }
+      this.samplerPickedColors.forEach(hex => {
+        this.app.paletteManager.addColorToMaskPalette(hex);
+      });
+      this._renderPaletteUI();
+      this.samplerModal.close();
+    };
+  }
+
+  _renderSamplerPickedUI() {
+    const container = document.getElementById('sampler-picked-swatches');
+    container.innerHTML = '';
+
+    this.samplerPickedColors.forEach(hex => {
+      const b = document.createElement('span');
+      b.className = 'color-swatch';
+      b.style.backgroundColor = hex;
+      b.title = `${hex} (クリックで削除)`;
+      b.style.cursor = 'pointer';
+      b.onclick = () => {
+        this.samplerPickedColors.delete(hex);
+        this._renderSamplerPickedUI();
+      };
+      container.appendChild(b);
+    });
+  }
+
   _handleToolStart(x, y) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
     this.isDrawing = true;
@@ -427,7 +550,6 @@ export class PaintEditor {
     this.ctx.fillRect(x, y, 1, 1);
   }
 
-  // ★ 連続直線アルゴリズム（欠落を完全撤廃したBresenhamアルゴリズム） ★
   _drawLineContinuous(x0, y0, x1, y1, setPixel) {
     let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
     let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;

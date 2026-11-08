@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PNG 矩形・平行四辺形乗算合成ツール Web</title>
-  <!-- GitHub Pages対応: 相対パス明示 -->
   <link rel="stylesheet" href="./style.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
@@ -264,7 +263,7 @@
       <header id="paint-toolbar">
         <div class="paint-tool-group">
           <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ">✏️ ドット</button>
-          <button class="paint-tool-btn" data-tool="line" title="ピクセルパーフェクト直線">📏 直線</button>
+          <button class="paint-tool-btn" data-tool="line" title="直線 (連続)">📏 直線</button>
           <button class="paint-tool-btn" data-tool="bucket" title="塗りつぶし">🪣 塗潰</button>
           <button class="paint-tool-btn" data-tool="rectSelect" title="矩形選択">🔲 矩形選択</button>
           <button class="paint-tool-btn" data-tool="polySelect" title="多角形選択">📐 多角形選択</button>
@@ -295,6 +294,7 @@
             </div>
           </div>
 
+          <!-- ベース画像用パレット生成ツール -->
           <fieldset class="sub-panel" id="base-palette-tools">
             <legend>グレースケール生成設定</legend>
             <div class="row">
@@ -312,9 +312,14 @@
             <button id="btn-gen-base-palette" class="w-100 mt-05">パレット再生成 (SpecialColor回避)</button>
           </fieldset>
 
+          <!-- ★ マスク画像用パレット追加・スポイトツール ★ -->
           <fieldset class="sub-panel" id="mask-palette-tools" style="display:none;">
-            <legend>マスクパレット抽出</legend>
-            <button id="btn-pick-mask-image" class="w-100">🖼️ Web/画像からカラーピック</button>
+            <legend>マスクパレット設定</legend>
+            <div class="btn-group">
+              <button id="btn-add-mask-custom-color" class="btn-primary">＋ 任意色を追加</button>
+              <button id="btn-open-image-sampler">🖼️ 画像からスポイト</button>
+            </div>
+            <span class="info-text">※右クリックでパレットから色を削除できます</span>
           </fieldset>
 
           <fieldset class="sub-panel" style="flex:1; overflow-y:auto;">
@@ -334,6 +339,35 @@
       <footer id="paint-footer">
         <span id="paint-lbl-tool">ツール: ドット</span>
         <span id="paint-lbl-coord" style="margin-left:auto;">X: 0, Y: 0</span>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- ★ 画像から任意ピクセル色を複数サンプリングするモーダル ★ -->
+  <dialog id="modal-image-sampler">
+    <div class="sampler-container">
+      <header class="sampler-header">
+        <h3>画像からピクセル色をスポイト採取</h3>
+        <button id="btn-close-sampler" style="margin-left:auto;">✕ 閉じる</button>
+      </header>
+      <div class="sampler-inputs">
+        <input type="text" id="inp-sampler-url" placeholder="https://example.com/image.png (画像URL)">
+        <button id="btn-sampler-load-url">URLから読込</button>
+        <span style="color:#888;">または</span>
+        <button id="btn-sampler-local-file">📁 ローカル画像を選択</button>
+      </div>
+      <div id="sampler-viewport">
+        <canvas id="sampler-canvas"></canvas>
+      </div>
+      <footer class="sampler-footer">
+        <div class="sampler-picked-list-wrap">
+          <span style="font-size:11px; color:#bbb;">採取した色 (クリックで解除):</span>
+          <div id="sampler-picked-swatches"></div>
+        </div>
+        <div class="btn-group" style="width:280px; margin-left:auto;">
+          <button id="btn-sampler-apply" class="btn-primary">✓ 採取した色をパレットに追加</button>
+          <button id="btn-sampler-clear">クリア</button>
+        </div>
       </footer>
     </div>
   </dialog>
@@ -386,7 +420,6 @@
 
   <input type="file" id="input-file-hidden" style="display: none;">
 
-  <!-- GitHub Pages対応: 相対パス明示 -->
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>
