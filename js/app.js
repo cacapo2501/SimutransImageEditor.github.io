@@ -8,6 +8,34 @@ import { ProjectIO, loadImageAsync } from './project-io.js';
 import { PaletteManager } from './palette-manager.js';
 import { PaintEditor } from './paint-editor.js';
 
+// どのブラウザでも100%確実にファイル選択ダイアログを開く安全ピッカー
+function safePickFile(accept = '.png') {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    input.onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      document.body.removeChild(input);
+      resolve(file || null);
+    };
+
+    window.addEventListener('focus', () => {
+      setTimeout(() => {
+        if (input.parentNode) {
+          document.body.removeChild(input);
+          resolve(null);
+        }
+      }, 500);
+    }, { once: true });
+
+    input.click();
+  });
+}
+
 class AdvancedMultiplyApp {
   constructor() {
     this.storage = new StorageAPI();
@@ -61,6 +89,7 @@ class AdvancedMultiplyApp {
     this.paintEditor = new PaintEditor(this);
 
     this._bindEvents();
+    this._bindDragAndDrop();
     this._loadDefaultSpecialColors();
     this.render();
   }
@@ -189,7 +218,8 @@ class AdvancedMultiplyApp {
       }
     }
 
-    document.getElementById('lbl-base-info').textContent = `ベース: ${this.baseName} (${this.baseW}x${this.baseH})`;
+    const info = document.getElementById('lbl-base-info');
+    if (info) info.textContent = `ベース: ${this.baseName} (${this.baseW}x${this.baseH})`;
 
     if (!this.maskImage) {
       this.autoGenerateMaskFromBase();
@@ -197,6 +227,7 @@ class AdvancedMultiplyApp {
   }
 
   async loadBaseFromFile(file) {
+    if (!file) return;
     const img = await loadImageAsync(URL.createObjectURL(file));
     this.applyBaseImage(img, file.name);
     this.isDirty = false;
@@ -229,10 +260,12 @@ class AdvancedMultiplyApp {
     this.maskColors = Array.from(colorCount.entries()).sort((a, b) => b[1] - a[1]).map(([hex, count]) => ({ hex, count }));
     this._updateMaskCombos();
     this._updateTintTable();
-    document.getElementById('lbl-mask-info').textContent = `マスク: ${this.maskName}`;
+    const info = document.getElementById('lbl-mask-info');
+    if (info) info.textContent = `マスク: ${this.maskName}`;
   }
 
   async loadMaskFromFile(file) {
+    if (!file) return;
     const img = await loadImageAsync(URL.createObjectURL(file));
     this.applyMaskImage(img, file.name);
     this.markDirty();
@@ -242,6 +275,7 @@ class AdvancedMultiplyApp {
   _updateMaskCombos() {
     const comboLayer = document.getElementById('mask-color-combo');
     const comboTone = document.getElementById('combo-tone-target');
+    if (!comboLayer || !comboTone) return;
     comboLayer.innerHTML = '<option value="">(全体 / マスクなし)</option>';
     comboTone.innerHTML = '<option value="__ALL__">全体 (デフォルト)</option>';
     this.maskColors.forEach(({ hex, count }) => {
@@ -252,6 +286,7 @@ class AdvancedMultiplyApp {
 
   _updateTintTable() {
     const tbody = document.querySelector('#tint-table tbody');
+    if (!tbody) return;
     tbody.innerHTML = '';
     this.maskColors.forEach(({ hex }) => {
       const tintHex = this.maskTintColors.get(hex) || hex;
@@ -423,13 +458,37 @@ class AdvancedMultiplyApp {
     }
   }
 
+  // ドラッグ＆ドロップによる画像読み込みサポート
+  _bindDragAndDrop() {
+    const dropZone = this.viewport;
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    dropZone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      const files = e.dataTransfer.files;
+      if (!files || files.length === 0) return;
+      for (const file of files) {
+        if (file.name.endsWith('.proj.json') || file.name.endsWith('.json')) {
+          ProjectIO.load(this, file);
+        } else if (file.name.includes('mask') || file.name.includes('paint')) {
+          await this.loadMaskFromFile(file);
+        } else if (file.type.startsWith('image/')) {
+          await this.loadBaseFromFile(file);
+        }
+      }
+    });
+  }
+
   _bindEvents() {
+    // 安全確実にファイルを開くイベントバインド
     document.getElementById('btn-load-base').onclick = async () => {
-      const f = await this.storage.pickLocalFile('.png');
+      const f = await safePickFile('.png');
       if (f) this.loadBaseFromFile(f);
     };
     document.getElementById('btn-load-mask').onclick = async () => {
-      const f = await this.storage.pickLocalFile('.png');
+      const f = await safePickFile('.png');
       if (f) this.loadMaskFromFile(f);
     };
 
@@ -443,13 +502,14 @@ class AdvancedMultiplyApp {
 
     document.getElementById('btn-load-folder').onclick = async () => {
       const files = await this.storage.pickLocalDirectory();
-      if (files.length > 0) {
+      if (files && files.length > 0) {
         const base = files.find(f => f.name.includes('def') || f.name.includes('base')) || files[0];
         const mask = files.find(f => f.name.includes('paint') || f.name.includes('mask'));
         await this.loadBaseFromFile(base);
         if (mask) await this.loadMaskFromFile(mask);
       }
     };
+
     document.getElementById('btn-google-drive').onclick = async () => {
       const apiKey = document.getElementById('gdrive-api-key').value.trim();
       const clientId = document.getElementById('gdrive-client-id').value.trim();
@@ -643,7 +703,7 @@ class AdvancedMultiplyApp {
     document.getElementById('btn-save-proj').onclick = () => ProjectIO.save(this);
     document.getElementById('btn-save-proj-as').onclick = () => ProjectIO.save(this);
     document.getElementById('btn-load-proj').onclick = async () => {
-      const f = await this.storage.pickLocalFile('.json');
+      const f = await safePickFile('.json');
       if (f) ProjectIO.load(this, f);
     };
     document.getElementById('btn-save-png').onclick = () => ProjectIO.exportPng(this);
@@ -651,7 +711,7 @@ class AdvancedMultiplyApp {
 
   async _addLayer(layerType) {
     if (!this.baseImage) return alert('先にベース画像を読み込んでください。');
-    const file = await this.storage.pickLocalFile('.png');
+    const file = await safePickFile('.png');
     if (!file) return;
     const img = await loadImageAsync(URL.createObjectURL(file));
     const l = new Layer({
