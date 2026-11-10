@@ -11,28 +11,32 @@ body {
   color: #e0e0e0;
   overflow: hidden;
   height: 100vh;
+  height: 100dvh;
 }
 
 #app-container {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
 }
 
-/* サイドバー */
+/* サイドバー：スクロール可能にしつつフッター固定を許可 */
 #sidebar {
   width: 440px;
   min-width: 440px;
   height: 100vh;
-  max-height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   min-height: 0;
   background-color: #262626;
   border-right: 1px solid #3d3d3d;
   display: flex;
   flex-direction: column;
-  padding: 8px;
+  padding: 8px 8px 0 8px; /* フッター固定のため下部余白をフッター側に移譲 */
   overflow-y: auto;
   gap: 8px;
+  position: relative;
 }
 
 .accordion-panel {
@@ -320,11 +324,17 @@ fieldset.sub-panel label input[type="checkbox"] {
 
 #tint-table tr.selected { background: #005a9e; }
 
+/* ★ 画面最下部に常時固定するサイドバーフッター ★ */
 .sidebar-footer {
+  position: sticky;
+  bottom: 0;
+  background: #262626;
   margin-top: auto;
-  padding-top: 6px;
-  padding-bottom: 2px;
+  padding: 10px 0 10px 0;
+  border-top: 1px solid #3d3d3d;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.45);
   flex-shrink: 0;
+  z-index: 20;
 }
 
 /* メインキャンバス */
@@ -403,7 +413,6 @@ fieldset.sub-panel label input[type="checkbox"] {
 .swatch-compare i { display: inline-block; width: 40px; height: 24px; border: 1px solid #666; vertical-align: middle; }
 .hsv-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
 
-/* RGB編集コントロール */
 .rgb-sliders {
   display: flex;
   flex-direction: column;
