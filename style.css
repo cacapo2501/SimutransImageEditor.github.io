@@ -1,4 +1,409 @@
-/* カラーピッカー RGB 行スタイル */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  user-select: none;
+}
+
+body {
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* サイドバー */
+#sidebar {
+  width: 440px;
+  min-width: 440px;
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+  background-color: #262626;
+  border-right: 1px solid #3d3d3d;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  overflow-y: auto;
+  gap: 8px;
+}
+
+.accordion-panel {
+  background: #303030;
+  border-radius: 4px;
+  border: 1px solid #404040;
+  flex-shrink: 0;
+}
+
+.accordion-panel summary {
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #ddd;
+  background: #2a2a2a;
+  cursor: pointer;
+  border-bottom: 1px solid #3d3d3d;
+  outline: none;
+}
+
+.accordion-panel summary:hover {
+  background: #353535;
+}
+
+.panel-body {
+  padding: 8px 10px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 55vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* スクロールバー統一スタイル */
+.panel-body::-webkit-scrollbar,
+#sidebar::-webkit-scrollbar,
+#paint-sidebar::-webkit-scrollbar,
+#layer-listbox::-webkit-scrollbar,
+#replace-rules-container::-webkit-scrollbar {
+  width: 6px;
+}
+.panel-body::-webkit-scrollbar-track,
+#sidebar::-webkit-scrollbar-track,
+#paint-sidebar::-webkit-scrollbar-track,
+#layer-listbox::-webkit-scrollbar-track,
+#replace-rules-container::-webkit-scrollbar-track {
+  background: #202020;
+  border-radius: 3px;
+}
+.panel-body::-webkit-scrollbar-thumb,
+#sidebar::-webkit-scrollbar-thumb,
+#paint-sidebar::-webkit-scrollbar-thumb,
+#layer-listbox::-webkit-scrollbar-thumb,
+#replace-rules-container::-webkit-scrollbar-thumb {
+  background: #505050;
+  border-radius: 3px;
+}
+.panel-body::-webkit-scrollbar-thumb:hover,
+#sidebar::-webkit-scrollbar-thumb:hover,
+#paint-sidebar::-webkit-scrollbar-thumb:hover,
+#layer-listbox::-webkit-scrollbar-thumb:hover,
+#replace-rules-container::-webkit-scrollbar-thumb:hover {
+  background: #707070;
+}
+
+fieldset.sub-panel {
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+}
+
+fieldset.sub-panel legend {
+  font-size: 11px;
+  color: #999;
+  padding: 0 4px;
+}
+
+button {
+  background: #3e3e3e;
+  color: #e0e0e0;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+button:hover { background: #4e4e4e; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: #005a9e; border-color: #0078d4; color: #fff; font-weight: bold; }
+.btn-primary:hover { background: #0078d4; }
+
+.btn-group {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+.btn-group button { flex: 1; }
+.w-100 { width: 100%; }
+.mt-05 { margin-top: 4px; }
+.mt-1 { margin-top: 8px; }
+
+input[type="text"] {
+  width: 100%;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  color: #e0e0e0;
+  border-radius: 3px;
+  padding: 4px;
+  font-size: 11px;
+}
+
+.row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 26px;
+}
+
+.row label {
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+}
+
+.row select,
+.row input[type="range"],
+.row input[type="text"] {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  color: #e0e0e0;
+  border-radius: 3px;
+  padding: 4px;
+  font-size: 11px;
+}
+
+input[type="range"] {
+  accent-color: #0078d4;
+  cursor: pointer;
+}
+
+#btn-snap-now {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  margin-left: auto;
+}
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.btn-step, .btn-blur-step { padding: 2px 6px; }
+
+.val-badge {
+  font-family: Consolas, monospace;
+  font-weight: bold;
+  color: #55b5ff;
+  min-width: 45px;
+  text-align: right;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.info-text { font-size: 10px; color: #888; margin-top: 2px; }
+.desc-text { font-size: 10px; color: #777; margin-top: 2px; }
+
+/* レイヤー一覧ボックス（タブレット・タッチ対応） */
+#layer-listbox {
+  width: 100% !important;
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 4px;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px;
+  padding: 4px;
+  flex-shrink: 0 !important;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.layer-list-item {
+  width: 100% !important;
+  padding: 8px 10px !important;
+  font-size: 11px !important;
+  color: #ddd !important;
+  background: #282828 !important;
+  border: 1px solid #383838 !important;
+  border-radius: 3px !important;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 34px !important;
+  display: flex !important;
+  align-items: center;
+  text-align: left !important;
+  flex-shrink: 0 !important;
+  outline: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 90, 158, 0.4);
+}
+
+.layer-list-item:active {
+  background: #3a3a3a !important;
+}
+
+.layer-list-item.selected {
+  background: #005a9e !important;
+  border-color: #0078d4 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+}
+
+fieldset.sub-panel label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin: 2px 0 !important;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+fieldset.sub-panel label input[type="radio"],
+fieldset.sub-panel label input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #0078d4;
+  flex-shrink: 0;
+}
+
+.color-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-swatch {
+  display: inline-block;
+  width: 24px;
+  height: 16px;
+  border: 1px solid #666;
+  border-radius: 2px;
+  background-color: #fff;
+  flex-shrink: 0;
+}
+
+#tint-tree-container {
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid #444;
+  margin-top: 4px;
+  background: #1e1e1e;
+}
+
+#tint-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+#tint-table th, #tint-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #333;
+}
+
+#tint-table tr.selected { background: #005a9e; }
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 6px;
+  padding-bottom: 2px;
+  flex-shrink: 0;
+}
+
+/* メインキャンバス */
+#canvas-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #1a1a1a;
+  position: relative;
+}
+
+#zoom-toolbar {
+  height: 36px;
+  background: #222;
+  border-bottom: 1px solid #333;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+}
+
+#lbl-zoom {
+  font-family: Consolas, monospace;
+  font-weight: bold;
+  font-size: 12px;
+  min-width: 45px;
+  text-align: center;
+}
+
+.guide-text {
+  font-size: 10px;
+  color: #666;
+  margin-left: auto;
+}
+
+#canvas-viewport {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  background: #181818;
+  touch-action: none;
+}
+
+#main-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+#status-bar {
+  height: 24px;
+  background: #1e1e1e;
+  border-top: 1px solid #333;
+  font-size: 11px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+/* HSV + RGB カラーピッカーモーダル */
+#modal-color-picker {
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #eee;
+  padding: 16px;
+  margin: auto;
+}
+
+#modal-color-picker::backdrop { background: rgba(0, 0, 0, 0.6); }
+.picker-content { width: 340px; }
+.swatch-compare { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+.swatch-compare i { display: inline-block; width: 40px; height: 24px; border: 1px solid #666; vertical-align: middle; }
+.hsv-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+
+/* RGB編集コントロール */
 .rgb-sliders {
   display: flex;
   flex-direction: column;
@@ -25,4 +430,326 @@
   font-size: 11px;
   text-align: right;
   border-radius: 2px;
+}
+
+.quick-palette { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 10px 0; }
+.palette-btn { height: 24px; border: 1px solid #555; border-radius: 2px; }
+
+/* ペイントエディタ全画面モーダル */
+#modal-paint-editor {
+  width: 95vw;
+  height: 92vh;
+  max-width: 95vw;
+  max-height: 92vh;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #1e1e1e;
+  color: #eee;
+  padding: 0;
+  margin: auto;
+  overflow: hidden;
+}
+
+#modal-paint-editor::backdrop { background: rgba(0, 0, 0, 0.75); }
+
+#paint-editor-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+#paint-toolbar {
+  height: 42px;
+  background: #282828;
+  border-bottom: 1px solid #3d3d3d;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.paint-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.paint-tool-btn.active {
+  background: #005a9e !important;
+  border-color: #0078d4 !important;
+  color: #fff !important;
+  font-weight: bold;
+}
+
+.ml-auto { margin-left: auto; }
+
+#paint-main-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+#paint-sidebar {
+  width: 240px;
+  background: #252525;
+  border-right: 1px solid #383838;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+#paint-palette-slots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.palette-color-btn {
+  width: 100%;
+  height: 26px;
+  border: 1px solid #444;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.palette-color-btn:hover {
+  border-color: #fff;
+  transform: scale(1.05);
+}
+
+#paint-viewport {
+  flex: 1;
+  background: #141414;
+  position: relative;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+#paint-canvas-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+#paint-canvas, #paint-overlay-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  image-rendering: pixelated;
+}
+
+#paint-overlay-canvas { pointer-events: none; }
+
+#paint-footer {
+  height: 24px;
+  background: #202020;
+  border-top: 1px solid #333;
+  font-size: 11px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+
+/* キーバインド設定ダイアログ */
+#modal-keybindings {
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #eee;
+  padding: 16px;
+  margin: auto;
+}
+
+#modal-keybindings::backdrop { background: rgba(0, 0, 0, 0.6); }
+
+#table-keybindings th, #table-keybindings td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #333;
+}
+
+.btn-bind {
+  background: #333;
+  border: 1px solid #555;
+  color: #55b5ff;
+  font-family: Consolas, monospace;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+/* 画像スポイトモーダル */
+#modal-image-sampler {
+  width: 85vw;
+  height: 85vh;
+  max-width: 960px;
+  max-height: 720px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #222;
+  color: #eee;
+  padding: 0;
+  margin: auto;
+  overflow: hidden;
+}
+
+#modal-image-sampler::backdrop { background: rgba(0, 0, 0, 0.75); }
+
+.sampler-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.sampler-header {
+  height: 40px;
+  background: #2a2a2a;
+  border-bottom: 1px solid #383838;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 12px;
+}
+
+.sampler-zoom-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sampler-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #1c1c1c;
+  border-bottom: 1px solid #333;
+}
+
+.sampler-inputs input[type="text"] { flex: 1; }
+
+#sampler-viewport {
+  flex: 1;
+  background: #121212;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+#sampler-viewport:active {
+  cursor: grabbing;
+}
+
+#sampler-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  image-rendering: pixelated;
+  transform-origin: 0 0;
+}
+
+.sampler-footer {
+  height: 52px;
+  background: #242424;
+  border-top: 1px solid #383838;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 12px;
+}
+
+.sampler-picked-list-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+#sampler-picked-swatches {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 色置換・複数色置換モーダル */
+#modal-color-replace {
+  width: 480px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #262626;
+  color: #eee;
+  padding: 0;
+  margin: auto;
+}
+
+#modal-color-replace::backdrop { background: rgba(0, 0, 0, 0.7); }
+
+.replace-modal-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.replace-header {
+  height: 38px;
+  background: #303030;
+  border-bottom: 1px solid #404040;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+
+.replace-body {
+  padding: 12px;
+}
+
+#replace-rules-container {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.replace-rule-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1e1e1e;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #383838;
+}
+
+.replace-rule-row span.arrow {
+  color: #55b5ff;
+  font-weight: bold;
+}
+
+.replace-rule-row button.btn-color-pick {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+}
+
+.replace-footer {
+  height: 48px;
+  background: #2a2a2a;
+  border-top: 1px solid #383838;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
 }
