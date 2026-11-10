@@ -20,7 +20,7 @@ class AdvancedMultiplyApp {
     this.baseRgb = null; this.baseAlpha = null;
     this.isBgMask = null;
     this.editableMask = null;
-    this.isBaseSpecialColor = null; // ベース画像本来のSpecialColorピクセル
+    this.isBaseSpecialColor = null;
 
     this.maskImage = null;
     this.maskName = 'mask.png';
@@ -86,15 +86,12 @@ class AdvancedMultiplyApp {
     if (infoLabel && this.specialColors.size === 0) infoLabel.textContent = '特殊色: 0件登録済 (手動選択可)';
   }
 
-  // SpecialColor読み込み時にベース画像の特殊色ピクセルを再特定
   _recomputeBaseSpecialColors() {
     if (!this.baseRgb || !this.specialColors || this.specialColors.size === 0) return;
     const total = this.baseW * this.baseH;
     this.isBaseSpecialColor = new Uint8Array(total);
     for (let i = 0; i < total; i++) {
-      // 背景色 (#E7FFFF または透過) は通常のSpecialColor保護から分離
       if (this.isBgMask && this.isBgMask[i]) continue;
-
       const r = this.baseRgb[i * 3], g = this.baseRgb[i * 3 + 1], b = this.baseRgb[i * 3 + 2];
       const hex = rgbToHex(r, g, b);
       if (this.specialColors.has(hex)) {
@@ -131,7 +128,6 @@ class AdvancedMultiplyApp {
       const idx = i * 4;
       const r = this.baseRgb[i * 3], g = this.baseRgb[i * 3 + 1], b = this.baseRgb[i * 3 + 2];
       const a = this.baseAlpha[i];
-      const hex = rgbToHex(r, g, b);
 
       if (this.isBgMask[i] || a === 0) {
         mData[idx] = 231; mData[idx + 1] = 255; mData[idx + 2] = 255; mData[idx + 3] = a;
@@ -157,7 +153,6 @@ class AdvancedMultiplyApp {
     maskImg.src = mCanvas.toDataURL('image/png');
   }
 
-  // ★ ベース画像の適用と SpecialColor ピクセルの特定 ★
   applyBaseImage(img, name) {
     this.baseImage = img;
     this.baseName = name || 'base.png';
@@ -182,7 +177,6 @@ class AdvancedMultiplyApp {
       this.baseRgb[i * 3] = r; this.baseRgb[i * 3 + 1] = g; this.baseRgb[i * 3 + 2] = b;
       this.baseAlpha[i] = a;
 
-      // 背景色 (#E7FFFF または 完全透過)
       if ((r === 231 && g === 255 && b === 255) || a === 0) {
         this.isBgMask[i] = 1;
       } else {
