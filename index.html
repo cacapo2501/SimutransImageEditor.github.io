@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PNG 矩形・平行四辺形乗算合成ツール Web</title>
+  <title>Simutrans テクスチャ乗算合成・ペイントツール Web</title>
   <link rel="stylesheet" href="./style.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
@@ -236,7 +236,7 @@
       </details>
 
       <div class="sidebar-footer">
-        <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存 (#C0C0C000透過・特殊色回避)</button>
+        <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存</button>
       </div>
     </aside>
 
@@ -265,12 +265,12 @@
           <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ">✏️ ドット</button>
           <button class="paint-tool-btn" data-tool="line" title="直線 (連続)">📏 直線</button>
           <button class="paint-tool-btn" data-tool="bucket" title="塗りつぶし">🪣 塗潰</button>
+          <button class="paint-tool-btn" data-tool="picker" title="スポイト (色取得)">🎯 スポイト</button>
           <button class="paint-tool-btn" data-tool="rectSelect" title="矩形選択">🔲 矩形選択</button>
           <button class="paint-tool-btn" data-tool="polySelect" title="多角形選択">📐 多角形選択</button>
           <button class="paint-tool-btn" data-tool="wand" title="自動選択 (Magic Wand)">🪄 自動選択</button>
           <button class="paint-tool-btn" data-tool="colorSelect" title="同色選択">🎯 同色選択</button>
           <button class="paint-tool-btn" data-tool="text" title="テキスト挿入">🔤 文字</button>
-          <!-- ★ 色置換・複数色置換ボタン ★ -->
           <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
         </div>
         <div class="paint-tool-group">
@@ -296,7 +296,6 @@
             </div>
           </div>
 
-          <!-- ベース画像用パレット生成ツール (ベース時のみ表示) -->
           <fieldset class="sub-panel" id="base-palette-tools">
             <legend>グレースケール生成設定</legend>
             <div class="row">
@@ -314,7 +313,6 @@
             <button id="btn-gen-base-palette" class="w-100 mt-05">パレット再生成 (SpecialColor回避)</button>
           </fieldset>
 
-          <!-- マスク画像用パレット追加・スポイトツール (マスク時のみ表示) -->
           <fieldset class="sub-panel" id="mask-palette-tools" style="display:none;">
             <legend>マスクパレット設定</legend>
             <div class="btn-group">
@@ -348,7 +346,7 @@
     </div>
   </dialog>
 
-  <!-- ★ 色置換・複数色置換モーダル ★ -->
+  <!-- 色置換・複数色置換モーダル -->
   <dialog id="modal-color-replace">
     <div class="replace-modal-content">
       <header class="replace-header">
@@ -357,9 +355,7 @@
       </header>
       <div class="replace-body">
         <p class="desc-text">置換元（変換前）の色を置換先（変換後）の色へ一括置換します。</p>
-        <div id="replace-rules-container">
-          <!-- ルール一覧が動的挿入される -->
-        </div>
+        <div id="replace-rules-container"></div>
         <button id="btn-add-replace-rule" class="w-100 mt-05">＋ 置換ルールを追加</button>
         <div class="row mt-1">
           <label><input type="checkbox" id="chk-replace-selection-only" checked> 現在の選択範囲内のみに適用</label>
@@ -372,7 +368,7 @@
     </div>
   </dialog>
 
-  <!-- ★ 画像スポイト採取モーダル (拡大・平行移動操作バー付き) ★ -->
+  <!-- 画像スポイト採取モーダル -->
   <dialog id="modal-image-sampler">
     <div class="sampler-container">
       <header class="sampler-header">
@@ -421,15 +417,18 @@
     </div>
   </dialog>
 
-  <!-- HSV カラーピッカーモーダル -->
+  <!-- ★ HSV + RGB カラーピッカーモーダル (RGBスライダー・数値入力欄を完備) ★ -->
   <dialog id="modal-color-picker">
     <div class="picker-content">
-      <h3 style="font-size:13px; margin-bottom:8px;">HSV カラーピッカー</h3>
+      <h3 style="font-size:13px; margin-bottom:8px;">カラーピッカー (HSV / RGB)</h3>
       <div class="swatch-compare">
         <span>元色: <i id="picker-old-swatch"></i></span>
         <span>新色: <i id="picker-new-swatch"></i></span>
         <strong id="picker-hex-label">#FFFFFF</strong>
+        <button id="btn-picker-eyedropper" style="margin-left:auto;">🎯 画面から採取</button>
       </div>
+
+      <!-- HSVスライダー -->
       <div class="hsv-sliders">
         <div class="hsv-row">
           <span style="width:50px;">色相(H):</span>
@@ -447,6 +446,26 @@
           <span id="picker-v-val" style="width:35px; text-align:right;">100%</span>
         </div>
       </div>
+
+      <!-- RGBスライダー ＆ 数値入力 -->
+      <div class="rgb-sliders">
+        <div class="rgb-row">
+          <span style="width:30px; color:#ff7b7b; font-weight:bold;">R:</span>
+          <input type="range" id="picker-r" min="0" max="255" step="1" value="255">
+          <input type="number" id="picker-r-val" min="0" max="255" value="255">
+        </div>
+        <div class="rgb-row">
+          <span style="width:30px; color:#7bff7b; font-weight:bold;">G:</span>
+          <input type="range" id="picker-g" min="0" max="255" step="1" value="255">
+          <input type="number" id="picker-g-val" min="0" max="255" value="255">
+        </div>
+        <div class="rgb-row">
+          <span style="width:30px; color:#7bb5ff; font-weight:bold;">B:</span>
+          <input type="range" id="picker-b" min="0" max="255" step="1" value="255">
+          <input type="number" id="picker-b-val" min="0" max="255" value="255">
+        </div>
+      </div>
+
       <div class="quick-palette" id="picker-palette"></div>
       <div class="btn-group mt-1">
         <button id="btn-picker-ok" class="btn-primary">決定 (OK)</button>
