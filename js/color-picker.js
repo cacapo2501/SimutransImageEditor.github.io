@@ -38,20 +38,20 @@ export class HSVColorPicker {
 
   _bindEvents() {
     const updateFromHSV = () => {
-      if (this.isUpdating) return;
+      if (this.isUpdating || !this.inpH) return;
       this.isUpdating = true;
       const h = parseInt(this.inpH.value);
       const s = parseInt(this.inpS.value);
       const v = parseInt(this.inpV.value);
       const [r, g, b] = hsvToRgb(h, s, v);
 
-      this.inpR.value = r; this.valR.value = r;
-      this.inpG.value = g; this.valG.value = g;
-      this.inpB.value = b; this.valB.value = b;
+      if (this.inpR) { this.inpR.value = r; this.valR.value = r; }
+      if (this.inpG) { this.inpG.value = g; this.valG.value = g; }
+      if (this.inpB) { this.inpB.value = b; this.valB.value = b; }
 
-      this.valH.textContent = `${h}°`;
-      this.valS.textContent = `${s}%`;
-      this.valV.textContent = `${v}%`;
+      if (this.valH) this.valH.textContent = `${h}°`;
+      if (this.valS) this.valS.textContent = `${s}%`;
+      if (this.valV) this.valV.textContent = `${v}%`;
 
       this.currentColor = rgbToHex(r, g, b);
       this._updateUI();
@@ -59,38 +59,42 @@ export class HSVColorPicker {
     };
 
     const updateFromRGB = () => {
-      if (this.isUpdating) return;
+      if (this.isUpdating || !this.inpR) return;
       this.isUpdating = true;
       const r = Math.max(0, Math.min(255, parseInt(this.inpR.value) || 0));
       const g = Math.max(0, Math.min(255, parseInt(this.inpG.value) || 0));
       const b = Math.max(0, Math.min(255, parseInt(this.inpB.value) || 0));
 
-      this.valR.value = r; this.inpR.value = r;
-      this.valG.value = g; this.inpG.value = g;
-      this.valB.value = b; this.inpB.value = b;
+      if (this.valR) this.valR.value = r;
+      if (this.valG) this.valG.value = g;
+      if (this.valB) this.valB.value = b;
 
       const [h, s, v] = rgbToHsv(r, g, b);
-      this.inpH.value = h; this.valH.textContent = `${h}°`;
-      this.inpS.value = s; this.valS.textContent = `${s}%`;
-      this.inpV.value = v; this.valV.textContent = `${v}%`;
+      if (this.inpH) { this.inpH.value = h; this.valH.textContent = `${h}°`; }
+      if (this.inpS) { this.inpS.value = s; this.valS.textContent = `${s}%`; }
+      if (this.inpV) { this.inpV.value = v; this.valV.textContent = `${v}%`; }
 
       this.currentColor = rgbToHex(r, g, b);
       this._updateUI();
       this.isUpdating = false;
     };
 
-    // HSV入力イベント
-    [this.inpH, this.inpS, this.inpV].forEach(el => el.addEventListener('input', updateFromHSV));
+    // HSV入力イベント（null安全）
+    [this.inpH, this.inpS, this.inpV].forEach(el => {
+      if (el) el.addEventListener('input', updateFromHSV);
+    });
 
-    // RGBスライダーイベント
-    [this.inpR, this.inpG, this.inpB].forEach(el => el.addEventListener('input', updateFromRGB));
+    // RGBスライダーイベント（null安全）
+    [this.inpR, this.inpG, this.inpB].forEach(el => {
+      if (el) el.addEventListener('input', updateFromRGB);
+    });
 
-    // RGB数値入力ボックスイベント
-    this.valR.addEventListener('change', (e) => { this.inpR.value = e.target.value; updateFromRGB(); });
-    this.valG.addEventListener('change', (e) => { this.inpG.value = e.target.value; updateFromRGB(); });
-    this.valB.addEventListener('change', (e) => { this.inpB.value = e.target.value; updateFromRGB(); });
+    // RGB数値入力ボックスイベント（null安全）
+    if (this.valR) this.valR.addEventListener('change', (e) => { if (this.inpR) this.inpR.value = e.target.value; updateFromRGB(); });
+    if (this.valG) this.valG.addEventListener('change', (e) => { if (this.inpG) this.inpG.value = e.target.value; updateFromRGB(); });
+    if (this.valB) this.valB.addEventListener('change', (e) => { if (this.inpB) this.inpB.value = e.target.value; updateFromRGB(); });
 
-    // スポイトボタン（EyeDropper API）
+    // スポイトボタン
     if (this.btnEyeDropper) {
       if (window.EyeDropper) {
         this.btnEyeDropper.onclick = async () => {
@@ -107,18 +111,23 @@ export class HSVColorPicker {
       }
     }
 
-    this.btnOk.onclick = () => {
-      this.modal.close();
-      if (this.resolvePromise) this.resolvePromise(this.currentColor);
-    };
+    if (this.btnOk) {
+      this.btnOk.onclick = () => {
+        if (this.modal) this.modal.close();
+        if (this.resolvePromise) this.resolvePromise(this.currentColor);
+      };
+    }
 
-    this.btnCancel.onclick = () => {
-      this.modal.close();
-      if (this.resolvePromise) this.resolvePromise(null);
-    };
+    if (this.btnCancel) {
+      this.btnCancel.onclick = () => {
+        if (this.modal) this.modal.close();
+        if (this.resolvePromise) this.resolvePromise(null);
+      };
+    }
   }
 
   _initPalette() {
+    if (!this.paletteContainer) return;
     const defaultColors = [
       '#FFFFFF', '#C0C0C0', '#808080', '#000000',
       '#FF0000', '#800000', '#FFFF00', '#808000',
@@ -141,27 +150,27 @@ export class HSVColorPicker {
     const [h, s, v] = rgbToHsv(r, g, b);
 
     this.isUpdating = true;
-    this.inpH.value = h; this.valH.textContent = `${h}°`;
-    this.inpS.value = s; this.valS.textContent = `${s}%`;
-    this.inpV.value = v; this.valV.textContent = `${v}%`;
+    if (this.inpH) { this.inpH.value = h; this.valH.textContent = `${h}°`; }
+    if (this.inpS) { this.inpS.value = s; this.valS.textContent = `${s}%`; }
+    if (this.inpV) { this.inpV.value = v; this.valV.textContent = `${v}%`; }
 
-    this.inpR.value = r; this.valR.value = r;
-    this.inpG.value = g; this.valG.value = g;
-    this.inpB.value = b; this.valB.value = b;
+    if (this.inpR) { this.inpR.value = r; this.valR.value = r; }
+    if (this.inpG) { this.inpG.value = g; this.valG.value = g; }
+    if (this.inpB) { this.inpB.value = b; this.valB.value = b; }
 
     this._updateUI();
     this.isUpdating = false;
   }
 
   _updateUI() {
-    this.newSwatch.style.backgroundColor = this.currentColor;
-    this.hexLabel.textContent = this.currentColor;
+    if (this.newSwatch) this.newSwatch.style.backgroundColor = this.currentColor;
+    if (this.hexLabel) this.hexLabel.textContent = this.currentColor;
   }
 
   open(initialHex = '#FFFFFF') {
     this.setColor(initialHex);
-    this.oldSwatch.style.backgroundColor = initialHex;
-    this.modal.showModal();
+    if (this.oldSwatch) this.oldSwatch.style.backgroundColor = initialHex;
+    if (this.modal) this.modal.showModal();
     return new Promise(resolve => {
       this.resolvePromise = resolve;
     });
