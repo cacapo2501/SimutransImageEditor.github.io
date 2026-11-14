@@ -1,0 +1,164 @@
+#modal-deftile-builder {
+  width: 90vw;
+  height: 88vh;
+  height: 88dvh;
+  max-width: 1120px;
+  max-height: 780px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #1e1e1e;
+  color: #eee;
+  padding: 0;
+  margin: auto;
+  overflow: hidden;
+}
+
+#modal-deftile-builder::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.deftile-builder-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.deftile-header {
+  height: 40px;
+  background: #282828;
+  border-bottom: 1px solid #3d3d3d;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.deftile-main-body {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.deftile-sidebar {
+  width: 310px;
+  min-width: 310px;
+  background: #252525;
+  border-right: 1px solid #383838;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.deftile-preview-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #141414;
+}
+
+.deftile-preview-toolbar {
+  height: 34px;
+  background: #202020;
+  border-bottom: 1px solid #333;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+#deftile-preview-viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+#deftile-preview-viewport:active {
+  cursor: grabbing;
+}
+
+#deftile-preview-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  image-rendering: pixelated;
+  transform-origin: 0 0;
+}
+
+.deftile-footer {
+  height: 46px;
+  background: #242424;
+  border-top: 1px solid #383838;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* ペイントエディタ内のリアルタイム立体プレビュー小窓 */
+#paint-deftile-live-preview {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 260px;
+  max-width: 45vw;
+  background: rgba(30, 30, 30, 0.92);
+  border: 1px solid #0078d4;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+  overflow: hidden;
+}
+
+#paint-deftile-live-preview.expanded {
+  width: 480px;
+  max-width: 75vw;
+}
+
+.live-preview-header {
+  height: 26px;
+  background: #005a9e;
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+}
+
+.live-preview-header button {
+  padding: 1px 5px;
+  font-size: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.live-preview-canvas-wrap {
+  padding: 8px;
+  min-height: 120px;
+  max-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background: #141414;
+}
+
+#paint-deftile-live-canvas {
+  image-rendering: pixelated;
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+}

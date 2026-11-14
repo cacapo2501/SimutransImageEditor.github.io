@@ -3,15 +3,18 @@ import { HSVColorPicker } from './color-picker.js';
 import { StorageAPI } from './storage-api.js';
 import { RenderEngine } from './render-engine.js';
 import { CanvasController } from './canvas-controller.js';
-import { ProjectIO, loadImageAsync } from './project-io.js';
+import { loadImageAsync } from './project-io.js';
 import { PaletteManager } from './palette-manager.js';
 import { PaintEditor } from './paint-editor.js';
 import { MaskGenerator } from './mask-generator.js';
 import { LayerManager } from './layer-manager.js';
 import { ToneTintController } from './tone-tint-controller.js';
+import { DeftileBuilder } from './deftile-builder.js';
+import { ImageIOController } from './image-io-controller.js';
 import { renderSidebarUI } from './ui-sidebar.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
+import { renderDeftileModalUI } from './ui-deftile-modal.js';
 
 function safePickFile(accept = '.png') {
   return new Promise((resolve) => {
@@ -45,6 +48,7 @@ class AdvancedMultiplyApp {
     renderSidebarUI();
     renderPaintModalUI();
     renderSubModalsUI();
+    renderDeftileModalUI();
 
     this.storage = new StorageAPI();
     this.colorPicker = new HSVColorPicker();
@@ -97,12 +101,13 @@ class AdvancedMultiplyApp {
     this.paintEditor = new PaintEditor(this);
     this.layerManager = new LayerManager(this, safePickFile);
     this.toneTintCtrl = new ToneTintController(this);
+    this.deftileBuilder = new DeftileBuilder(this, safePickFile);
+    this.imageIOCtrl = new ImageIOController(this, safePickFile);
 
-    this._bindCoreEvents();
-    this._bindNewImageModalEvents();
+    this._bindZoomEvents();
+    this.imageIOCtrl.bindAll();
     this.layerManager.bindEvents();
     this.toneTintCtrl.bindEvents();
-    this._bindDragAndDrop();
     this._loadDefaultSpecialColors();
     this.render();
   }
@@ -238,7 +243,7 @@ class AdvancedMultiplyApp {
       this.ctx.fillStyle = '#666';
       this.ctx.font = '14px sans-serif';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText('ベースPNGを読み込むか、「🆕 新規作成 (#E7FFFF)」を押してください', this.canvas.width / 2, this.canvas.height / 2);
+      this.ctx.fillText('ベースPNGを読み込むか、「🆕 新規作成」/「🏗️ DEFTILEから生成」を押してください', this.canvas.width / 2, this.canvas.height / 2);
       return;
     }
 
@@ -324,148 +329,11 @@ class AdvancedMultiplyApp {
     }
   }
 
-  _openNewImageModal() {
-    renderSubModalsUI();
-    this._bindNewImageModalEvents();
-    const modal = document.getElementById('modal-new-image');
-    if (!modal) return;
-    if (typeof modal.showModal === 'function') {
-      modal.showModal();
-    } else {
-      modal.setAttribute('open', '');
-    }
-  }
-
-  _bindNewImageModalEvents() {
-    const modal = document.getElementById('modal-new-image');
-    if (!modal || modal.dataset.bound === '1') return;
-    modal.dataset.bound = '1';
-
-    document.querySelectorAll('.btn-preset-size').forEach(btn => {
-      btn.onclick = () => {
-        document.getElementById('inp-new-width').value = btn.dataset.w;
-        document.getElementById('inp-new-height').value = btn.dataset.h;
-      };
-    });
-
-    document.getElementById('btn-new-img-ok').onclick = () => {
-      const w = parseInt(document.getElementById('inp-new-width').value, 10) || 64;
-      const h = parseInt(document.getElementById('inp-new-height').value, 10) || 96;
-      const openPaint = document.getElementById('chk-new-open-paint').checked;
-      modal.close();
-      this.createNewBlankBaseImage(w, h, openPaint);
-    };
-
-    document.getElementById('btn-new-img-cancel').onclick = () => modal.close();
-  }
-
-  _bindDragAndDrop() {
-    this.viewport.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-    });
-    this.viewport.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      const files = e.dataTransfer.files;
-      if (!files || files.length === 0) return;
-      for (const file of files) {
-        if (file.name.endsWith('.proj.json') || file.name.endsWith('.json')) {
-          ProjectIO.load(this, file);
-        } else if (file.name.includes('mask') || file.name.includes('paint')) {
-          await this.loadMaskFromFile(file);
-        } else if (file.type.startsWith('image/')) {
-          await this.loadBaseFromFile(file);
-        }
-      }
-    });
-  }
-
-  _bindCoreEvents() {
-    const btnNew = document.getElementById('btn-new-base');
-    if (btnNew) {
-      btnNew.onclick = () => this._openNewImageModal();
-    }
-
-    document.getElementById('btn-load-base').onclick = async () => {
-      const f = await safePickFile('.png');
-      if (f) this.loadBaseFromFile(f);
-    };
-    document.getElementById('btn-load-mask').onclick = async () => {
-      const f = await safePickFile('.png');
-      if (f) this.loadMaskFromFile(f);
-    };
-    document.getElementById('btn-save-base').onclick = () => ProjectIO.exportBasePng(this);
-    document.getElementById('btn-save-mask').onclick = () => ProjectIO.exportMaskPng(this);
-
-    document.getElementById('btn-paint-base').onclick = () => {
-      if (!this.baseImage) {
-        this._openNewImageModal();
-        return;
-      }
-      this.paintEditor.open('base');
-    };
-
-    document.getElementById('btn-paint-mask').onclick = () => {
-      if (!this.baseImage) {
-        alert('先にベース画像を開くか、新規作成してください。');
-        return;
-      }
-      if (!this.maskImage) {
-        MaskGenerator.generateFromBase(this);
-      }
-      this.paintEditor.open('mask');
-    };
-
-    document.getElementById('btn-load-folder').onclick = async () => {
-      const files = await this.storage.pickLocalDirectory();
-      if (files && files.length > 0) {
-        const base = files.find(f => f.name.includes('def') || f.name.includes('base')) || files[0];
-        const mask = files.find(f => f.name.includes('paint') || f.name.includes('mask'));
-        await this.loadBaseFromFile(base);
-        if (mask) await this.loadMaskFromFile(mask);
-      }
-    };
-
-    document.getElementById('btn-google-drive').onclick = async () => {
-      const apiKey = document.getElementById('gdrive-api-key').value.trim();
-      const clientId = document.getElementById('gdrive-client-id').value.trim();
-      const res = await this.storage.openGoogleDrivePicker(apiKey, clientId);
-      if (res) {
-        const file = new File([res.blob], res.name, { type: res.blob.type });
-        if (res.name.endsWith('.proj.json') || res.name.endsWith('.json')) ProjectIO.load(this, file);
-        else if (res.name.includes('mask') || res.name.includes('paint')) this.loadMaskFromFile(file);
-        else this.loadBaseFromFile(file);
-      }
-    };
-
-    document.getElementById('file-csv').onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const r = new FileReader();
-        r.onload = () => {
-          this.specialColors = parseSpecialColorsCsv(r.result);
-          document.getElementById('lbl-csv-info').textContent = `特殊色: ${this.specialColors.size}件登録済 (手動選択)`;
-          this.paletteManager.generateBasePalette();
-          MaskGenerator.recomputeBaseSpecialColors(this);
-          this.markDirty();
-          this.render();
-        };
-        r.readAsText(file);
-      }
-    };
-
+  _bindZoomEvents() {
     document.getElementById('btn-zoom-in').onclick = () => this.setZoom(this.zoomLevel * 1.25);
     document.getElementById('btn-zoom-out').onclick = () => this.setZoom(this.zoomLevel * 0.8);
     document.getElementById('btn-zoom-reset').onclick = () => this.setZoom(1.0);
     document.getElementById('btn-zoom-fit').onclick = () => this.zoomFit();
-
-    document.getElementById('btn-save-proj').onclick = () => ProjectIO.save(this);
-    document.getElementById('btn-save-proj-as').onclick = () => ProjectIO.save(this);
-    document.getElementById('btn-load-proj').onclick = async () => {
-      const f = await safePickFile('.json');
-      if (f) ProjectIO.load(this, f);
-    };
-    document.getElementById('btn-save-png').onclick = () => ProjectIO.exportPng(this);
   }
 }
 

@@ -3,13 +3,15 @@ import { PaintDialogs } from './paint-dialogs.js';
 import { PaintResizeController, cloneCanvasFromSource } from './paint-resize.js';
 import { PaintInputController } from './paint-input.js';
 import { PaintToolHandler } from './paint-tools.js';
+import { renderEditorPaletteUI, updateEditorCurrentColorUI } from './paint-palette-ui.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
+import { renderDeftileModalUI } from './ui-deftile-modal.js';
 
 export class PaintEditor {
   constructor(app) {
     this.app = app;
-    this.targetType = 'base';
+    this.targetType = 'base'; // 'base' | 'mask' | 'deftile'
     this.width = 0;
     this.height = 0;
     this.initialized = false;
@@ -60,6 +62,7 @@ export class PaintEditor {
 
     renderPaintModalUI();
     renderSubModalsUI();
+    renderDeftileModalUI();
 
     this.modal = document.getElementById('modal-paint-editor');
     this.canvas = document.getElementById('paint-canvas');
@@ -81,6 +84,14 @@ export class PaintEditor {
 
     this.resizeCtrl.bindEvents();
     this.inputCtrl.bindAll();
+
+    const btnToggleLive = document.getElementById('btn-toggle-live-preview-size');
+    if (btnToggleLive) {
+      btnToggleLive.onclick = () => {
+        document.getElementById('paint-deftile-live-preview')?.classList.toggle('expanded');
+      };
+    }
+
     this.initialized = true;
     return true;
   }
@@ -98,15 +109,24 @@ export class PaintEditor {
     if (!this._ensureInitialized()) return;
 
     this.targetType = targetType;
-    const srcImg = targetType === 'base' ? this.app.baseImage : this.app.maskImage;
+    let srcImg = null;
+    if (targetType === 'base') srcImg = this.app.baseImage;
+    else if (targetType === 'mask') srcImg = this.app.maskImage;
+    else if (targetType === 'deftile') srcImg = this.app.deftileBuilder?.deftileCanvas;
+
     if (!srcImg) {
-      alert(`${targetType === 'base' ? 'ベース' : 'マスク'}画像が読み込まれていません。`);
+      alert('編集対象の画像が読み込まれていません。');
       return;
     }
 
     const btnResize = document.getElementById('btn-paint-resize');
     if (btnResize) {
       btnResize.style.display = targetType === 'base' ? 'inline-block' : 'none';
+    }
+
+    const livePreviewBox = document.getElementById('paint-deftile-live-preview');
+    if (livePreviewBox) {
+      livePreviewBox.style.display = targetType === 'deftile' ? 'flex' : 'none';
     }
 
     this.width = srcImg.naturalWidth || srcImg.width;
@@ -147,9 +167,16 @@ export class PaintEditor {
       this.panY = Math.round((vh - this.height * this.zoomLevel) / 2);
       this._updateTransform();
       this._drawOverlay();
+      this._refreshDeftileLivePreview();
     });
 
     this._updateStatus();
+  }
+
+  _refreshDeftileLivePreview() {
+    if (this.targetType === 'deftile' && this.app.deftileBuilder) {
+      this.app.deftileBuilder.renderLiveMiniPreview(this.canvas);
+    }
   }
 
   applyAndClose() {
@@ -159,6 +186,12 @@ export class PaintEditor {
     outCanvas.width = this.width;
     outCanvas.height = this.height;
     outCanvas.getContext('2d').drawImage(this.canvas, 0, 0);
+
+    if (this.targetType === 'deftile') {
+      this.app.deftileBuilder.setDeftileCanvas(outCanvas);
+      this.modal.close();
+      return;
+    }
 
     const latestState = this.undoStack[this.undoStack.length - 1];
     if (this.targetType === 'base' && latestState && latestState.maskCanvas) {
@@ -215,6 +248,7 @@ export class PaintEditor {
     this._updateTransform();
     this._drawOverlay();
     this._updateStatus();
+    this._refreshDeftileLivePreview();
   }
 
   undo() {
@@ -231,63 +265,8 @@ export class PaintEditor {
     this._restoreHistoryState(next);
   }
 
-  _renderPaletteUI() {
-    const container = document.getElementById('paint-palette-slots');
-    const emptyMsg = document.getElementById('paint-palette-empty-msg');
-    if (!container) return;
-    container.innerHTML = '';
-
-    const pm = this.app.paletteManager;
-    let colors = [];
-
-    const baseTools = document.getElementById('base-palette-tools');
-    const maskTools = document.getElementById('mask-palette-tools');
-
-    if (this.targetType === 'base') {
-      if (baseTools) baseTools.style.display = 'block';
-      if (maskTools) maskTools.style.display = 'none';
-      if (pm.basePalette.length === 0) pm.generateBasePalette();
-      colors = [...pm.basePalette];
-      if (this.app.specialColors && this.app.specialColors.size > 0) {
-        colors.push(...Array.from(this.app.specialColors));
-      }
-    } else {
-      if (baseTools) baseTools.style.display = 'none';
-      if (maskTools) maskTools.style.display = 'block';
-      colors = [...pm.maskPalette];
-    }
-
-    if (emptyMsg) emptyMsg.style.display = colors.length === 0 ? 'block' : 'none';
-
-    colors.forEach(hex => {
-      const btn = document.createElement('button');
-      btn.className = 'palette-color-btn';
-      btn.style.backgroundColor = hex;
-      btn.title = hex + (this.targetType === 'mask' ? ' (右クリックで削除)' : '');
-      btn.onclick = () => { this.currentColor = hex; this._updateCurrentColorUI(); };
-
-      if (this.targetType === 'mask') {
-        btn.oncontextmenu = (e) => {
-          e.preventDefault();
-          if (confirm(`マスクパレットから色 ${hex} を削除しますか？`)) {
-            pm.removeColorFromMaskPalette(hex);
-            this._renderPaletteUI();
-          }
-        };
-      }
-      container.appendChild(btn);
-    });
-
-    if (colors.length > 0 && !colors.includes(this.currentColor)) this.currentColor = colors[0];
-    this._updateCurrentColorUI();
-  }
-
-  _updateCurrentColorUI() {
-    const sw = document.getElementById('paint-current-color-swatch');
-    const hx = document.getElementById('paint-current-color-hex');
-    if (sw) sw.style.backgroundColor = this.currentColor;
-    if (hx) hx.textContent = this.currentColor;
-  }
+  _renderPaletteUI() { renderEditorPaletteUI(this); }
+  _updateCurrentColorUI() { updateEditorCurrentColorUI(this); }
 
   _updateTransform() {
     const s = this.zoomLevel;
@@ -312,11 +291,25 @@ export class PaintEditor {
     this.ctx.fillRect(x, y, 1, 1);
   }
 
-  _handlePointerDown(px, py) { this.toolHandler.handlePointerDown(px, py); }
-  _handlePointerMove(px, py) { this.toolHandler.handlePointerMove(px, py); }
-  _handlePointerUp(px, py) { this.toolHandler.handlePointerUp(px, py); }
+  _handlePointerDown(px, py) {
+    this.toolHandler.handlePointerDown(px, py);
+    this._refreshDeftileLivePreview();
+  }
+  _handlePointerMove(px, py) {
+    this.toolHandler.handlePointerMove(px, py);
+    if (this.isDrawing && this.currentTool === 'pencil') {
+      this._refreshDeftileLivePreview();
+    }
+  }
+  _handlePointerUp(px, py) {
+    this.toolHandler.handlePointerUp(px, py);
+    this._refreshDeftileLivePreview();
+  }
   _finalizePolySelect() { this.toolHandler.finalizePolySelect(); }
-  _drawOverlay(curPos = null) { this.toolHandler.drawOverlay(curPos); }
+  _drawOverlay(curPos = null) {
+    this.toolHandler.drawOverlay(curPos);
+    this._refreshDeftileLivePreview();
+  }
 
   _updateStatus() {
     const modeNames = {

@@ -9,6 +9,7 @@ export function renderSidebarUI() {
       <div class="panel-body">
         <div class="btn-group">
           <button id="btn-new-base" class="btn-primary">🆕 新規作成 (#E7FFFF)</button>
+          <button id="btn-open-deftile-builder" class="btn-primary">🏗️ DEFTILEから生成</button>
         </div>
         <div class="btn-group mt-05">
           <button id="btn-load-base">ベースPNGを開く</button>
@@ -234,7 +235,6 @@ export function renderSidebarUI() {
       </div>
     </details>
 
-    <!-- 画面下部常時固定フッター -->
     <div class="sidebar-footer">
       <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存</button>
     </div>
