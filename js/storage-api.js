@@ -1,107 +1,112 @@
-/**
- * ローカルフォルダ (File System Access API) および Google Drive Picker 連携
- */
 export class StorageAPI {
-  constructor() {
-    this.googleAuthToken = null;
+  // ローカルファイル単体選択
+  pickLocalFile(accept = '.png') {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = accept;
+      input.style.display = 'none';
+      document.body.appendChild(input);
+
+      input.onchange = (e) => {
+        const file = e.target.files && e.target.files[0];
+        document.body.removeChild(input);
+        resolve(file || null);
+      };
+
+      window.addEventListener('focus', () => {
+        setTimeout(() => {
+          if (input.parentNode) {
+            document.body.removeChild(input);
+            resolve(null);
+          }
+        }, 500);
+      }, { once: true });
+
+      input.click();
+    });
   }
 
-  // ローカル単一ファイル選択 (フォールバック対応)
-  async pickLocalFile(accept = '.png') {
-    if (window.showOpenFilePicker) {
-      try {
-        const [handle] = await window.showOpenFilePicker({
-          types: [{ description: 'Files', accept: { 'image/*': ['.png', '.jpg', '.jpeg'] } }]
-        });
-        const file = await handle.getFile();
-        return file;
-      } catch (err) {
-        if (err.name !== 'AbortError') console.error(err);
-        return null;
-      }
-    } else {
-      return new Promise(resolve => {
-        const input = document.getElementById('input-file-hidden');
-        input.accept = accept;
-        input.onchange = () => resolve(input.files[0] || null);
-        input.click();
-      });
-    }
+  // ローカルフォルダ選択 (PNGファイル一覧を取得)
+  pickLocalDirectory() {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.webkitdirectory = true;
+      input.multiple = true;
+      input.style.display = 'none';
+      document.body.appendChild(input);
+
+      input.onchange = (e) => {
+        const files = Array.from(e.target.files || []).filter(f => f.name.toLowerCase().endsWith('.png'));
+        document.body.removeChild(input);
+        resolve(files);
+      };
+
+      window.addEventListener('focus', () => {
+        setTimeout(() => {
+          if (input.parentNode) {
+            document.body.removeChild(input);
+            resolve([]);
+          }
+        }, 500);
+      }, { once: true });
+
+      input.click();
+    });
   }
 
-  // ローカルフォルダ選択 (File System Access API)
-  async pickLocalDirectory() {
-    if (!window.showDirectoryPicker) {
-      alert('お使いのブラウザはローカルフォルダ直接アクセス(File System Access API)に非対応です。ファイル個別選択をご利用ください。');
-      return [];
-    }
-    try {
-      const dirHandle = await window.showDirectoryPicker();
-      const files = [];
-      for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.png')) {
-          const file = await entry.getFile();
-          files.push(file);
-        }
-      }
-      return files;
-    } catch (err) {
-      if (err.name !== 'AbortError') console.error(err);
-      return [];
-    }
-  }
-
-  // Google Drive Picker 認証・ファイル選択
+  // Google Drive Picker 連携
   async openGoogleDrivePicker(apiKey, clientId) {
     if (!apiKey || !clientId) {
-      alert('「特殊色・設定」タブで Google Drive API Key と Client ID を入力してください。');
+      alert('「特殊色・外部連携設定」パネルで Google Drive の API Key と Client ID を入力してください。');
       return null;
     }
 
-    return new Promise((resolve, reject) => {
-      const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/drive.readonly',
-        callback: async (response) => {
-          if (response.error) {
-            reject(response);
-            return;
+    if (!window.gapi || !window.google) {
+      alert('Google API スクリプトの読み込みが完了していないか、オフライン環境です。');
+      return null;
+    }
+
+    return new Promise((resolve) => {
+      window.gapi.load('picker', () => {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/drive.readonly',
+          callback: async (tokenResponse) => {
+            if (tokenResponse && tokenResponse.access_token) {
+              const oauthToken = tokenResponse.access_token;
+              const picker = new window.google.picker.PickerBuilder()
+                .addView(window.google.picker.ViewId.DOCS_IMAGES)
+                .addView(window.google.picker.ViewId.DOCS)
+                .setOAuthToken(oauthToken)
+                .setDeveloperKey(apiKey)
+                .setCallback(async (data) => {
+                  if (data.action === window.google.picker.Action.PICKED) {
+                    const doc = data.docs[0];
+                    try {
+                      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`, {
+                        headers: { Authorization: `Bearer ${oauthToken}` }
+                      });
+                      const blob = await res.blob();
+                      resolve({ name: doc.name, blob });
+                    } catch (err) {
+                      alert('Google Drive からのダウンロードに失敗しました: ' + err);
+                      resolve(null);
+                    }
+                  } else if (data.action === window.google.picker.Action.CANCEL) {
+                    resolve(null);
+                  }
+                })
+                .build();
+              picker.setVisible(true);
+            } else {
+              resolve(null);
+            }
           }
-          this.googleAuthToken = response.access_token;
-          this._createPicker(apiKey, this.googleAuthToken, resolve);
-        }
+        });
+        tokenClient.requestAccessToken({ prompt: '' });
       });
-      tokenClient.requestAccessToken({ prompt: 'consent' });
     });
-  }
-
-  _createPicker(apiKey, token, resolve) {
-    gapi.load('picker', () => {
-      const view = new google.picker.View(google.picker.ViewId.DOCS_IMAGES);
-      view.setMimeTypes('image/png,application/json');
-
-      const picker = new google.picker.PickerBuilder()
-        .addView(view)
-        .setOAuthToken(token)
-        .setDeveloperKey(apiKey)
-        .setCallback(async (data) => {
-          if (data.action === google.picker.Action.PICKED) {
-            const doc = data.docs[0];
-            const fileData = await this._downloadDriveFile(doc.id, token);
-            resolve({ name: doc.name, blob: fileData });
-          } else if (data.action === google.picker.Action.CANCEL) {
-            resolve(null);
-          }
-        })
-        .build();
-      picker.setVisible(true);
-    });
-  }
-
-  async _downloadDriveFile(fileId, token) {
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return await res.blob();
   }
 }
