@@ -48,7 +48,9 @@ export class PaintToolHandler {
       this.drawOverlay([px, py]);
     } else if (ed.currentTool === 'bucket') {
       ed._pushHistory();
+      const before = ed.repeatMgr ? ed.repeatMgr.snapshotBefore() : null;
       floodFill(ed.ctx, ed.width, ed.height, px, py, ed.currentColor, ed.selectionMask);
+      if (ed.repeatMgr && before) ed.repeatMgr.applyDiff(before);
       ed.isDrawing = false;
     } else if (ed.currentTool === 'rectSelect') {
       ed.selStart = [px, py];
@@ -146,14 +148,11 @@ export class PaintToolHandler {
     const oCtx = ed.oCtx;
     oCtx.clearRect(0, 0, ed.width, ed.height);
 
-    // 1. オニオンスキン（外部画像位置目安・出力には含まれない）
     if (ed.onionSkinMgr) ed.onionSkinMgr.drawOverlay(oCtx, ed.zoomLevel);
-
-    // 2. フローティング貼付画像
     ed.clipMgr.drawFloatingOverlay(oCtx, ed.zoomLevel);
 
-    // 3. 選択範囲
     drawSelectionOverlay(oCtx, ed.width, ed.height, ed.selectionMask);
+    if (ed.repeatMgr) ed.repeatMgr.drawOverlay(oCtx);
 
     if (ed.currentTool === 'line' && ed.lineStart && curPos) {
       oCtx.fillStyle = ed.currentColor;

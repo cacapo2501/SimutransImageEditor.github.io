@@ -4,6 +4,7 @@ import { PaintResizeController, cloneCanvasFromSource } from './paint-resize.js'
 import { PaintInputController } from './paint-input.js';
 import { PaintToolHandler } from './paint-tools.js';
 import { PaintOnionSkinManager } from './paint-onion-skin.js';
+import { PaintRepeatManager } from './paint-repeat.js';
 import { renderEditorPaletteUI, updateEditorCurrentColorUI } from './paint-palette-ui.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
@@ -30,6 +31,7 @@ export class PaintEditor {
     this.inputCtrl = null;
     this.toolHandler = null;
     this.onionSkinMgr = null;
+    this.repeatMgr = null;
 
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
@@ -84,10 +86,12 @@ export class PaintEditor {
     this.inputCtrl = new PaintInputController(this);
     this.toolHandler = new PaintToolHandler(this);
     this.onionSkinMgr = new PaintOnionSkinManager(this);
+    this.repeatMgr = new PaintRepeatManager(this);
 
     this.resizeCtrl.bindEvents();
     this.inputCtrl.bindAll();
     this.onionSkinMgr.bindEvents();
+    this.repeatMgr.bindEvents();
 
     const btnToggleLive = document.getElementById('btn-toggle-live-preview-size');
     if (btnToggleLive) {
@@ -186,7 +190,6 @@ export class PaintEditor {
 
   applyAndClose() {
     if (this.clipMgr && this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
-    // オニオンスキンはプレビュー専用のため、確定・保存前に必ず破棄する
     if (this.onionSkinMgr) this.onionSkinMgr.clearAll();
 
     const outCanvas = document.createElement('canvas');
@@ -293,10 +296,7 @@ export class PaintEditor {
   }
 
   _drawPixel(x, y) {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
-    if (this.selectionMask && !this.selectionMask[y * this.width + x]) return;
-    this.ctx.fillStyle = this.currentColor;
-    this.ctx.fillRect(x, y, 1, 1);
+    this.repeatMgr.drawPixel(x, y);
   }
 
   _handlePointerDown(px, py) {
@@ -331,7 +331,11 @@ export class PaintEditor {
       toolLbl.textContent = `ツール: ${this.currentTool} | 選択モード: ${modeNames[this.selectionMode] || this.selectionMode} (${this.width}×${this.height}px)`;
     }
 
-    if (this.currentTool === 'polySelect') {
+    if (this.repeatMgr && this.repeatMgr.enabled && !this.selectionMask) {
+      this._showHint('🔁 上方リピートON中: 先に選択範囲を指定してその中を描画すると上方へ反復されます');
+    } else if (this.repeatMgr && this.repeatMgr.isActive()) {
+      this._showHint(`🔁 上方リピート有効: 選択範囲内の編集を上方 ${this.repeatMgr.stepY}px おきに ${this.repeatMgr.count} 回反復`);
+    } else if (this.currentTool === 'polySelect') {
       this._showHint('クリックで頂点追加 / 始点クリック・ダブルクリック・Enterで確定 / Escで取消');
     } else if (this.currentTool === 'rectFill') {
       this._showHint('ドラッグで矩形範囲を一括塗りつぶし');

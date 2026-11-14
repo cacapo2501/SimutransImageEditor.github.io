@@ -1,8 +1,10 @@
+import { getSelectionBounds, flipEditorTransform } from './paint-flip.js';
+
 export class PaintClipboardManager {
   constructor(editor) {
     this.editor = editor;
-    this.clipboard = null;      // { canvas, width, height, srcX, srcY }
-    this.floatingLayer = null;  // { canvas, width, height, x, y }
+    this.clipboard = null;
+    this.floatingLayer = null;
     this.isDraggingFloating = false;
     this.floatingDragOffset = [0, 0];
   }
@@ -20,7 +22,6 @@ export class PaintClipboardManager {
     }
   }
 
-  // 選択範囲の演算統合（新規・追加・一部削除・乗算）
   applySelectionMask(newMask) {
     const ed = this.editor;
     const total = ed.width * ed.height;
@@ -52,9 +53,9 @@ export class PaintClipboardManager {
     }
 
     ed._drawOverlay();
+    ed._updateStatus();
   }
 
-  // 選択範囲（またはフローティング・全体）をコピー
   copySelection() {
     const ed = this.editor;
 
@@ -86,7 +87,7 @@ export class PaintClipboardManager {
       return;
     }
 
-    const bounds = this._getSelectionBounds(ed.selectionMask, ed.width, ed.height);
+    const bounds = getSelectionBounds(ed.selectionMask, ed.width, ed.height);
     if (!bounds) return;
 
     const { minX, minY, w, h } = bounds;
@@ -116,7 +117,6 @@ export class PaintClipboardManager {
     ed._showHint(`選択範囲をコピーしました (${w}×${h}px)`);
   }
 
-  // クリップボードから貼り付け（フローティング状態）
   pasteClipboard() {
     const ed = this.editor;
     if (!this.clipboard) {
@@ -129,7 +129,10 @@ export class PaintClipboardManager {
     c.height = this.clipboard.height;
     c.getContext('2d').drawImage(this.clipboard.canvas, 0, 0);
 
-    ed.selectionMask = null;
+    if (!ed.repeatMgr || !ed.repeatMgr.isActive()) {
+      ed.selectionMask = null;
+    }
+
     this.floatingLayer = {
       canvas: c,
       width: c.width,
@@ -143,7 +146,6 @@ export class PaintClipboardManager {
     ed._showHint('ドラッグまたは矢印キーで位置調整し、Enterまたは「✓ 確定」で貼り付けます');
   }
 
-  // 外部画像を取り込んでフローティング配置
   importExternalImage() {
     const ed = this.editor;
     const inp = document.createElement('input');
@@ -164,7 +166,6 @@ export class PaintClipboardManager {
         cCtx.imageSmoothingEnabled = false;
         cCtx.drawImage(img, 0, 0);
 
-        // Simutrans背景色 (#E7FFFF) を自動透過抜き
         const imgData = cCtx.getImageData(0, 0, w, h);
         const d = imgData.data;
         for (let i = 0; i < d.length; i += 4) {
@@ -174,7 +175,9 @@ export class PaintClipboardManager {
         }
         cCtx.putImageData(imgData, 0, 0);
 
-        ed.selectionMask = null;
+        if (!ed.repeatMgr || !ed.repeatMgr.isActive()) {
+          ed.selectionMask = null;
+        }
         this.floatingLayer = {
           canvas: c,
           width: w,
@@ -197,8 +200,38 @@ export class PaintClipboardManager {
     if (!this.floatingLayer) return;
     const ed = this.editor;
     ed._pushHistory();
-    ed.ctx.imageSmoothingEnabled = false;
-    ed.ctx.drawImage(this.floatingLayer.canvas, this.floatingLayer.x, this.floatingLayer.y);
+    const before = ed.repeatMgr ? ed.repeatMgr.snapshotBefore() : null;
+
+    if (ed.selectionMask) {
+      const fl = this.floatingLayer;
+      const flData = fl.canvas.getContext('2d').getImageData(0, 0, fl.width, fl.height).data;
+      const dstImg = ed.ctx.getImageData(0, 0, ed.width, ed.height);
+      const dd = dstImg.data;
+      for (let sy = 0; sy < fl.height; sy++) {
+        const gy = fl.y + sy;
+        if (gy < 0 || gy >= ed.height) continue;
+        for (let sx = 0; sx < fl.width; sx++) {
+          const gx = fl.x + sx;
+          if (gx < 0 || gx >= ed.width) continue;
+          const gPos = gy * ed.width + gx;
+          if (!ed.selectionMask[gPos]) continue;
+          const sIdx = (sy * fl.width + sx) * 4;
+          if (flData[sIdx + 3] > 0) {
+            const dIdx = gPos * 4;
+            dd[dIdx] = flData[sIdx];
+            dd[dIdx + 1] = flData[sIdx + 1];
+            dd[dIdx + 2] = flData[sIdx + 2];
+            dd[dIdx + 3] = 255;
+          }
+        }
+      }
+      ed.ctx.putImageData(dstImg, 0, 0);
+      if (ed.repeatMgr && before) ed.repeatMgr.applyDiff(before);
+    } else {
+      ed.ctx.imageSmoothingEnabled = false;
+      ed.ctx.drawImage(this.floatingLayer.canvas, this.floatingLayer.x, this.floatingLayer.y);
+    }
+
     this.floatingLayer = null;
     this._updateFloatingBarUI();
     ed._drawOverlay();
@@ -213,109 +246,9 @@ export class PaintClipboardManager {
     this.editor._showHint('貼り付けをキャンセルしました');
   }
 
-  flipHorizontal() { this._flipTransform(true, false); }
-  flipVertical() { this._flipTransform(false, true); }
+  flipHorizontal() { flipEditorTransform(this.editor, this, true, false); }
+  flipVertical() { flipEditorTransform(this.editor, this, false, true); }
 
-  _flipTransform(flipH, flipV) {
-    const ed = this.editor;
-
-    // 1. フローティング貼り付け中の反転
-    if (this.floatingLayer) {
-      const fl = this.floatingLayer;
-      const c = document.createElement('canvas');
-      c.width = fl.width;
-      c.height = fl.height;
-      const cCtx = c.getContext('2d');
-      cCtx.imageSmoothingEnabled = false;
-      cCtx.translate(flipH ? fl.width : 0, flipV ? fl.height : 0);
-      cCtx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-      cCtx.drawImage(fl.canvas, 0, 0);
-      fl.canvas = c;
-      ed._drawOverlay();
-      return;
-    }
-
-    ed._pushHistory();
-
-    // 2. 選択範囲なしの全体反転
-    if (!ed.selectionMask) {
-      const c = document.createElement('canvas');
-      c.width = ed.width;
-      c.height = ed.height;
-      const cCtx = c.getContext('2d');
-      cCtx.imageSmoothingEnabled = false;
-      cCtx.translate(flipH ? ed.width : 0, flipV ? ed.height : 0);
-      cCtx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-      cCtx.drawImage(ed.canvas, 0, 0);
-
-      ed.ctx.clearRect(0, 0, ed.width, ed.height);
-      ed.ctx.drawImage(c, 0, 0);
-      ed._drawOverlay();
-      return;
-    }
-
-    // 3. 選択範囲内のピクセルとマスクの反転
-    const bounds = this._getSelectionBounds(ed.selectionMask, ed.width, ed.height);
-    if (!bounds) return;
-    const { minX, minY, maxX, maxY } = bounds;
-
-    const imgData = ed.ctx.getImageData(0, 0, ed.width, ed.height);
-    const origData = new Uint8ClampedArray(imgData.data);
-    const origMask = new Uint8Array(ed.selectionMask);
-    const newMask = new Uint8Array(ed.selectionMask);
-
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        const idx = y * ed.width + x;
-        if (origMask[idx]) {
-          newMask[idx] = 0;
-          imgData.data[idx * 4] = 231;
-          imgData.data[idx * 4 + 1] = 255;
-          imgData.data[idx * 4 + 2] = 255;
-          imgData.data[idx * 4 + 3] = 255;
-        }
-      }
-    }
-
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        const srcIdx = y * ed.width + x;
-        if (origMask[srcIdx]) {
-          const dstX = flipH ? (minX + maxX - x) : x;
-          const dstY = flipV ? (minY + maxY - y) : y;
-          const dstIdx = dstY * ed.width + dstX;
-
-          newMask[dstIdx] = 1;
-          imgData.data[dstIdx * 4] = origData[srcIdx * 4];
-          imgData.data[dstIdx * 4 + 1] = origData[srcIdx * 4 + 1];
-          imgData.data[dstIdx * 4 + 2] = origData[srcIdx * 4 + 2];
-          imgData.data[dstIdx * 4 + 3] = origData[srcIdx * 4 + 3];
-        }
-      }
-    }
-
-    ed.selectionMask = newMask;
-    ed.ctx.putImageData(imgData, 0, 0);
-    ed._drawOverlay();
-  }
-
-  _getSelectionBounds(mask, width, height) {
-    let minX = width, minY = height, maxX = -1, maxY = -1;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (mask[y * width + x]) {
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-        }
-      }
-    }
-    if (maxX < minX || maxY < minY) return null;
-    return { minX, minY, maxX, maxY, w: maxX - minX + 1, h: maxY - minY + 1 };
-  }
-
-  // ポインター・キーボード操作フック
   handlePointerDown(px, py) {
     if (!this.floatingLayer) return false;
     const fl = this.floatingLayer;

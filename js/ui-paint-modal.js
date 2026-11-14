@@ -30,6 +30,17 @@ export function renderPaintModalUI() {
             <button id="btn-paint-clear-sel" title="選択解除 (Esc / Ctrl+D)">✕ 解除</button>
           </div>
 
+          <div class="paint-tool-group guide-control-group" title="選択範囲内を描画編集した際、選択範囲外の上方指定pxおきに指定回数同じ編集を繰り返します">
+            <label class="inline-chk-lbl">
+              <input type="checkbox" id="chk-paint-repeat-up"> 🔁 上方リピート:
+            </label>
+            <span style="font-size:10px; color:#aaa;">間隔</span>
+            <input type="number" id="inp-paint-repeat-step" class="num-input-mini" value="8" min="1" max="512">
+            <span style="font-size:10px; color:#aaa;">px ×</span>
+            <input type="number" id="inp-paint-repeat-count" class="num-input-mini" value="3" min="1" max="64">
+            <span style="font-size:10px; color:#aaa;">回</span>
+          </div>
+
           <div class="paint-tool-group">
             <button id="btn-paint-copy" title="選択範囲をコピー (Ctrl+C)">📋 コピー</button>
             <button id="btn-paint-paste" title="貼り付け (Ctrl+V)">📌 貼付</button>
@@ -85,7 +96,6 @@ export function renderPaintModalUI() {
               </div>
             </div>
 
-            <!-- オニオンスキン（外部画像位置目安・保存時自動破棄） -->
             <fieldset class="sub-panel">
               <legend>🧅 オニオンスキン (位置目安)</legend>
               <div class="btn-group">
