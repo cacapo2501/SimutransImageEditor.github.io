@@ -71,7 +71,16 @@ export class Layer {
     this._cachedImageData = ctx.getImageData(0, 0, c.width, c.height);
   }
 
-  // PNG形式の可逆圧縮DataURLを取得（親レイヤーのみ保持）
+  replaceImage(img, newName = null) {
+    if (this.sourceLayer) {
+      this.sourceLayer.replaceImage(img, newName);
+      return;
+    }
+    this._imageElement = img;
+    if (newName) this._name = newName;
+    this._prepareImageData();
+  }
+
   getPngDataUrl() {
     if (this.sourceLayer || !this.imageElement) return null;
     const c = document.createElement('canvas');
@@ -189,7 +198,6 @@ export class Layer {
       fill_all: Boolean(this.fillAll),
       transparent_e7ffff: Boolean(this.transparentE7ffff),
       source_idx: (srcIdx !== null && srcIdx !== -1) ? srcIdx : null,
-      // 親レイヤーのみPNG圧縮DataURLを保持（子レイヤーはnullにして重複排除）
       image_data: this.getPngDataUrl()
     };
   }
