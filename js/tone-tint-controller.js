@@ -1,4 +1,4 @@
-const MAX_UI_MASK_COLORS = 200; // 多色画像でのDOMフリーズを防止するUI表示上限
+const MAX_UI_MASK_COLORS = 200;
 
 export class ToneTintController {
   constructor(app) {
@@ -54,6 +54,13 @@ export class ToneTintController {
     document.getElementById('slider-max-bright').oninput = (e) => {
       this._getActiveTone().max_bright_pct = parseFloat(e.target.value);
       document.getElementById('lbl-max-bright').textContent = `${parseFloat(e.target.value).toFixed(1)}%`;
+      this.app.markDirty();
+      this.app.render();
+    };
+
+    document.getElementById('slider-tone-alpha').oninput = (e) => {
+      this._getActiveTone().alpha_pct = parseFloat(e.target.value);
+      document.getElementById('lbl-tone-alpha').textContent = `${parseFloat(e.target.value).toFixed(1)}%`;
       this.app.markDirty();
       this.app.render();
     };
@@ -137,7 +144,6 @@ export class ToneTintController {
     };
   }
 
-  // 一括文字列結合と件数上限により、数千〜数万色でもDOMフリーズを完全防止
   updateMaskCombos() {
     const comboLayer = document.getElementById('mask-color-combo');
     const comboTone = document.getElementById('combo-tone-target');
@@ -188,7 +194,6 @@ export class ToneTintController {
 
     tbody.innerHTML = rowsHtml.join('');
 
-    // イベント委譲で1つだけリスナー登録（行数に比例するメモリ消費を削減）
     tbody.onclick = (e) => {
       const tr = e.target.closest('tr');
       if (!tr || !tr.dataset.hex) return;
@@ -227,12 +232,15 @@ export class ToneTintController {
   }
 
   _loadToneToUI(cfg) {
+    const alphaPct = cfg.alpha_pct !== undefined ? cfg.alpha_pct : 100.0;
     document.getElementById('dark-color-swatch').style.backgroundColor = cfg.dark_color_hex;
     document.getElementById('lbl-dark-color').textContent = cfg.dark_color_hex;
     document.getElementById('slider-min-dark').value = cfg.min_dark_pct;
     document.getElementById('lbl-min-dark').textContent = `${cfg.min_dark_pct.toFixed(1)}%`;
     document.getElementById('slider-max-bright').value = cfg.max_bright_pct;
     document.getElementById('lbl-max-bright').textContent = `${cfg.max_bright_pct.toFixed(1)}%`;
+    document.getElementById('slider-tone-alpha').value = alphaPct;
+    document.getElementById('lbl-tone-alpha').textContent = `${alphaPct.toFixed(1)}%`;
     document.getElementById('chk-enable-dodge').checked = cfg.enable_dodge;
     document.getElementById('dodge-color-swatch').style.backgroundColor = cfg.dodge_color_hex;
     document.getElementById('slider-dodge-strength').value = cfg.dodge_max_strength;

@@ -15,7 +15,7 @@ export class RenderEngine {
       }
     });
 
-    // 高速ルックアップ用の整数キーマップを事前構築（毎ピクセルの文字列生成を排除）
+    // 高速ルックアップ用の整数キーマップを事前構築
     const toneOverrideMap = new Map();
     if (app.maskToneOverrides && app.maskToneOverrides.size > 0) {
       app.maskToneOverrides.forEach((cfg, hex) => {
@@ -24,6 +24,7 @@ export class RenderEngine {
           const [br, bg, bb] = hexToRgb(cfg.dodge_color_hex);
           toneOverrideMap.set(hexToInt(hex), {
             ...cfg,
+            alpha_pct: cfg.alpha_pct !== undefined ? cfg.alpha_pct : 100.0,
             dr: dr / 255, dg: dg / 255, db: db / 255,
             br: br / 255, bg: bg / 255, bb: bb / 255
           });
@@ -34,11 +35,9 @@ export class RenderEngine {
     const tintMap = new Map();
     if (app.enableMaskTint && app.maskTintColors && app.maskTintColors.size > 0) {
       app.maskTintColors.forEach((tintHex, maskHex) => {
-        if (tintHex && tintHex !== maskHex) {
-          const [tr, tg, tb] = hexToRgb(tintHex);
-          tintMap.set(hexToInt(maskHex), [tr / 255, tg / 255, tb / 255]);
-        } else if (maskHex) {
-          const [tr, tg, tb] = hexToRgb(maskHex);
+        const targetHex = tintHex || maskHex;
+        if (targetHex) {
+          const [tr, tg, tb] = hexToRgb(targetHex);
           tintMap.set(hexToInt(maskHex), [tr / 255, tg / 255, tb / 255]);
         }
       });
@@ -48,6 +47,7 @@ export class RenderEngine {
     const [gBr, gBg, gBb] = hexToRgb(app.globalTone.dodge_color_hex);
     const globalCfg = {
       ...app.globalTone,
+      alpha_pct: app.globalTone.alpha_pct !== undefined ? app.globalTone.alpha_pct : 100.0,
       dr: gDr / 255, dg: gDg / 255, db: gDb / 255,
       br: gBr / 255, bg: gBg / 255, bb: gBb / 255
     };
@@ -181,6 +181,22 @@ export class RenderEngine {
       }
       const blurred = applyProtectedBlur(outRgb, app.baseW, app.baseH, app.blurRadius, invalid);
       for (let i = 0; i < outRgb.length; i++) outRgb[i] = blurred[i];
+    }
+
+    // 6. ベース・マスク・テクスチャ適用後のピクセルアルファ（半透明）設定
+    for (let i = 0; i < total; i++) {
+      if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;
+      if (app.isBgMask && app.isBgMask[i] && structureAppliedMask[i] === 0) continue;
+
+      let cfg = globalCfg;
+      if (maskRgb) {
+        const mInt = (maskRgb[i * 3] << 16) | (maskRgb[i * 3 + 1] << 8) | maskRgb[i * 3 + 2];
+        const oCfg = toneOverrideMap.get(mInt);
+        if (oCfg) cfg = oCfg;
+      }
+
+      const alphaFactor = Math.min(1.0, Math.max(0.0, cfg.alpha_pct / 100.0));
+      outAlpha[i] *= alphaFactor;
     }
 
     const res = new Uint8ClampedArray(total * 4);

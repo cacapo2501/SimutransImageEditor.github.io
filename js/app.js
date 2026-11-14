@@ -77,6 +77,7 @@ class AdvancedMultiplyApp {
       dark_color_hex: '#000018',
       min_dark_pct: 0.0,
       max_bright_pct: 100.0,
+      alpha_pct: 100.0,
       dodge_color_hex: '#FFFFFF',
       dodge_max_strength: 100.0,
       enable_dodge: true
@@ -234,6 +235,19 @@ class AdvancedMultiplyApp {
   onToneTargetChanged(sel) { this.toneTintCtrl.onToneTargetChanged(sel); }
   computeFinalImage() { return RenderEngine.compute(this); }
 
+  _drawCheckerboard(x, y, w, h) {
+    const step = 8;
+    this.ctx.fillStyle = '#2A2A2A';
+    this.ctx.fillRect(x, y, w, h);
+    this.ctx.fillStyle = '#383838';
+    for (let py = y; py < y + h; py += step) {
+      const rowEven = Math.floor((py - y) / step) % 2 === 0;
+      for (let px = x + (rowEven ? 0 : step); px < x + w; px += step * 2) {
+        this.ctx.fillRect(px, py, Math.min(step, x + w - px), Math.min(step, y + h - py));
+      }
+    }
+  }
+
   render() {
     if (!this.baseW || !this.baseH) {
       this.canvas.width = this.viewport.clientWidth;
@@ -253,6 +267,9 @@ class AdvancedMultiplyApp {
     this.canvas.height = this.viewport.clientHeight;
     this.ctx.fillStyle = '#181818';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // 半透明ピクセルの視認用チェッカーボード背景
+    this._drawCheckerboard(this.panX, this.panY, vw, vh);
 
     let imgData;
     if (this.isEyedropper && this.maskImage) {

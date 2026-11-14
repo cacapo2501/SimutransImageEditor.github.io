@@ -1,9 +1,18 @@
 import { hexToRgb } from './color-utils.js';
 
 export function getBuildingOutputSize(w, h, maxFloors, pixelHeight, layoutMode = '4dir') {
-  const singleW = w * 2 + h * 2;
-  const singleH = Math.max(1, maxFloors * pixelHeight + w + h - 1);
+  const minSide = Math.max(1, Math.min(w, h));
+  const unit = minSide * 4;
+  const rawSingleW = w * 2 + h * 2;
+  const rawSingleH = Math.max(1, maxFloors * pixelHeight + w + h - 1);
+
+  const singleW = Math.ceil(rawSingleW / unit) * unit;
+  const singleH = Math.ceil(rawSingleH / unit) * unit;
+
   return {
+    unit,
+    rawSingleW,
+    rawSingleH,
     singleW,
     singleH,
     totalW: layoutMode === '4dir' ? singleW * 4 : singleW,
@@ -27,7 +36,7 @@ function getRotatedPixel(srcData, w, h, rotDeg, rx, ry) {
   return [srcData[idx], srcData[idx + 1], srcData[idx + 2], srcData[idx + 3]];
 }
 
-function renderDirectionSubImage(outData, totalW, totalH, offsetX, srcData, srcW, srcH, rotDeg, opts) {
+function renderDirectionSubImage(outData, totalW, totalH, offsetX, offsetY, srcData, srcW, srcH, rotDeg, opts) {
   const rotW = (rotDeg === 90 || rotDeg === 270) ? srcH : srcW;
   const rotH = (rotDeg === 90 || rotDeg === 270) ? srcW : srcH;
 
@@ -47,8 +56,8 @@ function renderDirectionSubImage(outData, totalW, totalH, offsetX, srcData, srcW
     if (x1 < x0 || y1 < y0) return;
     const minX = Math.max(0, x0);
     const maxX = Math.min(totalW - 1, offsetX + x1) - offsetX;
-    const minY = Math.max(0, y0);
-    const maxY = Math.min(totalH - 1, y1);
+    const minY = Math.max(0, y0 + offsetY);
+    const maxY = Math.min(totalH - 1, y1 + offsetY);
     for (let y = minY; y <= maxY; y++) {
       const rowBase = y * totalW + offsetX;
       for (let x = minX; x <= maxX; x++) {
@@ -125,7 +134,9 @@ export function generateBuildingFromDeftile(deftileSource, rawOpts = {}) {
     eastSepRgb: hexToRgb(rawOpts.eastSepColor || '#666666')
   };
 
-  const { singleW, totalW, totalH } = getBuildingOutputSize(srcW, srcH, maxFloors, pixelHeight, layoutMode);
+  const { rawSingleH, singleW, totalW, totalH } = getBuildingOutputSize(srcW, srcH, maxFloors, pixelHeight, layoutMode);
+  const offsetY = Math.max(0, totalH - rawSingleH);
+
   const outCanvas = document.createElement('canvas');
   outCanvas.width = totalW;
   outCanvas.height = totalH;
@@ -140,11 +151,11 @@ export function generateBuildingFromDeftile(deftileSource, rawOpts = {}) {
     outData[i * 4 + 3] = 255;
   }
 
-  renderDirectionSubImage(outData, totalW, totalH, 0, srcData, srcW, srcH, 0, opts);
+  renderDirectionSubImage(outData, totalW, totalH, 0, offsetY, srcData, srcW, srcH, 0, opts);
   if (layoutMode === '4dir') {
-    renderDirectionSubImage(outData, totalW, totalH, singleW, srcData, srcW, srcH, 90, opts);
-    renderDirectionSubImage(outData, totalW, totalH, singleW * 2, srcData, srcW, srcH, 180, opts);
-    renderDirectionSubImage(outData, totalW, totalH, singleW * 3, srcData, srcW, srcH, 270, opts);
+    renderDirectionSubImage(outData, totalW, totalH, singleW, offsetY, srcData, srcW, srcH, 90, opts);
+    renderDirectionSubImage(outData, totalW, totalH, singleW * 2, offsetY, srcData, srcW, srcH, 180, opts);
+    renderDirectionSubImage(outData, totalW, totalH, singleW * 3, offsetY, srcData, srcW, srcH, 270, opts);
   }
 
   outCtx.putImageData(outImgData, 0, 0);

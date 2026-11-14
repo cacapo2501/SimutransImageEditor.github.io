@@ -168,6 +168,12 @@ export function renderSidebarUI() {
             <input type="range" id="slider-max-bright" min="0" max="100" step="0.5" value="100">
           </div>
 
+          <label class="mt-05">適用後の出力アルファ (不透明度) %:</label>
+          <div class="row">
+            <span class="val-badge" id="lbl-tone-alpha">100.0%</span>
+            <input type="range" id="slider-tone-alpha" min="0" max="100" step="1" value="100">
+          </div>
+
           <fieldset class="sub-panel mt-05">
             <legend>ハイライト Normalブレンド</legend>
             <label><input type="checkbox" id="chk-enable-dodge" checked> 最大明るさを超えた部分をNormalブレンド</label>
