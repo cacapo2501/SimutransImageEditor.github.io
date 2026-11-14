@@ -115,16 +115,14 @@ export function parseSpecialColorsCsv(csvText) {
   return specialColors;
 }
 
-// ★ 出力時SpecialColor衝突回避（#E7FFFFおよびベース画像のSpecialColorは完全保護） ★
+// 出力時SpecialColor衝突回避（元の背景isBgMaskとベース固有SpecialColorは保護し、それ以外の#E7FFFF等は自動補正）
 export function resolveSpecialColorConflicts(pixels, width, height, specialColors, isBaseSpecialColor = null, isBgMask = null) {
-  if (!specialColors || specialColors.size === 0) return 0;
   let conflicts = 0;
   const total = width * height;
-  const specialInts = new Set();
-  specialColors.forEach(hex => {
-    const val = hexToInt(hex);
-    if (val !== 0xE7FFFF) specialInts.add(val); // #E7FFFFは透過背景色として保護
-  });
+  const specialInts = new Set([0xE7FFFF]);
+  if (specialColors) {
+    specialColors.forEach(hex => specialInts.add(hexToInt(hex)));
+  }
 
   for (let i = 0; i < total; i++) {
     if (isBaseSpecialColor && isBaseSpecialColor[i]) continue;
@@ -137,8 +135,6 @@ export function resolveSpecialColorConflicts(pixels, width, height, specialColor
     const g = pixels[idx + 1];
     const b = pixels[idx + 2];
     const rgbInt = (r << 16) | (g << 8) | b;
-
-    if (rgbInt === 0xE7FFFF) continue;
 
     if (specialInts.has(rgbInt)) {
       pixels[idx] = r > 0 ? r - 1 : r + 1;
