@@ -53,11 +53,14 @@ export class PaintEditor {
     this.polyPoints = [];
     this.selectionMask = null;
 
+    // 補助線設定（2種類の個別色対応）
     this.showGrid = false;
     this.gridStep = 8;
+    this.gridColor = '#00FF66';
     this.showIsoTile = false;
     this.isoTileW = 64;
     this.isoTileH = 32;
+    this.isoColor = '#FFAA00';
 
     this.undoStack = [];
     this.redoStack = [];
@@ -305,14 +308,19 @@ export class PaintEditor {
     bindClick('btn-commit-floating', () => this.clipMgr.commitFloatingLayer());
     bindClick('btn-cancel-floating', () => this.clipMgr.cancelFloatingLayer());
 
+    // 補助線2種類のON/OFF・間隔・色指定イベント
     const chkGrid = document.getElementById('chk-paint-grid');
     const inpGridStep = document.getElementById('inp-paint-grid-step');
+    const inpGridColor = document.getElementById('inp-paint-grid-color');
     const chkIso = document.getElementById('chk-paint-iso');
     const inpIsoW = document.getElementById('inp-paint-iso-w');
     const inpIsoH = document.getElementById('inp-paint-iso-h');
+    const inpIsoColor = document.getElementById('inp-paint-iso-color');
 
     if (chkGrid) chkGrid.onchange = (e) => { this.showGrid = e.target.checked; this._drawOverlay(); };
     if (inpGridStep) inpGridStep.oninput = (e) => { this.gridStep = Math.max(1, Math.min(256, parseInt(e.target.value, 10) || 8)); this._drawOverlay(); };
+    if (inpGridColor) inpGridColor.oninput = (e) => { this.gridColor = e.target.value; this._drawOverlay(); };
+
     if (chkIso) chkIso.onchange = (e) => { this.showIsoTile = e.target.checked; this._drawOverlay(); };
     if (inpIsoW) {
       inpIsoW.oninput = (e) => {
@@ -325,6 +333,7 @@ export class PaintEditor {
       };
     }
     if (inpIsoH) inpIsoH.oninput = (e) => { this.isoTileH = Math.max(2, Math.min(512, parseInt(e.target.value, 10) || 32)); this._drawOverlay(); };
+    if (inpIsoColor) inpIsoColor.oninput = (e) => { this.isoColor = e.target.value; this._drawOverlay(); };
 
     bindClick('btn-paint-apply', () => this.applyAndClose());
     bindClick('btn-paint-cancel', () => this.modal.close());
@@ -690,9 +699,11 @@ export class PaintEditor {
     drawGuidesOverlay(this.oCtx, this.width, this.height, this.zoomLevel, {
       showGrid: this.showGrid,
       gridStep: this.gridStep,
+      gridColor: this.gridColor,
       showIsoTile: this.showIsoTile,
       isoTileW: this.isoTileW,
-      isoTileH: this.isoTileH
+      isoTileH: this.isoTileH,
+      isoColor: this.isoColor
     });
   }
 

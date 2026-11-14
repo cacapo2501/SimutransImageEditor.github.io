@@ -43,12 +43,14 @@ export function renderPaintModalUI() {
             <button id="btn-cancel-floating">✕ 破棄 (Esc)</button>
           </div>
 
+          <!-- 補助線2種類（間隔・サイズ・色指定） -->
           <div class="paint-tool-group guide-control-group">
             <label class="inline-chk-lbl" title="等間隔の直交補助線を表示">
               <input type="checkbox" id="chk-paint-grid"> 補助線:
             </label>
             <input type="number" id="inp-paint-grid-step" class="num-input-mini" value="8" min="1" max="256">
             <span style="font-size:10px; color:#aaa;">px</span>
+            <input type="color" id="inp-paint-grid-color" class="color-input-mini" value="#00FF66" title="補助線の色を選択">
 
             <label class="inline-chk-lbl" style="margin-left:6px;" title="ベースタイルのアイソメトリック菱形を表示">
               <input type="checkbox" id="chk-paint-iso"> タイル菱形:
@@ -58,6 +60,7 @@ export function renderPaintModalUI() {
             <span style="font-size:10px; color:#aaa;">×高</span>
             <input type="number" id="inp-paint-iso-h" class="num-input-mini" value="32" min="2" max="512">
             <span style="font-size:10px; color:#aaa;">px</span>
+            <input type="color" id="inp-paint-iso-color" class="color-input-mini" value="#FFAA00" title="タイル菱形の色を選択">
           </div>
 
           <div class="paint-tool-group">
@@ -73,6 +76,7 @@ export function renderPaintModalUI() {
         </header>
 
         <div id="paint-main-body">
+          <!-- 左側カラー編集ペイン全体を縦スクロール可能に構成 -->
           <aside id="paint-sidebar">
             <div class="sub-panel">
               <legend>描画色</legend>
@@ -108,7 +112,7 @@ export function renderPaintModalUI() {
               <span class="info-text">※右クリックでパレットから色を削除</span>
             </fieldset>
 
-            <fieldset class="sub-panel" style="flex:1; overflow-y:auto;">
+            <fieldset class="sub-panel">
               <legend>カラーパレット一覧</legend>
               <div id="paint-palette-slots"></div>
               <div id="paint-palette-empty-msg" class="info-text" style="display:none; text-align:center; padding:10px 0;">

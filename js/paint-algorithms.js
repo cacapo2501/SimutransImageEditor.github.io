@@ -1,5 +1,10 @@
 import { hexToRgb } from './color-utils.js';
 
+function hexToRgba(hex, alpha = 1.0) {
+  const [r, g, b] = hexToRgb(hex || '#FFFFFF');
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 // 連続直線描画 (Bresenhamアルゴリズム)
 export function drawLineContinuous(x0, y0, x1, y1, setPixel) {
   let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
@@ -96,7 +101,7 @@ export function colorSelectMask(ctx, width, height, startX, startY) {
   return mask;
 }
 
-// 多角形選択マスク生成 (Ray-casting + 外周ピクセル補完)
+// 多角形選択マスク生成
 export function rasterizePolygonMask(width, height, polyPoints) {
   const mask = new Uint8Array(width * height);
   if (polyPoints.length < 3) return mask;
@@ -171,15 +176,16 @@ export function drawSelectionOverlay(oCtx, width, height, selectionMask) {
   }
 }
 
-// 補助線（直交グリッド）＆ ベースタイル菱形表示
+// 補助線（直交グリッド）＆ ベースタイル菱形表示（個別カラー対応・視認性最適化）
 export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
-  const lineW = 1 / Math.max(1, zoomLevel);
+  // 高倍率ズームでもサブピクセル補間で消えない適切な線幅を確保
+  const lineW = Math.max(0.45, 1.2 / Math.max(1, zoomLevel * 0.5));
 
   // 1. 等間隔直交補助線
   if (opts.showGrid && opts.gridStep >= 1) {
     oCtx.save();
     oCtx.lineWidth = lineW;
-    oCtx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    oCtx.strokeStyle = hexToRgba(opts.gridColor || '#00FF66', 0.78);
     oCtx.beginPath();
 
     for (let x = opts.gridStep; x < width; x += opts.gridStep) {
@@ -201,10 +207,11 @@ export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
     const m = Th / Tw;
     const anchorX = width / 2;
     const anchorY = height;
+    const isoHex = opts.isoColor || '#FFAA00';
 
     oCtx.save();
     oCtx.lineWidth = lineW;
-    oCtx.strokeStyle = 'rgba(255, 170, 0, 0.35)';
+    oCtx.strokeStyle = hexToRgba(isoHex, 0.6);
     oCtx.beginPath();
 
     const c1Base = anchorY + m * anchorX;
@@ -226,9 +233,9 @@ export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
     }
     oCtx.stroke();
 
-    // 最下段1タイルの基準菱形枠を強調表示
-    oCtx.lineWidth = lineW * 1.5;
-    oCtx.strokeStyle = 'rgba(0, 230, 255, 0.8)';
+    // 最下段1タイルの基準菱形枠を同系色で強調表示
+    oCtx.lineWidth = lineW * 1.4;
+    oCtx.strokeStyle = hexToRgba(isoHex, 0.95);
     oCtx.beginPath();
     oCtx.moveTo(anchorX, anchorY);
     oCtx.lineTo(anchorX + Tw / 2, anchorY - Th / 2);
