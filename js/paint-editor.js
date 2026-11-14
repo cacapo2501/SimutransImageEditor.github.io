@@ -11,6 +11,8 @@ import {
 } from './paint-algorithms.js';
 import { PaintClipboardManager } from './paint-clipboard.js';
 import { PaintDialogs } from './paint-dialogs.js';
+import { renderPaintModalUI } from './ui-paint-modal.js';
+import { renderSubModalsUI } from './ui-sub-modals.js';
 
 export class PaintEditor {
   constructor(app) {
@@ -19,21 +21,23 @@ export class PaintEditor {
     this.width = 0;
     this.height = 0;
 
+    // 確実にモーダルDOMが存在するよう保証
+    renderPaintModalUI();
+    renderSubModalsUI();
+
     this.modal = document.getElementById('modal-paint-editor');
     this.canvas = document.getElementById('paint-canvas');
-    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+    this.ctx = this.canvas ? this.canvas.getContext('2d', { willReadFrequently: true }) : null;
     this.overlayCanvas = document.getElementById('paint-overlay-canvas');
-    this.oCtx = this.overlayCanvas.getContext('2d');
+    this.oCtx = this.overlayCanvas ? this.overlayCanvas.getContext('2d') : null;
     this.viewport = document.getElementById('paint-viewport');
 
-    // サブマネージャー初期化
     this.clipMgr = new PaintClipboardManager(this);
     this.dialogs = new PaintDialogs(this);
 
-    // 描画・選択状態
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
-    this.selectionMode = 'replace'; // 'replace' | 'add' | 'subtract' | 'intersect'
+    this.selectionMode = 'replace';
     this.zoomLevel = 8.0;
     this.panX = 40;
     this.panY = 40;
@@ -42,7 +46,6 @@ export class PaintEditor {
     this.isDrawing = false;
     this.lastDrawPos = null;
 
-    // タッチ操作用
     this.touchStartDist = null;
     this.touchStartZoom = 1.0;
     this.touchStartPan = [0, 0];
@@ -54,7 +57,6 @@ export class PaintEditor {
     this.polyPoints = [];
     this.selectionMask = null;
 
-    // 補助線設定
     this.showGrid = false;
     this.gridStep = 8;
     this.showIsoTile = false;
@@ -68,7 +70,6 @@ export class PaintEditor {
     this._bindEvents();
   }
 
-  // ProjectIO等からの既存互換インターフェース
   get keybindings() { return this.dialogs.keybindings; }
   saveKeybindings() { this.dialogs.saveKeybindings(); }
 
@@ -120,9 +121,7 @@ export class PaintEditor {
   }
 
   applyAndClose() {
-    if (this.clipMgr.floatingLayer) {
-      this.clipMgr.commitFloatingLayer();
-    }
+    if (this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
 
     const outCanvas = document.createElement('canvas');
     outCanvas.width = this.width;
@@ -151,15 +150,10 @@ export class PaintEditor {
   }
 
   undo() {
-    if (this.clipMgr.floatingLayer) {
-      this.clipMgr.cancelFloatingLayer();
-      return;
-    }
+    if (this.clipMgr.floatingLayer) { this.clipMgr.cancelFloatingLayer(); return; }
     if (this.undoStack.length <= 1) return;
-    const cur = this.undoStack.pop();
-    this.redoStack.push(cur);
-    const prev = this.undoStack[this.undoStack.length - 1];
-    this.ctx.putImageData(prev, 0, 0);
+    this.redoStack.push(this.undoStack.pop());
+    this.ctx.putImageData(this.undoStack[this.undoStack.length - 1], 0, 0);
     this._drawOverlay();
   }
 
@@ -174,63 +168,59 @@ export class PaintEditor {
   _renderPaletteUI() {
     const container = document.getElementById('paint-palette-slots');
     const emptyMsg = document.getElementById('paint-palette-empty-msg');
+    if (!container) return;
     container.innerHTML = '';
 
     const pm = this.app.paletteManager;
     let colors = [];
 
-    if (this.targetType === 'base') {
-      document.getElementById('base-palette-tools').style.display = 'block';
-      document.getElementById('mask-palette-tools').style.display = 'none';
+    const baseTools = document.getElementById('base-palette-tools');
+    const maskTools = document.getElementById('mask-palette-tools');
 
+    if (this.targetType === 'base') {
+      if (baseTools) baseTools.style.display = 'block';
+      if (maskTools) maskTools.style.display = 'none';
       if (pm.basePalette.length === 0) pm.generateBasePalette();
       colors = [...pm.basePalette];
-
       if (this.app.specialColors && this.app.specialColors.size > 0) {
         colors.push(...Array.from(this.app.specialColors));
       }
     } else {
-      document.getElementById('base-palette-tools').style.display = 'none';
-      document.getElementById('mask-palette-tools').style.display = 'block';
+      if (baseTools) baseTools.style.display = 'none';
+      if (maskTools) maskTools.style.display = 'block';
       colors = [...pm.maskPalette];
     }
 
-    if (colors.length === 0) {
-      emptyMsg.style.display = 'block';
-    } else {
-      emptyMsg.style.display = 'none';
-      colors.forEach(hex => {
-        const btn = document.createElement('button');
-        btn.className = 'palette-color-btn';
-        btn.style.backgroundColor = hex;
-        btn.title = hex + (this.targetType === 'mask' ? ' (右クリックで削除)' : '');
-        btn.onclick = () => {
-          this.currentColor = hex;
-          this._updateCurrentColorUI();
+    if (emptyMsg) emptyMsg.style.display = colors.length === 0 ? 'block' : 'none';
+
+    colors.forEach(hex => {
+      const btn = document.createElement('button');
+      btn.className = 'palette-color-btn';
+      btn.style.backgroundColor = hex;
+      btn.title = hex + (this.targetType === 'mask' ? ' (右クリックで削除)' : '');
+      btn.onclick = () => { this.currentColor = hex; this._updateCurrentColorUI(); };
+
+      if (this.targetType === 'mask') {
+        btn.oncontextmenu = (e) => {
+          e.preventDefault();
+          if (confirm(`マスクパレットから色 ${hex} を削除しますか？`)) {
+            pm.removeColorFromMaskPalette(hex);
+            this._renderPaletteUI();
+          }
         };
+      }
+      container.appendChild(btn);
+    });
 
-        if (this.targetType === 'mask') {
-          btn.oncontextmenu = (e) => {
-            e.preventDefault();
-            if (confirm(`マスクパレットから色 ${hex} を削除しますか？`)) {
-              pm.removeColorFromMaskPalette(hex);
-              this._renderPaletteUI();
-            }
-          };
-        }
-        container.appendChild(btn);
-      });
-    }
-
-    if (colors.length > 0 && !colors.includes(this.currentColor)) {
-      this.currentColor = colors[0];
-    }
+    if (colors.length > 0 && !colors.includes(this.currentColor)) this.currentColor = colors[0];
     this._updateCurrentColorUI();
   }
 
   _updateCurrentColorUI() {
-    document.getElementById('paint-current-color-swatch').style.backgroundColor = this.currentColor;
-    document.getElementById('paint-current-color-hex').textContent = this.currentColor;
+    const sw = document.getElementById('paint-current-color-swatch');
+    const hx = document.getElementById('paint-current-color-hex');
+    if (sw) sw.style.backgroundColor = this.currentColor;
+    if (hx) hx.textContent = this.currentColor;
   }
 
   _updateTransform() {
@@ -240,7 +230,8 @@ export class PaintEditor {
     this.canvas.style.transform = tStr;
     this.overlayCanvas.style.transformOrigin = '0 0';
     this.overlayCanvas.style.transform = tStr;
-    document.getElementById('paint-lbl-zoom').textContent = `${Math.round(s * 100)}%`;
+    const lbl = document.getElementById('paint-lbl-zoom');
+    if (lbl) lbl.textContent = `${Math.round(s * 100)}%`;
   }
 
   _showHint(msg) {
@@ -249,7 +240,11 @@ export class PaintEditor {
   }
 
   _bindEvents() {
-    // ツール切替
+    const bindClick = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.onclick = fn;
+    };
+
     document.querySelectorAll('.paint-tool-btn').forEach(btn => {
       btn.onclick = () => {
         if (this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
@@ -265,7 +260,6 @@ export class PaintEditor {
       };
     });
 
-    // 選択範囲演算モード切替
     document.querySelectorAll('.sel-mode-btn').forEach(btn => {
       btn.onclick = () => {
         document.querySelectorAll('.sel-mode-btn').forEach(b => b.classList.remove('active'));
@@ -275,17 +269,14 @@ export class PaintEditor {
       };
     });
 
-    // コピー・貼付・外部画像・上下/左右反転
-    document.getElementById('btn-paint-copy').onclick = () => this.clipMgr.copySelection();
-    document.getElementById('btn-paint-paste').onclick = () => this.clipMgr.pasteClipboard();
-    document.getElementById('btn-paint-import-img').onclick = () => this.clipMgr.importExternalImage();
-    document.getElementById('btn-paint-flip-h').onclick = () => this.clipMgr.flipHorizontal();
-    document.getElementById('btn-paint-flip-v').onclick = () => this.clipMgr.flipVertical();
+    bindClick('btn-paint-copy', () => this.clipMgr.copySelection());
+    bindClick('btn-paint-paste', () => this.clipMgr.pasteClipboard());
+    bindClick('btn-paint-import-img', () => this.clipMgr.importExternalImage());
+    bindClick('btn-paint-flip-h', () => this.clipMgr.flipHorizontal());
+    bindClick('btn-paint-flip-v', () => this.clipMgr.flipVertical());
+    bindClick('btn-commit-floating', () => this.clipMgr.commitFloatingLayer());
+    bindClick('btn-cancel-floating', () => this.clipMgr.cancelFloatingLayer());
 
-    document.getElementById('btn-commit-floating').onclick = () => this.clipMgr.commitFloatingLayer();
-    document.getElementById('btn-cancel-floating').onclick = () => this.clipMgr.cancelFloatingLayer();
-
-    // 補助線＆ベースタイル菱形オプション
     const chkGrid = document.getElementById('chk-paint-grid');
     const inpGridStep = document.getElementById('inp-paint-grid-step');
     const chkIso = document.getElementById('chk-paint-iso');
@@ -307,41 +298,40 @@ export class PaintEditor {
     }
     if (inpIsoH) inpIsoH.oninput = (e) => { this.isoTileH = Math.max(2, Math.min(512, parseInt(e.target.value, 10) || 32)); this._drawOverlay(); };
 
-    // 完了・キャンセル・Undo/Redo・選択解除
-    document.getElementById('btn-paint-apply').onclick = () => this.applyAndClose();
-    document.getElementById('btn-paint-cancel').onclick = () => this.modal.close();
-    document.getElementById('btn-paint-undo').onclick = () => this.undo();
-    document.getElementById('btn-paint-redo').onclick = () => this.redo();
-    document.getElementById('btn-paint-clear-sel').onclick = () => {
+    bindClick('btn-paint-apply', () => this.applyAndClose());
+    bindClick('btn-paint-cancel', () => this.modal.close());
+    bindClick('btn-paint-undo', () => this.undo());
+    bindClick('btn-paint-redo', () => this.redo());
+    bindClick('btn-paint-clear-sel', () => {
       this.selectionMask = null;
       this.polyPoints = [];
       this._drawOverlay();
-    };
+    });
 
-    // パレット操作・ダイアログ呼出
-    document.getElementById('btn-gen-base-palette').onclick = () => {
+    bindClick('btn-gen-base-palette', () => {
       const pm = this.app.paletteManager;
       pm.basePaletteConfig.brightestHex = document.getElementById('inp-gray-max').value.trim() || '#FEFEFE';
       pm.basePaletteConfig.darkestHex = document.getElementById('inp-gray-min').value.trim() || '#404040';
       pm.basePaletteConfig.steps = parseInt(document.getElementById('inp-gray-steps').value, 10) || 16;
       pm.generateBasePalette();
       this._renderPaletteUI();
-    };
+    });
 
-    document.getElementById('btn-add-mask-custom-color').onclick = async () => {
+    bindClick('btn-add-mask-custom-color', async () => {
       const picked = await this.app.colorPicker.open(this.currentColor || '#FFFFFF');
       if (picked) {
         this.app.paletteManager.addColorToMaskPalette(picked);
         this.currentColor = picked;
         this._renderPaletteUI();
       }
-    };
+    });
 
-    document.getElementById('btn-open-image-sampler').onclick = () => this.dialogs.openSamplerModal();
-    document.getElementById('btn-open-color-replace').onclick = () => this.dialogs.openColorReplaceDialog();
-    document.getElementById('btn-paint-keybindings').onclick = () => this.dialogs.openKeybindingDialog();
+    bindClick('btn-open-image-sampler', () => this.dialogs.openSamplerModal());
+    bindClick('btn-open-color-replace', () => this.dialogs.openColorReplaceDialog());
+    bindClick('btn-paint-keybindings', () => this.dialogs.openKeybindingDialog());
 
-    // ホイールズーム
+    if (!this.viewport) return;
+
     this.viewport.onwheel = (e) => {
       e.preventDefault();
       const delta = e.deltaY < 0 ? 1.25 : 0.8;
@@ -364,7 +354,6 @@ export class PaintEditor {
       return { px, py };
     };
 
-    // マウスイベント
     this.viewport.onmousedown = (e) => {
       if (e.button === 1 || e.button === 2 || e.spaceKey) {
         this.isPanning = true;
@@ -391,7 +380,8 @@ export class PaintEditor {
       }
       if (!this.modal.open) return;
       const { px, py } = getPixelCoords(e.clientX, e.clientY);
-      document.getElementById('paint-lbl-coord').textContent = `X: ${px}, Y: ${py}`;
+      const coordLbl = document.getElementById('paint-lbl-coord');
+      if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py}`;
       this._handlePointerMove(px, py);
     });
 
@@ -401,7 +391,6 @@ export class PaintEditor {
       this._handlePointerUp(px, py);
     });
 
-    // タブレット用マルチタッチ操作
     this.viewport.addEventListener('touchstart', (e) => {
       if (!this.modal.open) return;
       e.preventDefault();
@@ -427,7 +416,8 @@ export class PaintEditor {
       if (e.touches.length === 1) {
         const t = e.touches[0];
         const { px, py } = getPixelCoords(t.clientX, t.clientY);
-        document.getElementById('paint-lbl-coord').textContent = `X: ${px}, Y: ${py}`;
+        const coordLbl = document.getElementById('paint-lbl-coord');
+        if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py}`;
         this._handlePointerMove(px, py);
       } else if (e.touches.length === 2 && this.touchStartDist) {
         const t1 = e.touches[0], t2 = e.touches[1];
@@ -455,7 +445,6 @@ export class PaintEditor {
       }
     }, { passive: false });
 
-    // キーボードショートカット
     window.addEventListener('keydown', (e) => {
       if (!this.modal.open) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -621,14 +610,9 @@ export class PaintEditor {
 
   _drawOverlay(curPos = null) {
     this.oCtx.clearRect(0, 0, this.width, this.height);
-
-    // 1. フローティング貼り付け画像
     this.clipMgr.drawFloatingOverlay(this.oCtx, this.zoomLevel);
-
-    // 2. 選択範囲ハイライトと境界線
     drawSelectionOverlay(this.oCtx, this.width, this.height, this.selectionMask);
 
-    // 3. 各種描画プレビュー
     if (this.currentTool === 'line' && this.lineStart && curPos) {
       this.oCtx.fillStyle = this.currentColor;
       drawLineContinuous(this.lineStart[0], this.lineStart[1], curPos[0], curPos[1], (x, y) => this.oCtx.fillRect(x, y, 1, 1));
@@ -650,7 +634,6 @@ export class PaintEditor {
       this.oCtx.fillRect(x, y, w, h);
     }
 
-    // 4. 多角形選択ラバーバンド
     if (this.polyPoints.length > 0) {
       this.oCtx.lineWidth = 1 / Math.max(1, this.zoomLevel * 0.5);
       this.oCtx.strokeStyle = '#00FF66';
@@ -678,7 +661,6 @@ export class PaintEditor {
       });
     }
 
-    // 5. 補助線＆ベースタイル菱形表示
     drawGuidesOverlay(this.oCtx, this.width, this.height, this.zoomLevel, {
       showGrid: this.showGrid,
       gridStep: this.gridStep,
@@ -695,7 +677,10 @@ export class PaintEditor {
       subtract: '－一部削除',
       intersect: '×乗算(交差)'
     };
-    document.getElementById('paint-lbl-tool').textContent = `ツール: ${this.currentTool} | 選択モード: ${modeNames[this.selectionMode] || this.selectionMode}`;
+    const toolLbl = document.getElementById('paint-lbl-tool');
+    if (toolLbl) {
+      toolLbl.textContent = `ツール: ${this.currentTool} | 選択モード: ${modeNames[this.selectionMode] || this.selectionMode}`;
+    }
 
     if (this.currentTool === 'polySelect') {
       this._showHint('クリックで頂点追加 / 始点クリック・ダブルクリック・Enterで確定 / Escで取消');
