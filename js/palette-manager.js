@@ -4,7 +4,6 @@ export class PaletteManager {
   constructor(app) {
     this.app = app;
 
-    // ベース画像パレット設定 (デフォルト: #FEFEFE 〜 #404040, 16段階)
     this.basePaletteConfig = {
       brightestHex: '#FEFEFE',
       darkestHex: '#404040',
@@ -12,11 +11,10 @@ export class PaletteManager {
     };
     this.basePalette = [];
 
-    // ★ マスク画像パレット：デフォルトは空 ★
+    // マスク画像パレット：デフォルトは空
     this.maskPalette = [];
   }
 
-  // ベース画像用グレースケールパレット生成
   generateBasePalette() {
     const { brightestHex, darkestHex, steps } = this.basePaletteConfig;
     const [bMax] = hexToRgb(brightestHex);
@@ -28,7 +26,6 @@ export class PaletteManager {
       const t = i / (count - 1);
       let v = Math.round((1 - t) * bMax + t * bMin);
 
-      // SpecialColorと一致した場合は R, G, B ともに -1
       const currentHex = rgbToHex(v, v, v);
       if (this.app.specialColors && this.app.specialColors.has(currentHex)) {
         v = Math.max(0, v - 1);
@@ -40,7 +37,6 @@ export class PaletteManager {
     return this.basePalette;
   }
 
-  // マスクパレットに任意色を追加
   addColorToMaskPalette(hex) {
     if (!hex) return;
     const cleanHex = hex.toUpperCase();
@@ -49,13 +45,11 @@ export class PaletteManager {
     }
   }
 
-  // マスクパレットから色を削除
   removeColorFromMaskPalette(hex) {
     const cleanHex = hex.toUpperCase();
     this.maskPalette = this.maskPalette.filter(c => c !== cleanHex);
   }
 
-  // CORS例外を安全に処理する画像非同期ロード
   async loadImageSafely(source) {
     if (source instanceof File || source instanceof Blob) {
       return new Promise((resolve, reject) => {
@@ -87,7 +81,7 @@ export class PaletteManager {
         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlStr)}`;
         return await tryLoad(proxyUrl);
       } catch (e2) {
-        throw new Error('外部サイトのセキュリティ制限(CORS)によりURLから直接読み込めませんでした。\nお手数ですが画像を保存し、「ローカル画像を選択」から読み込んでください。');
+        throw new Error('外部サイトのセキュリティ制限(CORS)によりURLから直接画像を読み込めませんでした。\nお手数ですが画像を保存し、「ローカル画像を選択」から読み込んでください。');
       }
     }
   }
