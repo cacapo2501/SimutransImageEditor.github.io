@@ -42,7 +42,6 @@ function safePickFile(accept = '.png') {
 
 class AdvancedMultiplyApp {
   constructor() {
-    // 各UIテンプレートを同期的にDOMへ構築
     renderSidebarUI();
     renderPaintModalUI();
     renderSubModalsUI();
@@ -100,6 +99,7 @@ class AdvancedMultiplyApp {
     this.toneTintCtrl = new ToneTintController(this);
 
     this._bindCoreEvents();
+    this._bindNewImageModalEvents();
     this.layerManager.bindEvents();
     this.toneTintCtrl.bindEvents();
     this._bindDragAndDrop();
@@ -137,9 +137,7 @@ class AdvancedMultiplyApp {
             return;
           }
         }
-      } catch (err) {
-        console.warn(`Failed to fetch ${filename}:`, err);
-      }
+      } catch (err) {}
     }
 
     if (infoLabel && this.specialColors.size === 0) {
@@ -149,7 +147,30 @@ class AdvancedMultiplyApp {
 
   markDirty() { this.isDirty = true; }
 
-  applyBaseImage(img, name) {
+  resetMaskState() {
+    this.maskImage = null;
+    this.maskName = 'mask.png';
+    this.maskRgb = null;
+    this.maskColors = [];
+    this.maskTintColors.clear();
+    this.maskToneOverrides.clear();
+
+    this.layers.forEach(l => {
+      l.targetMaskColor = null;
+      l.excludeMaskColor = false;
+    });
+    this.layerManager.syncActiveUI();
+    this.toneTintCtrl.updateMaskCombos();
+    this.toneTintCtrl.updateTintTable();
+
+    const info = document.getElementById('lbl-mask-info');
+    if (info) info.textContent = 'マスク: 未読込';
+  }
+
+  applyBaseImage(img, name, { resetMask = true } = {}) {
+    if (resetMask) {
+      this.resetMaskState();
+    }
     MaskGenerator.analyzeBaseImage(this, img, name);
     if (!this.maskImage) {
       MaskGenerator.generateFromBase(this);
@@ -159,9 +180,30 @@ class AdvancedMultiplyApp {
   async loadBaseFromFile(file) {
     if (!file) return;
     const img = await loadImageAsync(URL.createObjectURL(file));
-    this.applyBaseImage(img, file.name);
+    this.applyBaseImage(img, file.name, { resetMask: true });
     this.isDirty = false;
     this.zoomFit();
+  }
+
+  createNewBlankBaseImage(width, height, openPaint = true) {
+    const w = Math.max(1, Math.min(2048, parseInt(width, 10) || 64));
+    const h = Math.max(1, Math.min(2048, parseInt(height, 10) || 96));
+
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#E7FFFF';
+    ctx.fillRect(0, 0, w, h);
+
+    this.applyBaseImage(c, `new_${w}x${h}.png`, { resetMask: true });
+    this.isDirty = false;
+    this.zoomFit();
+    this.render();
+
+    if (openPaint) {
+      this.paintEditor.open('base');
+    }
   }
 
   applyMaskImage(img, name) {
@@ -172,6 +214,10 @@ class AdvancedMultiplyApp {
 
   async loadMaskFromFile(file) {
     if (!file) return;
+    if (!this.baseImage) {
+      alert('先にベース画像を開くか、新規作成してください。');
+      return;
+    }
     const img = await loadImageAsync(URL.createObjectURL(file));
     this.applyMaskImage(img, file.name);
     this.markDirty();
@@ -192,7 +238,7 @@ class AdvancedMultiplyApp {
       this.ctx.fillStyle = '#666';
       this.ctx.font = '14px sans-serif';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText('ベースPNGを読み込んでください', this.canvas.width / 2, this.canvas.height / 2);
+      this.ctx.fillText('ベースPNGを読み込むか、「🆕 新規作成 (#E7FFFF)」を押してください', this.canvas.width / 2, this.canvas.height / 2);
       return;
     }
 
@@ -278,6 +324,41 @@ class AdvancedMultiplyApp {
     }
   }
 
+  _openNewImageModal() {
+    renderSubModalsUI();
+    this._bindNewImageModalEvents();
+    const modal = document.getElementById('modal-new-image');
+    if (!modal) return;
+    if (typeof modal.showModal === 'function') {
+      modal.showModal();
+    } else {
+      modal.setAttribute('open', '');
+    }
+  }
+
+  _bindNewImageModalEvents() {
+    const modal = document.getElementById('modal-new-image');
+    if (!modal || modal.dataset.bound === '1') return;
+    modal.dataset.bound = '1';
+
+    document.querySelectorAll('.btn-preset-size').forEach(btn => {
+      btn.onclick = () => {
+        document.getElementById('inp-new-width').value = btn.dataset.w;
+        document.getElementById('inp-new-height').value = btn.dataset.h;
+      };
+    });
+
+    document.getElementById('btn-new-img-ok').onclick = () => {
+      const w = parseInt(document.getElementById('inp-new-width').value, 10) || 64;
+      const h = parseInt(document.getElementById('inp-new-height').value, 10) || 96;
+      const openPaint = document.getElementById('chk-new-open-paint').checked;
+      modal.close();
+      this.createNewBlankBaseImage(w, h, openPaint);
+    };
+
+    document.getElementById('btn-new-img-cancel').onclick = () => modal.close();
+  }
+
   _bindDragAndDrop() {
     this.viewport.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -300,6 +381,11 @@ class AdvancedMultiplyApp {
   }
 
   _bindCoreEvents() {
+    const btnNew = document.getElementById('btn-new-base');
+    if (btnNew) {
+      btnNew.onclick = () => this._openNewImageModal();
+    }
+
     document.getElementById('btn-load-base').onclick = async () => {
       const f = await safePickFile('.png');
       if (f) this.loadBaseFromFile(f);
@@ -311,10 +397,21 @@ class AdvancedMultiplyApp {
     document.getElementById('btn-save-base').onclick = () => ProjectIO.exportBasePng(this);
     document.getElementById('btn-save-mask').onclick = () => ProjectIO.exportMaskPng(this);
 
-    document.getElementById('btn-paint-base').onclick = () => this.paintEditor.open('base');
-    document.getElementById('btn-paint-mask').onclick = async () => {
-      if (!this.maskImage && this.baseImage) {
-        await MaskGenerator.generateFromBase(this);
+    document.getElementById('btn-paint-base').onclick = () => {
+      if (!this.baseImage) {
+        this._openNewImageModal();
+        return;
+      }
+      this.paintEditor.open('base');
+    };
+
+    document.getElementById('btn-paint-mask').onclick = () => {
+      if (!this.baseImage) {
+        alert('先にベース画像を開くか、新規作成してください。');
+        return;
+      }
+      if (!this.maskImage) {
+        MaskGenerator.generateFromBase(this);
       }
       this.paintEditor.open('mask');
     };

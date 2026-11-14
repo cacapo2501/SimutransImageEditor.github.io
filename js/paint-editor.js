@@ -1,59 +1,10 @@
-import { rgbToHex } from './color-utils.js';
-import {
-  drawLineContinuous,
-  floodFill,
-  magicWandMask,
-  colorSelectMask,
-  rasterizePolygonMask,
-  renderTextPixels,
-  drawSelectionOverlay,
-  drawGuidesOverlay
-} from './paint-algorithms.js';
 import { PaintClipboardManager } from './paint-clipboard.js';
 import { PaintDialogs } from './paint-dialogs.js';
+import { PaintResizeController, cloneCanvasFromSource } from './paint-resize.js';
+import { PaintInputController } from './paint-input.js';
+import { PaintToolHandler } from './paint-tools.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
-
-function resizeSourceCanvas(srcSource, oldW, oldH, newW, newH, mode, anchor, fillHex = '#E7FFFF') {
-  const out = document.createElement('canvas');
-  out.width = newW;
-  out.height = newH;
-  const ctx = out.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-
-  if (mode === 'scale') {
-    ctx.drawImage(srcSource, 0, 0, oldW, oldH, 0, 0, newW, newH);
-    return out;
-  }
-
-  // キャンバス拡張・切り抜き：余白を #E7FFFF で塗りつぶし
-  ctx.fillStyle = fillHex;
-  ctx.fillRect(0, 0, newW, newH);
-
-  let dx = 0, dy = 0;
-  if (anchor === 'bottom-center') {
-    dx = Math.floor((newW - oldW) / 2);
-    dy = newH - oldH;
-  } else if (anchor === 'center') {
-    dx = Math.floor((newW - oldW) / 2);
-    dy = Math.floor((newH - oldH) / 2);
-  }
-  ctx.drawImage(srcSource, dx, dy);
-  return out;
-}
-
-function cloneCanvasFromSource(src) {
-  if (!src) return null;
-  const w = src.naturalWidth || src.width;
-  const h = src.naturalHeight || src.height;
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(src, 0, 0);
-  return c;
-}
 
 export class PaintEditor {
   constructor(app) {
@@ -69,8 +20,12 @@ export class PaintEditor {
     this.overlayCanvas = null;
     this.oCtx = null;
     this.viewport = null;
+
     this.clipMgr = null;
     this.dialogs = null;
+    this.resizeCtrl = null;
+    this.inputCtrl = null;
+    this.toolHandler = null;
 
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
@@ -78,15 +33,8 @@ export class PaintEditor {
     this.zoomLevel = 8.0;
     this.panX = 40;
     this.panY = 40;
-    this.isPanning = false;
-    this.panStart = [0, 0];
     this.isDrawing = false;
     this.lastDrawPos = null;
-
-    this.touchStartDist = null;
-    this.touchStartZoom = 1.0;
-    this.touchStartPan = [0, 0];
-    this.touchStartCenter = [0, 0];
 
     this.lineStart = null;
     this.rectFillStart = null;
@@ -102,7 +50,6 @@ export class PaintEditor {
     this.isoTileH = 32;
     this.isoColor = '#FFAA00';
 
-    // 履歴スタック: { imageData, width, height, maskCanvas }
     this.undoStack = [];
     this.redoStack = [];
     this.maxUndo = 25;
@@ -128,9 +75,12 @@ export class PaintEditor {
     this.oCtx = this.overlayCanvas.getContext('2d');
     this.clipMgr = new PaintClipboardManager(this);
     this.dialogs = new PaintDialogs(this);
+    this.resizeCtrl = new PaintResizeController(this);
+    this.inputCtrl = new PaintInputController(this);
+    this.toolHandler = new PaintToolHandler(this);
 
-    this._bindEvents();
-    this._bindResizeModalEvents();
+    this.resizeCtrl.bindEvents();
+    this.inputCtrl.bindAll();
     this.initialized = true;
     return true;
   }
@@ -154,7 +104,6 @@ export class PaintEditor {
       return;
     }
 
-    // ベース画像編集時のみサイズ変更ボタンを表示し、マスク画像編集時は非表示にする
     const btnResize = document.getElementById('btn-paint-resize');
     if (btnResize) {
       btnResize.style.display = targetType === 'base' ? 'inline-block' : 'none';
@@ -183,7 +132,11 @@ export class PaintEditor {
     this._pushHistory();
 
     this._renderPaletteUI();
-    this.modal.showModal();
+    if (typeof this.modal.showModal === 'function') {
+      this.modal.showModal();
+    } else {
+      this.modal.setAttribute('open', '');
+    }
 
     requestAnimationFrame(() => {
       const vw = this.viewport.clientWidth;
@@ -207,7 +160,6 @@ export class PaintEditor {
     outCanvas.height = this.height;
     outCanvas.getContext('2d').drawImage(this.canvas, 0, 0);
 
-    // 現在の履歴先頭に連動マスクが保持されていればメインアプリへも確定反映
     const latestState = this.undoStack[this.undoStack.length - 1];
     if (this.targetType === 'base' && latestState && latestState.maskCanvas) {
       this.app.applyBaseImage(outCanvas, this.app.baseName, { resetMask: false });
@@ -224,7 +176,6 @@ export class PaintEditor {
   }
 
   _cancelAndClose() {
-    // ベース編集時のリサイズをキャンセルした場合、初期状態のマスク画像へ戻す
     if (this.targetType === 'base' && this.undoStack.length > 0 && this.undoStack[0].maskCanvas) {
       this.app.applyMaskImage(this.undoStack[0].maskCanvas, this.app.maskName);
       this.app.render();
@@ -238,12 +189,7 @@ export class PaintEditor {
       ? cloneCanvasFromSource(this.app.maskImage)
       : null;
 
-    this.undoStack.push({
-      imageData: data,
-      width: this.width,
-      height: this.height,
-      maskCanvas: maskSnap
-    });
+    this.undoStack.push({ imageData: data, width: this.width, height: this.height, maskCanvas: maskSnap });
     if (this.undoStack.length > this.maxUndo) this.undoStack.shift();
     this.redoStack = [];
   }
@@ -283,81 +229,6 @@ export class PaintEditor {
     const next = this.redoStack.pop();
     this.undoStack.push(next);
     this._restoreHistoryState(next);
-  }
-
-  // --- ★ ベース画像サイズ変更（マスク画像も連動してリサイズ） ★ ---
-  _bindResizeModalEvents() {
-    const modal = document.getElementById('modal-resize-image');
-    if (!modal) return;
-
-    document.querySelectorAll('input[name="resize-mode"]').forEach(r => {
-      r.onchange = (e) => {
-        const anchorRow = document.getElementById('row-resize-anchor');
-        if (anchorRow) anchorRow.style.display = e.target.value === 'canvas' ? 'flex' : 'none';
-      };
-    });
-
-    document.getElementById('btn-resize-ok').onclick = () => {
-      const newW = Math.max(1, Math.min(2048, parseInt(document.getElementById('inp-resize-width').value, 10) || this.width));
-      const newH = Math.max(1, Math.min(2048, parseInt(document.getElementById('inp-resize-height').value, 10) || this.height));
-      const modeEl = document.querySelector('input[name="resize-mode"]:checked');
-      const mode = modeEl ? modeEl.value : 'canvas';
-      const anchor = document.getElementById('sel-resize-anchor').value || 'bottom-center';
-
-      modal.close();
-      if (newW === this.width && newH === this.height) return;
-
-      this._resizeBaseAndMask(newW, newH, mode, anchor);
-    };
-
-    document.getElementById('btn-resize-cancel').onclick = () => modal.close();
-  }
-
-  _openResizeDialog() {
-    if (this.targetType !== 'base') return;
-    if (this.clipMgr && this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
-
-    const modal = document.getElementById('modal-resize-image');
-    if (!modal) return;
-    document.getElementById('lbl-resize-current').textContent = `現在のサイズ: ${this.width} × ${this.height} px`;
-    document.getElementById('inp-resize-width').value = this.width;
-    document.getElementById('inp-resize-height').value = this.height;
-    modal.showModal();
-  }
-
-  _resizeBaseAndMask(newW, newH, mode, anchor) {
-    const oldW = this.width;
-    const oldH = this.height;
-
-    // 1. ベースキャンバスをリサイズ
-    const resizedBase = resizeSourceCanvas(this.canvas, oldW, oldH, newW, newH, mode, anchor, '#E7FFFF');
-
-    this.width = newW;
-    this.height = newH;
-    this.canvas.width = newW;
-    this.canvas.height = newH;
-    this.overlayCanvas.width = newW;
-    this.overlayCanvas.height = newH;
-    this.ctx.imageSmoothingEnabled = false;
-    this.ctx.drawImage(resizedBase, 0, 0);
-
-    // 2. マスク画像も連動して同じサイズ・方式・基準でリサイズ
-    if (this.app.maskImage) {
-      const mOldW = this.app.maskImage.naturalWidth || this.app.maskImage.width || oldW;
-      const mOldH = this.app.maskImage.naturalHeight || this.app.maskImage.height || oldH;
-      const resizedMask = resizeSourceCanvas(this.app.maskImage, mOldW, mOldH, newW, newH, mode, anchor, '#E7FFFF');
-      this.app.baseW = newW;
-      this.app.baseH = newH;
-      this.app.applyMaskImage(resizedMask, this.app.maskName);
-    }
-
-    this.selectionMask = null;
-    this.polyPoints = [];
-    this._pushHistory();
-    this._updateTransform();
-    this._drawOverlay();
-    this._updateStatus();
-    this._showHint(`サイズを ${newW}×${newH}px に変更しました（マスク画像も連動変更済）`);
   }
 
   _renderPaletteUI() {
@@ -434,372 +305,6 @@ export class PaintEditor {
     if (hintEl) hintEl.textContent = msg;
   }
 
-  _bindEvents() {
-    const bindClick = (id, fn) => {
-      const el = document.getElementById(id);
-      if (el) el.onclick = fn;
-    };
-
-    document.querySelectorAll('.paint-tool-btn').forEach(btn => {
-      btn.onclick = () => {
-        if (this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
-        document.querySelectorAll('.paint-tool-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.currentTool = btn.dataset.tool;
-        this.lineStart = null;
-        this.rectFillStart = null;
-        this.selStart = null;
-        this.polyPoints = [];
-        this._drawOverlay();
-        this._updateStatus();
-      };
-    });
-
-    document.querySelectorAll('.sel-mode-btn').forEach(btn => {
-      btn.onclick = () => {
-        document.querySelectorAll('.sel-mode-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.selectionMode = btn.dataset.selMode;
-        this._updateStatus();
-      };
-    });
-
-    bindClick('btn-paint-resize', () => this._openResizeDialog());
-    bindClick('btn-paint-copy', () => this.clipMgr.copySelection());
-    bindClick('btn-paint-paste', () => this.clipMgr.pasteClipboard());
-    bindClick('btn-paint-import-img', () => this.clipMgr.importExternalImage());
-    bindClick('btn-paint-flip-h', () => this.clipMgr.flipHorizontal());
-    bindClick('btn-paint-flip-v', () => this.clipMgr.flipVertical());
-    bindClick('btn-commit-floating', () => this.clipMgr.commitFloatingLayer());
-    bindClick('btn-cancel-floating', () => this.clipMgr.cancelFloatingLayer());
-
-    const chkGrid = document.getElementById('chk-paint-grid');
-    const inpGridStep = document.getElementById('inp-paint-grid-step');
-    const inpGridColor = document.getElementById('inp-paint-grid-color');
-    const chkIso = document.getElementById('chk-paint-iso');
-    const inpIsoW = document.getElementById('inp-paint-iso-w');
-    const inpIsoH = document.getElementById('inp-paint-iso-h');
-    const inpIsoColor = document.getElementById('inp-paint-iso-color');
-
-    if (chkGrid) chkGrid.onchange = (e) => { this.showGrid = e.target.checked; this._drawOverlay(); };
-    if (inpGridStep) inpGridStep.oninput = (e) => { this.gridStep = Math.max(1, Math.min(256, parseInt(e.target.value, 10) || 8)); this._drawOverlay(); };
-    if (inpGridColor) inpGridColor.oninput = (e) => { this.gridColor = e.target.value; this._drawOverlay(); };
-
-    if (chkIso) chkIso.onchange = (e) => { this.showIsoTile = e.target.checked; this._drawOverlay(); };
-    if (inpIsoW) {
-      inpIsoW.oninput = (e) => {
-        const w = Math.max(4, Math.min(512, parseInt(e.target.value, 10) || 64));
-        this.isoTileW = w;
-        const autoH = Math.max(2, Math.round(w / 2));
-        this.isoTileH = autoH;
-        if (inpIsoH) inpIsoH.value = autoH;
-        this._drawOverlay();
-      };
-    }
-    if (inpIsoH) inpIsoH.oninput = (e) => { this.isoTileH = Math.max(2, Math.min(512, parseInt(e.target.value, 10) || 32)); this._drawOverlay(); };
-    if (inpIsoColor) inpIsoColor.oninput = (e) => { this.isoColor = e.target.value; this._drawOverlay(); };
-
-    bindClick('btn-paint-apply', () => this.applyAndClose());
-    bindClick('btn-paint-cancel', () => this._cancelAndClose());
-    bindClick('btn-paint-undo', () => this.undo());
-    bindClick('btn-paint-redo', () => this.redo());
-    bindClick('btn-paint-clear-sel', () => {
-      this.selectionMask = null;
-      this.polyPoints = [];
-      this._drawOverlay();
-    });
-
-    bindClick('btn-gen-base-palette', () => {
-      const pm = this.app.paletteManager;
-      pm.basePaletteConfig.brightestHex = document.getElementById('inp-gray-max').value.trim() || '#FEFEFE';
-      pm.basePaletteConfig.darkestHex = document.getElementById('inp-gray-min').value.trim() || '#404040';
-      pm.basePaletteConfig.steps = parseInt(document.getElementById('inp-gray-steps').value, 10) || 16;
-      pm.generateBasePalette();
-      this._renderPaletteUI();
-    });
-
-    bindClick('btn-add-mask-custom-color', async () => {
-      const picked = await this.app.colorPicker.open(this.currentColor || '#FFFFFF');
-      if (picked) {
-        this.app.paletteManager.addColorToMaskPalette(picked);
-        this.currentColor = picked;
-        this._renderPaletteUI();
-      }
-    });
-
-    bindClick('btn-open-image-sampler', () => this.dialogs.openSamplerModal());
-    bindClick('btn-open-color-replace', () => this.dialogs.openColorReplaceDialog());
-    bindClick('btn-paint-keybindings', () => this.dialogs.openKeybindingDialog());
-
-    this.viewport.onwheel = (e) => {
-      e.preventDefault();
-      const delta = e.deltaY < 0 ? 1.25 : 0.8;
-      const newZoom = Math.max(1, Math.min(64, this.zoomLevel * delta));
-      const rect = this.viewport.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
-      const ix = (cx - this.panX) / this.zoomLevel;
-      const iy = (cy - this.panY) / this.zoomLevel;
-      this.zoomLevel = newZoom;
-      this.panX = Math.round(cx - ix * newZoom);
-      this.panY = Math.round(cy - iy * newZoom);
-      this._updateTransform();
-    };
-
-    const getPixelCoords = (clientX, clientY) => {
-      const rect = this.viewport.getBoundingClientRect();
-      const px = Math.floor((clientX - rect.left - this.panX) / this.zoomLevel);
-      const py = Math.floor((clientY - rect.top - this.panY) / this.zoomLevel);
-      return { px, py };
-    };
-
-    this.viewport.onmousedown = (e) => {
-      if (e.button === 1 || e.button === 2 || e.spaceKey) {
-        this.isPanning = true;
-        this.panStart = [e.clientX - this.panX, e.clientY - this.panY];
-        return;
-      }
-      const { px, py } = getPixelCoords(e.clientX, e.clientY);
-      this._handlePointerDown(px, py);
-    };
-
-    this.viewport.ondblclick = (e) => {
-      if (this.currentTool === 'polySelect' && this.polyPoints.length >= 3) {
-        e.preventDefault();
-        this._finalizePolySelect();
-      }
-    };
-
-    window.addEventListener('mousemove', (e) => {
-      if (this.isPanning) {
-        this.panX = e.clientX - this.panStart[0];
-        this.panY = e.clientY - this.panStart[1];
-        this._updateTransform();
-        return;
-      }
-      if (!this.modal.open) return;
-      const { px, py } = getPixelCoords(e.clientX, e.clientY);
-      const coordLbl = document.getElementById('paint-lbl-coord');
-      if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py} (${this.width}×${this.height})`;
-      this._handlePointerMove(px, py);
-    });
-
-    window.addEventListener('mouseup', (e) => {
-      if (this.isPanning) this.isPanning = false;
-      const { px, py } = getPixelCoords(e.clientX, e.clientY);
-      this._handlePointerUp(px, py);
-    });
-
-    this.viewport.addEventListener('touchstart', (e) => {
-      if (!this.modal.open) return;
-      e.preventDefault();
-      if (e.touches.length === 1) {
-        const t = e.touches[0];
-        const { px, py } = getPixelCoords(t.clientX, t.clientY);
-        this._handlePointerDown(px, py);
-      } else if (e.touches.length === 2) {
-        this.isDrawing = false;
-        this.clipMgr.isDraggingFloating = false;
-        const t1 = e.touches[0], t2 = e.touches[1];
-        this.touchStartDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-        this.touchStartZoom = this.zoomLevel;
-        const rect = this.viewport.getBoundingClientRect();
-        this.touchStartCenter = [((t1.clientX + t2.clientX) / 2) - rect.left, ((t1.clientY + t2.clientY) / 2) - rect.top];
-        this.touchStartPan = [this.panX, this.panY];
-      }
-    }, { passive: false });
-
-    this.viewport.addEventListener('touchmove', (e) => {
-      if (!this.modal.open) return;
-      e.preventDefault();
-      if (e.touches.length === 1) {
-        const t = e.touches[0];
-        const { px, py } = getPixelCoords(t.clientX, t.clientY);
-        const coordLbl = document.getElementById('paint-lbl-coord');
-        if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py} (${this.width}×${this.height})`;
-        this._handlePointerMove(px, py);
-      } else if (e.touches.length === 2 && this.touchStartDist) {
-        const t1 = e.touches[0], t2 = e.touches[1];
-        const curDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-        const newZoom = Math.max(1, Math.min(64, this.touchStartZoom * (curDist / this.touchStartDist)));
-        const rect = this.viewport.getBoundingClientRect();
-        const curCenterX = ((t1.clientX + t2.clientX) / 2) - rect.left;
-        const curCenterY = ((t1.clientY + t2.clientY) / 2) - rect.top;
-        const imgX = (this.touchStartCenter[0] - this.touchStartPan[0]) / this.touchStartZoom;
-        const imgY = (this.touchStartCenter[1] - this.touchStartPan[1]) / this.touchStartZoom;
-        this.zoomLevel = newZoom;
-        this.panX = Math.round(curCenterX - imgX * newZoom);
-        this.panY = Math.round(curCenterY - imgY * newZoom);
-        this._updateTransform();
-      }
-    }, { passive: false });
-
-    this.viewport.addEventListener('touchend', (e) => {
-      if (!this.modal.open) return;
-      if (e.touches.length === 0) {
-        const t = e.changedTouches[0];
-        const { px, py } = getPixelCoords(t.clientX, t.clientY);
-        this._handlePointerUp(px, py);
-        this.touchStartDist = null;
-      }
-    }, { passive: false });
-
-    window.addEventListener('keydown', (e) => {
-      if (!this.modal.open) return;
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') { e.preventDefault(); this.clipMgr.copySelection(); return; }
-      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') { e.preventDefault(); this.clipMgr.pasteClipboard(); return; }
-      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); return; }
-      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault(); this.redo(); return; }
-
-      if (this.clipMgr.handleKeyDown(e)) return;
-
-      if (e.code === 'Enter' && this.currentTool === 'polySelect' && this.polyPoints.length >= 3) {
-        e.preventDefault();
-        this._finalizePolySelect();
-        return;
-      }
-      if (e.code === 'Escape' || ((e.ctrlKey || e.metaKey) && e.code === 'KeyD')) {
-        if (this.polyPoints.length > 0) {
-          this.polyPoints = [];
-          this._drawOverlay();
-        } else {
-          this.selectionMask = null;
-          this._drawOverlay();
-        }
-        return;
-      }
-
-      for (const [tool, code] of Object.entries(this.dialogs.keybindings)) {
-        if (e.code === code) {
-          const btn = document.querySelector(`.paint-tool-btn[data-tool="${tool}"]`);
-          if (btn) btn.click();
-          break;
-        }
-      }
-    });
-  }
-
-  _handlePointerDown(px, py) {
-    if (this.clipMgr.handlePointerDown(px, py)) return;
-    if (px < 0 || px >= this.width || py < 0 || py >= this.height) return;
-
-    if (this.currentTool === 'picker') {
-      const p = this.ctx.getImageData(px, py, 1, 1).data;
-      if (p[3] > 0) {
-        const hex = rgbToHex(p[0], p[1], p[2]);
-        this.currentColor = hex;
-        this._updateCurrentColorUI();
-        if (this.targetType === 'mask') {
-          this.app.paletteManager.addColorToMaskPalette(hex);
-          this._renderPaletteUI();
-        }
-      }
-      return;
-    }
-
-    this.isDrawing = true;
-    this.lastDrawPos = [px, py];
-
-    if (this.currentTool === 'pencil') {
-      this._pushHistory();
-      this._drawPixel(px, py);
-    } else if (this.currentTool === 'line') {
-      this.lineStart = [px, py];
-    } else if (this.currentTool === 'rectFill') {
-      this.rectFillStart = [px, py];
-      this._drawOverlay([px, py]);
-    } else if (this.currentTool === 'bucket') {
-      this._pushHistory();
-      floodFill(this.ctx, this.width, this.height, px, py, this.currentColor, this.selectionMask);
-      this.isDrawing = false;
-    } else if (this.currentTool === 'rectSelect') {
-      this.selStart = [px, py];
-    } else if (this.currentTool === 'polySelect') {
-      if (this.polyPoints.length >= 3 && Math.hypot(px - this.polyPoints[0][0], py - this.polyPoints[0][1]) <= 1.5) {
-        this._finalizePolySelect();
-      } else {
-        const last = this.polyPoints[this.polyPoints.length - 1];
-        if (!last || last[0] !== px || last[1] !== py) this.polyPoints.push([px, py]);
-        this._drawOverlay([px, py]);
-      }
-      this.isDrawing = false;
-    } else if (this.currentTool === 'wand') {
-      this.clipMgr.applySelectionMask(magicWandMask(this.ctx, this.width, this.height, px, py));
-      this.isDrawing = false;
-    } else if (this.currentTool === 'colorSelect') {
-      this.clipMgr.applySelectionMask(colorSelectMask(this.ctx, this.width, this.height, px, py));
-      this.isDrawing = false;
-    } else if (this.currentTool === 'text') {
-      const text = prompt('挿入するテキストを入力してください:');
-      if (text) {
-        const fontSize = parseInt(prompt('フォントサイズ (px):', '10'), 10) || 10;
-        this._pushHistory();
-        renderTextPixels(this.width, this.height, text, fontSize, px, py, (tx, ty) => this._drawPixel(tx, ty));
-      }
-      this.isDrawing = false;
-    }
-  }
-
-  _handlePointerMove(px, py) {
-    if (this.clipMgr.handlePointerMove(px, py)) return;
-
-    if (this.isDrawing) {
-      if (this.currentTool === 'pencil') {
-        const [lx, ly] = this.lastDrawPos;
-        drawLineContinuous(lx, ly, px, py, (x, y) => this._drawPixel(x, y));
-        this.lastDrawPos = [px, py];
-      } else if (this.currentTool === 'line' || this.currentTool === 'rectFill' || this.currentTool === 'rectSelect') {
-        this._drawOverlay([px, py]);
-      }
-    } else if (this.currentTool === 'polySelect' && this.polyPoints.length > 0) {
-      this._drawOverlay([px, py]);
-    }
-  }
-
-  _handlePointerUp(px, py) {
-    if (this.clipMgr.handlePointerUp()) return;
-    if (!this.isDrawing) return;
-    this.isDrawing = false;
-
-    if (this.currentTool === 'line' && this.lineStart) {
-      this._pushHistory();
-      drawLineContinuous(this.lineStart[0], this.lineStart[1], px, py, (x, y) => this._drawPixel(x, y));
-      this.lineStart = null;
-      this._drawOverlay();
-    } else if (this.currentTool === 'rectFill' && this.rectFillStart) {
-      this._pushHistory();
-      const x0 = Math.max(0, Math.min(this.rectFillStart[0], px));
-      const x1 = Math.min(this.width - 1, Math.max(this.rectFillStart[0], px));
-      const y0 = Math.max(0, Math.min(this.rectFillStart[1], py));
-      const y1 = Math.min(this.height - 1, Math.max(this.rectFillStart[1], py));
-      for (let y = y0; y <= y1; y++) {
-        for (let x = x0; x <= x1; x++) this._drawPixel(x, y);
-      }
-      this.rectFillStart = null;
-      this._drawOverlay();
-    } else if (this.currentTool === 'rectSelect' && this.selStart) {
-      const x0 = Math.max(0, Math.min(this.selStart[0], px));
-      const x1 = Math.min(this.width - 1, Math.max(this.selStart[0], px));
-      const y0 = Math.max(0, Math.min(this.selStart[1], py));
-      const y1 = Math.min(this.height - 1, Math.max(this.selStart[1], py));
-      const newMask = new Uint8Array(this.width * this.height);
-      for (let sy = y0; sy <= y1; sy++) {
-        for (let sx = x0; sx <= x1; sx++) newMask[sy * this.width + sx] = 1;
-      }
-      this.selStart = null;
-      this.clipMgr.applySelectionMask(newMask);
-    }
-  }
-
-  _finalizePolySelect() {
-    if (this.polyPoints.length < 3) return;
-    const newMask = rasterizePolygonMask(this.width, this.height, this.polyPoints);
-    this.polyPoints = [];
-    this.clipMgr.applySelectionMask(newMask);
-  }
-
   _drawPixel(x, y) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
     if (this.selectionMask && !this.selectionMask[y * this.width + x]) return;
@@ -807,69 +312,11 @@ export class PaintEditor {
     this.ctx.fillRect(x, y, 1, 1);
   }
 
-  _drawOverlay(curPos = null) {
-    this.oCtx.clearRect(0, 0, this.width, this.height);
-    this.clipMgr.drawFloatingOverlay(this.oCtx, this.zoomLevel);
-    drawSelectionOverlay(this.oCtx, this.width, this.height, this.selectionMask);
-
-    if (this.currentTool === 'line' && this.lineStart && curPos) {
-      this.oCtx.fillStyle = this.currentColor;
-      drawLineContinuous(this.lineStart[0], this.lineStart[1], curPos[0], curPos[1], (x, y) => this.oCtx.fillRect(x, y, 1, 1));
-    } else if (this.currentTool === 'rectFill' && this.rectFillStart && curPos) {
-      const x0 = Math.min(this.rectFillStart[0], curPos[0]);
-      const y0 = Math.min(this.rectFillStart[1], curPos[1]);
-      const w = Math.abs(curPos[0] - this.rectFillStart[0]) + 1;
-      const h = Math.abs(curPos[1] - this.rectFillStart[1]) + 1;
-      this.oCtx.fillStyle = this.currentColor;
-      this.oCtx.globalAlpha = 0.7;
-      this.oCtx.fillRect(x0, y0, w, h);
-      this.oCtx.globalAlpha = 1.0;
-    } else if (this.currentTool === 'rectSelect' && this.selStart && curPos) {
-      const x = Math.min(this.selStart[0], curPos[0]);
-      const y = Math.min(this.selStart[1], curPos[1]);
-      const w = Math.abs(curPos[0] - this.selStart[0]) + 1;
-      const h = Math.abs(curPos[1] - this.selStart[1]) + 1;
-      this.oCtx.fillStyle = 'rgba(255, 255, 0, 0.25)';
-      this.oCtx.fillRect(x, y, w, h);
-    }
-
-    if (this.polyPoints.length > 0) {
-      this.oCtx.lineWidth = 1 / Math.max(1, this.zoomLevel * 0.5);
-      this.oCtx.strokeStyle = '#00FF66';
-      this.oCtx.beginPath();
-      this.oCtx.moveTo(this.polyPoints[0][0] + 0.5, this.polyPoints[0][1] + 0.5);
-      for (let i = 1; i < this.polyPoints.length; i++) {
-        this.oCtx.lineTo(this.polyPoints[i][0] + 0.5, this.polyPoints[i][1] + 0.5);
-      }
-      if (curPos) this.oCtx.lineTo(curPos[0] + 0.5, curPos[1] + 0.5);
-      this.oCtx.stroke();
-
-      if (curPos && this.polyPoints.length >= 2) {
-        this.oCtx.setLineDash([1, 1]);
-        this.oCtx.strokeStyle = 'rgba(0, 255, 102, 0.55)';
-        this.oCtx.beginPath();
-        this.oCtx.moveTo(curPos[0] + 0.5, curPos[1] + 0.5);
-        this.oCtx.lineTo(this.polyPoints[0][0] + 0.5, this.polyPoints[0][1] + 0.5);
-        this.oCtx.stroke();
-        this.oCtx.setLineDash([]);
-      }
-
-      this.polyPoints.forEach(([vx, vy], idx) => {
-        this.oCtx.fillStyle = idx === 0 ? '#00FF66' : '#FFFF00';
-        this.oCtx.fillRect(vx, vy, 1, 1);
-      });
-    }
-
-    drawGuidesOverlay(this.oCtx, this.width, this.height, this.zoomLevel, {
-      showGrid: this.showGrid,
-      gridStep: this.gridStep,
-      gridColor: this.gridColor,
-      showIsoTile: this.showIsoTile,
-      isoTileW: this.isoTileW,
-      isoTileH: this.isoTileH,
-      isoColor: this.isoColor
-    });
-  }
+  _handlePointerDown(px, py) { this.toolHandler.handlePointerDown(px, py); }
+  _handlePointerMove(px, py) { this.toolHandler.handlePointerMove(px, py); }
+  _handlePointerUp(px, py) { this.toolHandler.handlePointerUp(px, py); }
+  _finalizePolySelect() { this.toolHandler.finalizePolySelect(); }
+  _drawOverlay(curPos = null) { this.toolHandler.drawOverlay(curPos); }
 
   _updateStatus() {
     const modeNames = {
