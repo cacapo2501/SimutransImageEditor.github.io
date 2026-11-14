@@ -79,22 +79,18 @@ export class HSVColorPicker {
       this.isUpdating = false;
     };
 
-    // HSV入力イベント（null安全）
     [this.inpH, this.inpS, this.inpV].forEach(el => {
       if (el) el.addEventListener('input', updateFromHSV);
     });
 
-    // RGBスライダーイベント（null安全）
     [this.inpR, this.inpG, this.inpB].forEach(el => {
       if (el) el.addEventListener('input', updateFromRGB);
     });
 
-    // RGB数値入力ボックスイベント（null安全）
     if (this.valR) this.valR.addEventListener('change', (e) => { if (this.inpR) this.inpR.value = e.target.value; updateFromRGB(); });
     if (this.valG) this.valG.addEventListener('change', (e) => { if (this.inpG) this.inpG.value = e.target.value; updateFromRGB(); });
     if (this.valB) this.valB.addEventListener('change', (e) => { if (this.inpB) this.inpB.value = e.target.value; updateFromRGB(); });
 
-    // スポイトボタン
     if (this.btnEyeDropper) {
       if (window.EyeDropper) {
         this.btnEyeDropper.onclick = async () => {
