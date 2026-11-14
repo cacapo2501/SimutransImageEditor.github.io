@@ -1,3 +1,5 @@
+const MAX_UI_MASK_COLORS = 200; // 多色画像でのDOMフリーズを防止するUI表示上限
+
 export class ToneTintController {
   constructor(app) {
     this.app = app;
@@ -5,7 +7,6 @@ export class ToneTintController {
   }
 
   bindEvents() {
-    // ぼかし制御
     document.getElementById('chk-enable-blur').onchange = (e) => {
       this.app.enableBlur = e.target.checked;
       this.app.markDirty();
@@ -29,7 +30,6 @@ export class ToneTintController {
       };
     });
 
-    // トーン制御
     document.getElementById('combo-tone-target').onchange = (e) => this.onToneTargetChanged(e.target.value);
 
     document.getElementById('chk-tone-override').onchange = (e) => {
@@ -103,7 +103,6 @@ export class ToneTintController {
       }
     };
 
-    // マスクカラー乗算 (Tint) 制御
     document.getElementById('chk-enable-tint').onchange = (e) => {
       this.app.enableMaskTint = e.target.checked;
       this.app.markDirty();
@@ -138,37 +137,70 @@ export class ToneTintController {
     };
   }
 
+  // 一括文字列結合と件数上限により、数千〜数万色でもDOMフリーズを完全防止
   updateMaskCombos() {
     const comboLayer = document.getElementById('mask-color-combo');
     const comboTone = document.getElementById('combo-tone-target');
     if (!comboLayer || !comboTone) return;
-    comboLayer.innerHTML = '<option value="">(全体 / マスクなし)</option>';
-    comboTone.innerHTML = '<option value="__ALL__">全体 (デフォルト)</option>';
-    this.app.maskColors.forEach(({ hex, count }) => {
+
+    const totalColors = this.app.maskColors.length;
+    const displayColors = this.app.maskColors.slice(0, MAX_UI_MASK_COLORS);
+
+    const layerOpts = ['<option value="">(全体 / マスクなし)</option>'];
+    const toneOpts = ['<option value="__ALL__">全体 (デフォルト)</option>'];
+
+    for (let i = 0; i < displayColors.length; i++) {
+      const { hex, count } = displayColors[i];
       const opt = `<option value="${hex}">${hex} (${count}px)</option>`;
-      comboLayer.innerHTML += opt;
-      comboTone.innerHTML += opt;
-    });
+      layerOpts.push(opt);
+      toneOpts.push(opt);
+    }
+
+    if (totalColors > MAX_UI_MASK_COLORS) {
+      const note = `<option value="" disabled>--- 他 ${totalColors - MAX_UI_MASK_COLORS} 色はスポイトで選択可 ---</option>`;
+      layerOpts.push(note);
+      toneOpts.push(note);
+    }
+
+    comboLayer.innerHTML = layerOpts.join('');
+    comboTone.innerHTML = toneOpts.join('');
   }
 
   updateTintTable() {
     const tbody = document.querySelector('#tint-table tbody');
+    const descEl = document.getElementById('lbl-tint-desc');
     if (!tbody) return;
-    tbody.innerHTML = '';
-    this.app.maskColors.forEach(({ hex }) => {
+
+    const totalColors = this.app.maskColors.length;
+    const displayColors = this.app.maskColors.slice(0, MAX_UI_MASK_COLORS);
+
+    if (descEl) {
+      descEl.textContent = totalColors > MAX_UI_MASK_COLORS
+        ? `各マスク色の範囲に指定カラーを乗算します（全${totalColors}色中、上位${MAX_UI_MASK_COLORS}色を表示）。`
+        : '各マスク色の範囲に指定カラーを乗算します。';
+    }
+
+    const rowsHtml = displayColors.map(({ hex }) => {
       const tintHex = this.app.maskTintColors.get(hex) || hex;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td><span class="color-swatch" style="background:${hex}"></span> ${hex}</td>
-                      <td><span class="color-swatch" style="background:${tintHex}"></span> ${tintHex}</td>`;
-      tr.onclick = () => {
-        document.querySelectorAll('#tint-table tr').forEach(r => r.classList.remove('selected'));
-        tr.classList.add('selected');
-        document.getElementById('sel-tint-swatch').style.backgroundColor = tintHex;
-        document.getElementById('lbl-sel-tint-info').textContent = `${hex} -> ${tintHex}`;
-        this.selectedMaskTint = hex;
-      };
-      tbody.appendChild(tr);
+      const selClass = hex === this.selectedMaskTint ? ' class="selected"' : '';
+      return `<tr data-hex="${hex}"${selClass}><td><span class="color-swatch" style="background:${hex}"></span> ${hex}</td><td><span class="color-swatch" style="background:${tintHex}"></span> ${tintHex}</td></tr>`;
     });
+
+    tbody.innerHTML = rowsHtml.join('');
+
+    // イベント委譲で1つだけリスナー登録（行数に比例するメモリ消費を削減）
+    tbody.onclick = (e) => {
+      const tr = e.target.closest('tr');
+      if (!tr || !tr.dataset.hex) return;
+      const hex = tr.dataset.hex;
+      const tintHex = this.app.maskTintColors.get(hex) || hex;
+
+      tbody.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
+      tr.classList.add('selected');
+      document.getElementById('sel-tint-swatch').style.backgroundColor = tintHex;
+      document.getElementById('lbl-sel-tint-info').textContent = `${hex} -> ${tintHex}`;
+      this.selectedMaskTint = hex;
+    };
   }
 
   _getActiveTone() {
