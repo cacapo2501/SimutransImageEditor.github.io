@@ -8,7 +8,6 @@ import { ProjectIO, loadImageAsync } from './project-io.js';
 import { PaletteManager } from './palette-manager.js';
 import { PaintEditor } from './paint-editor.js';
 
-// どのブラウザでも100%確実にファイル選択ダイアログを開く安全ピッカー
 function safePickFile(accept = '.png') {
   return new Promise((resolve) => {
     const input = document.createElement('input');
@@ -458,7 +457,6 @@ class AdvancedMultiplyApp {
     }
   }
 
-  // ドラッグ＆ドロップによる画像読み込みサポート
   _bindDragAndDrop() {
     const dropZone = this.viewport;
     dropZone.addEventListener('dragover', (e) => {
@@ -482,7 +480,6 @@ class AdvancedMultiplyApp {
   }
 
   _bindEvents() {
-    // 安全確実にファイルを開くイベントバインド
     document.getElementById('btn-load-base').onclick = async () => {
       const f = await safePickFile('.png');
       if (f) this.loadBaseFromFile(f);
@@ -526,6 +523,9 @@ class AdvancedMultiplyApp {
     document.getElementById('btn-add-structure').onclick = () => this._addLayer('structure');
     document.getElementById('btn-copy-layer').onclick = () => this._copyLayer();
     document.getElementById('btn-del-layer').onclick = () => this._delLayer();
+    document.getElementById('btn-layer-up').onclick = () => this._moveLayer(-1);
+    document.getElementById('btn-layer-down').onclick = () => this._moveLayer(1);
+    document.getElementById('btn-layer-replace').onclick = () => this._replaceLayerImage();
 
     document.querySelectorAll('input[name="layer-type"]').forEach(r => {
       r.onchange = (e) => {
@@ -662,6 +662,11 @@ class AdvancedMultiplyApp {
         this.markDirty(); this.render();
       }
     };
+
+    document.getElementById('chk-enable-tint').onchange = (e) => {
+      this.enableMaskTint = e.target.checked;
+      this.markDirty(); this.render();
+    };
     document.getElementById('btn-pick-tint').onclick = async () => {
       if (!this.selectedMaskTint) return alert('マスク色を一覧から選択してください。');
       const cur = this.maskTintColors.get(this.selectedMaskTint) || this.selectedMaskTint;
@@ -745,6 +750,28 @@ class AdvancedMultiplyApp {
     this.layers.splice(this.activeIdx, 1);
     this.refreshLayerList();
     this.selectLayer(Math.min(this.activeIdx, this.layers.length - 1));
+    this.markDirty(); this.render();
+  }
+
+  _moveLayer(delta) {
+    if (this.activeIdx < 0) return;
+    const targetIdx = this.activeIdx + delta;
+    if (targetIdx < 0 || targetIdx >= this.layers.length) return;
+    const temp = this.layers[this.activeIdx];
+    this.layers[this.activeIdx] = this.layers[targetIdx];
+    this.layers[targetIdx] = temp;
+    this.refreshLayerList();
+    this.selectLayer(targetIdx);
+    this.markDirty(); this.render();
+  }
+
+  async _replaceLayerImage() {
+    if (this.activeIdx < 0) return;
+    const file = await safePickFile('.png');
+    if (!file) return;
+    const img = await loadImageAsync(URL.createObjectURL(file));
+    this.layers[this.activeIdx].replaceImage(img, file.name);
+    this.refreshLayerList();
     this.markDirty(); this.render();
   }
 
