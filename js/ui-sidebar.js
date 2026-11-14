@@ -1,0 +1,238 @@
+export function renderSidebarUI() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+
+  sidebar.innerHTML = `
+    <!-- セクション1: 画像・プロジェクト -->
+    <details class="accordion-panel" open>
+      <summary>画像・プロジェクト</summary>
+      <div class="panel-body">
+        <div class="btn-group">
+          <button id="btn-load-base">ベースPNGを開く</button>
+          <button id="btn-load-mask">マスク画像を開く</button>
+        </div>
+        <div class="btn-group mt-05">
+          <button id="btn-save-base">💾 ベースPNG保存</button>
+          <button id="btn-save-mask">💾 マスクPNG保存</button>
+        </div>
+        <div class="btn-group mt-05">
+          <button id="btn-paint-base" class="btn-primary">✏️ ベース画像を編集</button>
+          <button id="btn-paint-mask" class="btn-primary">🎭 マスク画像を編集</button>
+        </div>
+        <div class="btn-group mt-05">
+          <button id="btn-load-folder">📁 ローカルフォルダ</button>
+          <button id="btn-google-drive">☁️ Google Drive</button>
+        </div>
+        <div class="info-text" id="lbl-base-info">ベース: 未読込</div>
+        <div class="info-text" id="lbl-mask-info">マスク: 未読込</div>
+        <div class="btn-group mt-05">
+          <button id="btn-save-proj">プロジェクト保存</button>
+          <button id="btn-save-proj-as">別名保存</button>
+          <button id="btn-load-proj">再開 (読込)</button>
+        </div>
+      </div>
+    </details>
+
+    <!-- セクション2: レイヤー・変形操作 -->
+    <details class="accordion-panel" id="accordion-layer">
+      <summary>レイヤー・変形操作</summary>
+      <div class="panel-body">
+        <div class="btn-group">
+          <button id="btn-add-multiply">＋ 乗算追加</button>
+          <button id="btn-add-structure">＋ 小物追加</button>
+        </div>
+        <div class="btn-group mt-05">
+          <button id="btn-copy-layer">📋 コピー(相対参照)</button>
+          <button id="btn-del-layer">－ 削除</button>
+        </div>
+        <div id="layer-listbox"></div>
+        <div class="btn-group">
+          <button id="btn-layer-up">▲ 上へ</button>
+          <button id="btn-layer-down">▼ 下へ</button>
+          <button id="btn-layer-replace">画像差替</button>
+        </div>
+
+        <fieldset class="sub-panel">
+          <legend>レイヤー種別＆透過オプション</legend>
+          <label><input type="radio" name="layer-type" value="multiply" checked> 乗算 (テクスチャ)</label>
+          <label><input type="radio" name="layer-type" value="structure"> ストラクチャー (小物)</label>
+          <label><input type="checkbox" id="chk-trans-e7ffff"> ストラクチャの #E7FFFF を透過色 (#C0C0C000) にする</label>
+        </fieldset>
+
+        <fieldset class="sub-panel">
+          <legend>適用マスクカラー設定 (このレイヤー)</legend>
+          <div class="color-preview-row">
+            <span class="color-swatch" id="layer-mask-swatch"></span>
+            <span id="lbl-layer-mask">適用先: 全体 (マスクなし)</span>
+          </div>
+          <button id="btn-eyedropper" class="w-100 mt-05">🎯 スポイトで選択 (マスク画像を表示)</button>
+          <div class="row mt-05">
+            <label style="min-width: 75px;">一覧から選ぶ:</label>
+            <select id="mask-color-combo"><option value="">(全体 / マスクなし)</option></select>
+          </div>
+          <button id="btn-clear-mask" class="w-100 mt-05">マスク解除 (全体適用に戻す)</button>
+        </fieldset>
+
+        <fieldset class="sub-panel">
+          <legend>パターン繰り返し (タイル)</legend>
+          <div class="step-row">
+            <span>横(X):</span><span class="val-badge" id="lbl-tile-x">1.0</span>
+            <button class="btn-step" data-axis="x" data-delta="-1.0">-1</button>
+            <button class="btn-step" data-axis="x" data-delta="-0.1">-0.1</button>
+            <button class="btn-step" data-axis="x" data-delta="0.1">+0.1</button>
+            <button class="btn-step" data-axis="x" data-delta="1.0">+1</button>
+          </div>
+          <div class="step-row mt-05">
+            <span>縦(Y):</span><span class="val-badge" id="lbl-tile-y">1.0</span>
+            <button class="btn-step" data-axis="y" data-delta="-1.0">-1</button>
+            <button class="btn-step" data-axis="y" data-delta="-0.1">-0.1</button>
+            <button class="btn-step" data-axis="y" data-delta="0.1">+0.1</button>
+            <button class="btn-step" data-axis="y" data-delta="1.0">+1</button>
+          </div>
+        </fieldset>
+
+        <fieldset class="sub-panel">
+          <legend>変形モード＆ピクセルスナップ</legend>
+          <div class="row">
+            <label style="min-width: 75px; font-weight: bold;">変形の種類:</label>
+            <select id="select-transform-mode">
+              <option value="box">矩形リサイズ (軸平行)</option>
+              <option value="affine">自由3頂点 (平行四辺形)</option>
+              <option value="free">自由4頂点 (透視投影)</option>
+            </select>
+          </div>
+          <label class="mt-05"><input type="checkbox" id="chk-fill-all"> 現在の変形で画像全体にマッピング (全域タイリング)</label>
+          <div class="row mt-05">
+            <label><input type="checkbox" id="chk-pixel-snap" checked> 📍 ピクセルスナップ</label>
+            <button id="btn-snap-now" style="margin-left:auto;">現在位置をスナップ</button>
+          </div>
+        </fieldset>
+
+        <div class="row mt-05">
+          <label style="min-width: 50px;">不透明度:</label>
+          <span class="val-badge" id="lbl-opacity">100%</span>
+          <input type="range" id="slider-opacity" min="0" max="1" step="0.01" value="1">
+        </div>
+        <label class="mt-05"><input type="checkbox" id="chk-layer-visible" checked> レイヤーを表示</label>
+      </div>
+    </details>
+
+    <!-- セクション3: トーン＆ハイライトブレンド -->
+    <details class="accordion-panel">
+      <summary>トーン＆ハイライトブレンド</summary>
+      <div class="panel-body">
+        <fieldset class="sub-panel">
+          <legend>画像全体のぼかし (SpecialColor完全保護)</legend>
+          <label><input type="checkbox" id="chk-enable-blur" checked> SpecialColorを除外して画像全体をぼかす</label>
+          <div class="row mt-05">
+            <span>半径:</span><span class="val-badge" id="lbl-blur-radius">0.00px</span>
+            <button class="btn-blur-step" data-delta="-0.05">-0.05</button>
+            <input type="range" id="slider-blur" min="0" max="10" step="0.05" value="0">
+            <button class="btn-blur-step" data-delta="0.05">+0.05</button>
+          </div>
+        </fieldset>
+
+        <fieldset class="sub-panel">
+          <legend>トーン設定対象の選択</legend>
+          <div class="row">
+            <label style="min-width: 60px;">設定対象:</label>
+            <select id="combo-tone-target"><option value="__ALL__">全体 (デフォルト)</option></select>
+          </div>
+          <label class="mt-05"><input type="checkbox" id="chk-tone-override" disabled> このマスク色の個別トーン設定を有効化</label>
+        </fieldset>
+
+        <fieldset class="sub-panel" id="tone-params-frame">
+          <legend>パラメータ調整</legend>
+          <div class="row">
+            <span>最も暗い色:</span>
+            <span class="color-swatch" id="dark-color-swatch" style="background:#000018;"></span>
+            <span id="lbl-dark-color">#000018</span>
+            <button id="btn-pick-dark" style="margin-left:auto;">色選択</button>
+          </div>
+          <button id="btn-reset-dark" class="w-100 mt-05">デフォルト黒(#000018)に戻す</button>
+
+          <label class="mt-05">最小の明るさ % [=暗色]:</label>
+          <div class="row">
+            <span class="val-badge" id="lbl-min-dark">0.0%</span>
+            <input type="range" id="slider-min-dark" min="0" max="100" step="0.5" value="0">
+          </div>
+
+          <label class="mt-05">最大の明るさ % [=白/ハイライト開始]:</label>
+          <div class="row">
+            <span class="val-badge" id="lbl-max-bright">100.0%</span>
+            <input type="range" id="slider-max-bright" min="0" max="100" step="0.5" value="100">
+          </div>
+
+          <fieldset class="sub-panel mt-05">
+            <legend>ハイライト Normalブレンド</legend>
+            <label><input type="checkbox" id="chk-enable-dodge" checked> 最大明るさを超えた部分をNormalブレンド</label>
+            <div class="row mt-05">
+              <span>ブレンド色:</span>
+              <span class="color-swatch" id="dodge-color-swatch" style="background:#FFFFFF;"></span>
+              <button id="btn-pick-dodge" style="margin-left:auto;">色変更</button>
+            </div>
+            <label class="mt-05">ブレンド最大強さ %:</label>
+            <div class="row">
+              <span class="val-badge" id="lbl-dodge-strength">100.0%</span>
+              <input type="range" id="slider-dodge-strength" min="0" max="150" step="1" value="100">
+            </div>
+          </fieldset>
+        </fieldset>
+      </div>
+    </details>
+
+    <!-- セクション4: マスクカラー乗算 (Tint) -->
+    <details class="accordion-panel">
+      <summary>マスクカラー乗算 (Tint)</summary>
+      <div class="panel-body">
+        <label><input type="checkbox" id="chk-enable-tint" checked> マスク範囲のカラー乗算を有効化</label>
+        <p class="desc-text">各マスク色の範囲に指定カラーを乗算します。</p>
+        <div id="tint-tree-container">
+          <table id="tint-table">
+            <thead><tr><th>マスク色</th><th>乗算指定色 (Tint)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <fieldset class="sub-panel mt-05">
+          <legend>選択中のマスク乗算色編集</legend>
+          <div class="row">
+            <span class="color-swatch" id="sel-tint-swatch"></span>
+            <span id="lbl-sel-tint-info">色を選択してください</span>
+          </div>
+          <div class="btn-group mt-05">
+            <button id="btn-pick-tint">色変更</button>
+            <button id="btn-reset-tint">元色に戻す</button>
+          </div>
+        </fieldset>
+        <button id="btn-reset-all-tints" class="w-100 mt-05">全マスク色をデフォルトに戻す</button>
+      </div>
+    </details>
+
+    <!-- セクション5: 特殊色・外部連携設定 -->
+    <details class="accordion-panel">
+      <summary>特殊色・外部連携設定</summary>
+      <div class="panel-body">
+        <fieldset class="sub-panel">
+          <legend>特殊色CSV (編集除外・衝突回避)</legend>
+          <div class="row">
+            <input type="file" id="file-csv" accept=".csv">
+          </div>
+          <div class="info-text mt-05" id="lbl-csv-info">特殊色: 0件登録済</div>
+        </fieldset>
+        <fieldset class="sub-panel mt-05">
+          <legend>Google Drive 認証設定</legend>
+          <label>API Key:</label>
+          <input type="text" id="gdrive-api-key" placeholder="AIzaSy...">
+          <label class="mt-05">Client ID:</label>
+          <input type="text" id="gdrive-client-id" placeholder="xxxx.apps.googleusercontent.com">
+          <p class="desc-text">※GitHub Pages等の環境では、ご自身のGoogle Cloudで発行したクライアント情報を入力して利用します。</p>
+        </fieldset>
+      </div>
+    </details>
+
+    <!-- 画面下部常時固定フッター -->
+    <div class="sidebar-footer">
+      <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存</button>
+    </div>
+  `;
+}
