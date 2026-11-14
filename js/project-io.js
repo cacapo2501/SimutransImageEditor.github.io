@@ -140,6 +140,7 @@ export class ProjectIO {
             tileX: ld.tile_x,
             tileY: ld.tile_y,
             targetMaskColor: ld.target_mask_color,
+            excludeMaskColor: ld.exclude_mask_color,
             layerType: ld.layer_type,
             fillAll: ld.fill_all,
             transparentE7ffff: ld.transparent_e7ffff
