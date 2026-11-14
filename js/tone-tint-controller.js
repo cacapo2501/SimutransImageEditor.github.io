@@ -142,6 +142,43 @@ export class ToneTintController {
       this.app.markDirty();
       this.app.render();
     };
+
+    // 窓色ランダム暗転（SpecialColor一部解除）イベント
+    const chkWin = document.getElementById('chk-window-darken');
+    const sliderWin = document.getElementById('slider-window-darken-ratio');
+    const btnReroll = document.getElementById('btn-window-darken-reroll');
+    const chkAllSpec = document.getElementById('chk-window-darken-all-special');
+
+    if (chkWin) {
+      chkWin.onchange = (e) => {
+        this.app.windowDarken.enabled = e.target.checked;
+        this.app.markDirty();
+        this.app.render();
+      };
+    }
+    if (sliderWin) {
+      sliderWin.oninput = (e) => {
+        const val = parseInt(e.target.value, 10) || 0;
+        this.app.windowDarken.ratio_pct = val;
+        document.getElementById('lbl-window-darken-ratio').textContent = `${val}%`;
+        this.app.markDirty();
+        this.app.render();
+      };
+    }
+    if (btnReroll) {
+      btnReroll.onclick = () => {
+        this.app.windowDarken.seed = Math.floor(Math.random() * 0x7FFFFFFF) + 1;
+        this.app.markDirty();
+        this.app.render();
+      };
+    }
+    if (chkAllSpec) {
+      chkAllSpec.onchange = (e) => {
+        this.app.windowDarken.include_all_special = e.target.checked;
+        this.app.markDirty();
+        this.app.render();
+      };
+    }
   }
 
   updateMaskCombos() {

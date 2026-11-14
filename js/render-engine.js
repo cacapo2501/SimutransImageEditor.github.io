@@ -1,5 +1,6 @@
 import { hexToInt, hexToRgb } from './color-utils.js';
 import { applyProtectedBlur } from './transform.js';
+import { applyRandomWindowDarken } from './window-darken.js';
 
 export class RenderEngine {
   static compute(app) {
@@ -15,7 +16,6 @@ export class RenderEngine {
       }
     });
 
-    // 高速ルックアップ用の整数キーマップを事前構築
     const toneOverrideMap = new Map();
     if (app.maskToneOverrides && app.maskToneOverrides.size > 0) {
       app.maskToneOverrides.forEach((cfg, hex) => {
@@ -183,7 +183,7 @@ export class RenderEngine {
       for (let i = 0; i < outRgb.length; i++) outRgb[i] = blurred[i];
     }
 
-    // 6. ベース・マスク・テクスチャ適用後のピクセルアルファ（半透明）設定
+    // 6. ベース・マスク・テクスチャ適用後のピクセルアルファ設定
     for (let i = 0; i < total; i++) {
       if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;
       if (app.isBgMask && app.isBgMask[i] && structureAppliedMask[i] === 0) continue;
@@ -206,6 +206,16 @@ export class RenderEngine {
       res[i * 4 + 2] = Math.round(outRgb[i * 3 + 2] * 255);
       res[i * 4 + 3] = Math.round(outAlpha[i] * 255);
     }
+
+    // 7. 窓色ランダム暗転（SpecialColor一部解除）
+    const winStats = applyRandomWindowDarken(res, app.baseW, app.baseH, app.windowDarken, app.specialColors);
+    const winLbl = document.getElementById('lbl-window-darken-info');
+    if (winLbl) {
+      winLbl.textContent = (app.windowDarken && app.windowDarken.enabled)
+        ? `対象窓グループ: ${winStats.darkenedGroups} / ${winStats.totalGroups} 箇所を暗転中`
+        : '対象窓グループ: OFF';
+    }
+
     return res;
   }
 

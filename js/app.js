@@ -85,11 +85,17 @@ class AdvancedMultiplyApp {
     };
     this.maskToneOverrides = new Map();
 
+    this.windowDarken = {
+      enabled: false,
+      ratio_pct: 50,
+      seed: 12345,
+      include_all_special: false
+    };
+
     this.enableBlur = true;
     this.blurRadius = 0.0;
     this.pixelSnap = true;
 
-    // メイン画面タイルひし形補助線設定
     this.showMainIsoTile = false;
     this.mainIsoTileW = 64;
     this.mainIsoTileH = 32;
@@ -298,7 +304,6 @@ class AdvancedMultiplyApp {
     this.ctx.imageSmoothingEnabled = this.zoomLevel < 1.0;
     this.ctx.drawImage(tc, this.panX, this.panY, vw, vh);
 
-    // メイン編集用ピクセルパーフェクトタイルひし形補助線
     if (this.showMainIsoTile) {
       const gc = document.createElement('canvas');
       gc.width = this.baseW;

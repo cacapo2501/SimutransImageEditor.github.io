@@ -224,12 +224,26 @@ export function renderSidebarUI() {
       <summary>特殊色・外部連携設定</summary>
       <div class="panel-body">
         <fieldset class="sub-panel">
+          <legend>🪟 窓色ランダム暗転 (SpecialColor一部解除)</legend>
+          <label><input type="checkbox" id="chk-window-darken"> 連結した窓ブロックをランダムに暗転させる</label>
+          <div class="row mt-05">
+            <span>暗転比率:</span>
+            <span class="val-badge" id="lbl-window-darken-ratio">50%</span>
+            <input type="range" id="slider-window-darken-ratio" min="0" max="100" step="1" value="50">
+            <button type="button" id="btn-window-darken-reroll" style="flex-shrink:0;">🎲 再抽選</button>
+          </div>
+          <label class="mt-05"><input type="checkbox" id="chk-window-darken-all-special"> 標準窓色(#57656F/#4D4D4D)以外の特殊色も対象にする</label>
+          <div class="info-text" id="lbl-window-darken-info">対象窓グループ: 未実行</div>
+        </fieldset>
+
+        <fieldset class="sub-panel mt-05">
           <legend>特殊色CSV (編集除外・衝突回避)</legend>
           <div class="row">
             <input type="file" id="file-csv" accept=".csv">
           </div>
           <div class="info-text mt-05" id="lbl-csv-info">特殊色: 0件登録済</div>
         </fieldset>
+
         <fieldset class="sub-panel mt-05">
           <legend>Google Drive 認証設定</legend>
           <label>API Key:</label>
