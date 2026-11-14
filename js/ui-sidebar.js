@@ -65,6 +65,7 @@ export function renderSidebarUI() {
             <span class="color-swatch" id="layer-mask-swatch"></span>
             <span id="lbl-layer-mask">適用先: 全体 (マスクなし)</span>
           </div>
+          <label class="mt-05"><input type="checkbox" id="chk-exclude-mask"> 指定したマスク色を除外 (この色の範囲には重ねない)</label>
           <button id="btn-eyedropper" class="w-100 mt-05">🎯 スポイトで選択 (マスク画像を表示)</button>
           <div class="row mt-05">
             <label style="min-width: 75px;">一覧から選ぶ:</label>
@@ -186,7 +187,7 @@ export function renderSidebarUI() {
       <summary>マスクカラー乗算 (Tint)</summary>
       <div class="panel-body">
         <label><input type="checkbox" id="chk-enable-tint" checked> マスク範囲のカラー乗算を有効化</label>
-        <p class="desc-text">各マスク色の範囲に指定カラーを乗算します。</p>
+        <p class="desc-text" id="lbl-tint-desc">各マスク色の範囲に指定カラーを乗算します。</p>
         <div id="tint-tree-container">
           <table id="tint-table">
             <thead><tr><th>マスク色</th><th>乗算指定色 (Tint)</th></tr></thead>
