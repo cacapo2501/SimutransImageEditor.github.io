@@ -1,6 +1,6 @@
 export function renderSubModalsUI() {
-  const container = document.getElementById('modal-container');
-  if (!container) return;
+  if (document.getElementById('modal-color-picker')) return;
+  const container = document.getElementById('modal-container') || document.body;
 
   container.insertAdjacentHTML('beforeend', `
     <!-- 色置換・複数色置換モーダル -->
