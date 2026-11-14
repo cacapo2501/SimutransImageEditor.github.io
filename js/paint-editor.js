@@ -20,20 +20,16 @@ export class PaintEditor {
     this.targetType = 'base';
     this.width = 0;
     this.height = 0;
+    this.initialized = false;
 
-    // 確実にモーダルDOMが存在するよう保証
-    renderPaintModalUI();
-    renderSubModalsUI();
-
-    this.modal = document.getElementById('modal-paint-editor');
-    this.canvas = document.getElementById('paint-canvas');
-    this.ctx = this.canvas ? this.canvas.getContext('2d', { willReadFrequently: true }) : null;
-    this.overlayCanvas = document.getElementById('paint-overlay-canvas');
-    this.oCtx = this.overlayCanvas ? this.overlayCanvas.getContext('2d') : null;
-    this.viewport = document.getElementById('paint-viewport');
-
-    this.clipMgr = new PaintClipboardManager(this);
-    this.dialogs = new PaintDialogs(this);
+    this.modal = null;
+    this.canvas = null;
+    this.ctx = null;
+    this.overlayCanvas = null;
+    this.oCtx = null;
+    this.viewport = null;
+    this.clipMgr = null;
+    this.dialogs = null;
 
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
@@ -66,14 +62,46 @@ export class PaintEditor {
     this.undoStack = [];
     this.redoStack = [];
     this.maxUndo = 25;
-
-    this._bindEvents();
   }
 
-  get keybindings() { return this.dialogs.keybindings; }
-  saveKeybindings() { this.dialogs.saveKeybindings(); }
+  _ensureInitialized() {
+    if (this.initialized) return true;
+
+    renderPaintModalUI();
+    renderSubModalsUI();
+
+    this.modal = document.getElementById('modal-paint-editor');
+    this.canvas = document.getElementById('paint-canvas');
+    this.overlayCanvas = document.getElementById('paint-overlay-canvas');
+    this.viewport = document.getElementById('paint-viewport');
+
+    if (!this.modal || !this.canvas || !this.overlayCanvas || !this.viewport) {
+      alert('ペイントエディタのUI初期化に失敗しました。ページを再読み込みしてください。');
+      return false;
+    }
+
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+    this.oCtx = this.overlayCanvas.getContext('2d');
+    this.clipMgr = new PaintClipboardManager(this);
+    this.dialogs = new PaintDialogs(this);
+
+    this._bindEvents();
+    this.initialized = true;
+    return true;
+  }
+
+  get keybindings() {
+    if (!this.dialogs) this._ensureInitialized();
+    return this.dialogs ? this.dialogs.keybindings : {};
+  }
+
+  saveKeybindings() {
+    if (this.dialogs) this.dialogs.saveKeybindings();
+  }
 
   open(targetType = 'base') {
+    if (!this._ensureInitialized()) return;
+
     this.targetType = targetType;
     const srcImg = targetType === 'base' ? this.app.baseImage : this.app.maskImage;
     if (!srcImg) {
@@ -121,7 +149,7 @@ export class PaintEditor {
   }
 
   applyAndClose() {
-    if (this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
+    if (this.clipMgr && this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
 
     const outCanvas = document.createElement('canvas');
     outCanvas.width = this.width;
@@ -150,7 +178,7 @@ export class PaintEditor {
   }
 
   undo() {
-    if (this.clipMgr.floatingLayer) { this.clipMgr.cancelFloatingLayer(); return; }
+    if (this.clipMgr && this.clipMgr.floatingLayer) { this.clipMgr.cancelFloatingLayer(); return; }
     if (this.undoStack.length <= 1) return;
     this.redoStack.push(this.undoStack.pop());
     this.ctx.putImageData(this.undoStack[this.undoStack.length - 1], 0, 0);
@@ -329,8 +357,6 @@ export class PaintEditor {
     bindClick('btn-open-image-sampler', () => this.dialogs.openSamplerModal());
     bindClick('btn-open-color-replace', () => this.dialogs.openColorReplaceDialog());
     bindClick('btn-paint-keybindings', () => this.dialogs.openKeybindingDialog());
-
-    if (!this.viewport) return;
 
     this.viewport.onwheel = (e) => {
       e.preventDefault();
