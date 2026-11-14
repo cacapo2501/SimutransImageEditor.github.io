@@ -448,8 +448,9 @@ fieldset.sub-panel label input[type="checkbox"] {
 #modal-paint-editor {
   width: 95vw;
   height: 92vh;
+  height: 92dvh;
   max-width: 95vw;
-  max-height: 92vh;
+  max-height: 92dvh;
   border: 1px solid #555;
   border-radius: 6px;
   background: #1e1e1e;
@@ -466,19 +467,22 @@ fieldset.sub-panel label input[type="checkbox"] {
   flex-direction: column;
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
+/* ★ 複数行折り返し時の見切れを完全に防ぐツールバー ★ */
 #paint-toolbar {
   min-height: 42px;
-  height: auto;
+  height: auto !important;
   background: #282828;
   border-bottom: 1px solid #3d3d3d;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  padding: 4px 8px;
-  gap: 6px;
+  padding: 6px 8px;
+  gap: 6px 8px;
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .paint-tool-group {
@@ -486,6 +490,13 @@ fieldset.sub-panel label input[type="checkbox"] {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
+}
+
+.paint-tool-group button,
+.paint-tool-group span {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .sel-mode-group {
@@ -511,8 +522,10 @@ fieldset.sub-panel label input[type="checkbox"] {
 
 .ml-auto { margin-left: auto; }
 
+/* ★ ツールバーが何行になっても残りの高さを柔軟に吸収させる ★ */
 #paint-main-body {
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
   display: flex;
   overflow: hidden;
 }
@@ -526,6 +539,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   padding: 8px;
   gap: 6px;
   overflow-y: auto;
+  min-height: 0;
 }
 
 #paint-palette-slots {
@@ -551,6 +565,8 @@ fieldset.sub-panel label input[type="checkbox"] {
 
 #paint-viewport {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   background: #141414;
   position: relative;
   overflow: hidden;
@@ -574,14 +590,17 @@ fieldset.sub-panel label input[type="checkbox"] {
 #paint-overlay-canvas { pointer-events: none; }
 
 #paint-footer {
-  height: 24px;
+  min-height: 24px;
+  height: auto;
   background: #202020;
   border-top: 1px solid #333;
   font-size: 11px;
   color: #888;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0 8px;
+  padding: 3px 8px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -616,6 +635,7 @@ fieldset.sub-panel label input[type="checkbox"] {
 #modal-image-sampler {
   width: 85vw;
   height: 85vh;
+  height: 85dvh;
   max-width: 960px;
   max-height: 720px;
   border: 1px solid #555;
@@ -634,16 +654,20 @@ fieldset.sub-panel label input[type="checkbox"] {
   flex-direction: column;
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 .sampler-header {
-  height: 40px;
+  min-height: 40px;
+  height: auto;
   background: #2a2a2a;
   border-bottom: 1px solid #383838;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0 10px;
-  gap: 12px;
+  padding: 4px 10px;
+  gap: 8px 12px;
+  flex-shrink: 0;
 }
 
 .sampler-zoom-toolbar {
@@ -654,17 +678,23 @@ fieldset.sub-panel label input[type="checkbox"] {
 
 .sampler-inputs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
   background: #1c1c1c;
   border-bottom: 1px solid #333;
+  flex-shrink: 0;
 }
 
-.sampler-inputs input[type="text"] { flex: 1; }
+.sampler-inputs input[type="text"] {
+  flex: 1 1 200px;
+  min-width: 150px;
+}
 
 #sampler-viewport {
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
   background: #121212;
   position: relative;
   overflow: hidden;
@@ -685,13 +715,16 @@ fieldset.sub-panel label input[type="checkbox"] {
 }
 
 .sampler-footer {
-  height: 52px;
+  min-height: 52px;
+  height: auto;
   background: #242424;
   border-top: 1px solid #383838;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0 10px;
-  gap: 12px;
+  padding: 6px 10px;
+  gap: 8px 12px;
+  flex-shrink: 0;
 }
 
 .sampler-picked-list-wrap {
@@ -699,6 +732,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   align-items: center;
   gap: 8px;
   flex: 1;
+  min-width: 180px;
   overflow-x: auto;
 }
 
@@ -711,6 +745,7 @@ fieldset.sub-panel label input[type="checkbox"] {
 /* 色置換・複数色置換モーダル */
 #modal-color-replace {
   width: 480px;
+  max-width: 95vw;
   border: 1px solid #555;
   border-radius: 6px;
   background: #262626;
