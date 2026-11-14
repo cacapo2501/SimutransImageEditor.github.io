@@ -470,7 +470,6 @@ fieldset.sub-panel label input[type="checkbox"] {
   overflow: hidden;
 }
 
-/* ★ 複数行折り返し時の見切れを完全に防ぐツールバー ★ */
 #paint-toolbar {
   min-height: 42px;
   height: auto !important;
@@ -494,16 +493,50 @@ fieldset.sub-panel label input[type="checkbox"] {
 }
 
 .paint-tool-group button,
-.paint-tool-group span {
+.paint-tool-group span,
+.paint-tool-group label {
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.sel-mode-group {
+.sel-mode-group,
+.guide-control-group,
+.floating-bar {
   background: #1f1f1f;
   padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid #3a3a3a;
+}
+
+.floating-bar {
+  border-color: #00b386;
+  background: #172a24;
+}
+
+.inline-chk-lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #ddd;
+  cursor: pointer;
+}
+
+.inline-chk-lbl input[type="checkbox"] {
+  accent-color: #0078d4;
+  cursor: pointer;
+}
+
+.num-input-mini {
+  width: 44px;
+  background: #141414;
+  border: 1px solid #444;
+  color: #55b5ff;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  text-align: right;
 }
 
 .paint-tool-btn.active {
@@ -522,7 +555,6 @@ fieldset.sub-panel label input[type="checkbox"] {
 
 .ml-auto { margin-left: auto; }
 
-/* ★ ツールバーが何行になっても残りの高さを柔軟に吸収させる ★ */
 #paint-main-body {
   flex: 1 1 0%;
   min-height: 0;
@@ -580,237 +612,4 @@ fieldset.sub-panel label input[type="checkbox"] {
   transform-origin: 0 0;
 }
 
-#paint-canvas, #paint-overlay-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  image-rendering: pixelated;
-}
-
-#paint-overlay-canvas { pointer-events: none; }
-
-#paint-footer {
-  min-height: 24px;
-  height: auto;
-  background: #202020;
-  border-top: 1px solid #333;
-  font-size: 11px;
-  color: #888;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 3px 8px;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-/* キーバインド設定ダイアログ */
-#modal-keybindings {
-  border: 1px solid #555;
-  border-radius: 6px;
-  background: #2a2a2a;
-  color: #eee;
-  padding: 16px;
-  margin: auto;
-}
-
-#modal-keybindings::backdrop { background: rgba(0, 0, 0, 0.6); }
-
-#table-keybindings th, #table-keybindings td {
-  padding: 4px 6px;
-  border-bottom: 1px solid #333;
-}
-
-.btn-bind {
-  background: #333;
-  border: 1px solid #555;
-  color: #55b5ff;
-  font-family: Consolas, monospace;
-  padding: 2px 6px;
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-/* 画像スポイトモーダル */
-#modal-image-sampler {
-  width: 85vw;
-  height: 85vh;
-  height: 85dvh;
-  max-width: 960px;
-  max-height: 720px;
-  border: 1px solid #555;
-  border-radius: 6px;
-  background: #222;
-  color: #eee;
-  padding: 0;
-  margin: auto;
-  overflow: hidden;
-}
-
-#modal-image-sampler::backdrop { background: rgba(0, 0, 0, 0.75); }
-
-.sampler-container {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-.sampler-header {
-  min-height: 40px;
-  height: auto;
-  background: #2a2a2a;
-  border-bottom: 1px solid #383838;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 4px 10px;
-  gap: 8px 12px;
-  flex-shrink: 0;
-}
-
-.sampler-zoom-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.sampler-inputs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: #1c1c1c;
-  border-bottom: 1px solid #333;
-  flex-shrink: 0;
-}
-
-.sampler-inputs input[type="text"] {
-  flex: 1 1 200px;
-  min-width: 150px;
-}
-
-#sampler-viewport {
-  flex: 1 1 0%;
-  min-height: 0;
-  background: #121212;
-  position: relative;
-  overflow: hidden;
-  cursor: grab;
-  touch-action: none;
-}
-
-#sampler-viewport:active {
-  cursor: grabbing;
-}
-
-#sampler-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  image-rendering: pixelated;
-  transform-origin: 0 0;
-}
-
-.sampler-footer {
-  min-height: 52px;
-  height: auto;
-  background: #242424;
-  border-top: 1px solid #383838;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 6px 10px;
-  gap: 8px 12px;
-  flex-shrink: 0;
-}
-
-.sampler-picked-list-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 180px;
-  overflow-x: auto;
-}
-
-#sampler-picked-swatches {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* 色置換・複数色置換モーダル */
-#modal-color-replace {
-  width: 480px;
-  max-width: 95vw;
-  border: 1px solid #555;
-  border-radius: 6px;
-  background: #262626;
-  color: #eee;
-  padding: 0;
-  margin: auto;
-}
-
-#modal-color-replace::backdrop { background: rgba(0, 0, 0, 0.7); }
-
-.replace-modal-content {
-  display: flex;
-  flex-direction: column;
-}
-
-.replace-header {
-  height: 38px;
-  background: #303030;
-  border-bottom: 1px solid #404040;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-}
-
-.replace-body {
-  padding: 12px;
-}
-
-#replace-rules-container {
-  max-height: 240px;
-  overflow-y: auto;
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.replace-rule-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #1e1e1e;
-  padding: 6px 8px;
-  border-radius: 4px;
-  border: 1px solid #383838;
-}
-
-.replace-rule-row span.arrow {
-  color: #55b5ff;
-  font-weight: bold;
-}
-
-.replace-rule-row button.btn-color-pick {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
-}
-
-.replace-footer {
-  height: 48px;
-  background: #2a2a2a;
-  border-top: 1px solid #383838;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  gap: 8px;
-}
+#paint-canvas, #paint
