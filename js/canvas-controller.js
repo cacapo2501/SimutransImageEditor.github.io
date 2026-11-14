@@ -1,4 +1,3 @@
-// 多角形（4頂点）の内外判定 (Ray-casting)
 function pointInPolygon(point, vs) {
   const [x, y] = point;
   let inside = false;
@@ -26,7 +25,6 @@ export class CanvasController {
   }
 
   _bindEvents() {
-    // ホイールズーム
     this.viewport.onwheel = (e) => {
       e.preventDefault();
       const delta = e.deltaY < 0 ? 1.25 : 0.8;
@@ -36,7 +34,6 @@ export class CanvasController {
       ]);
     };
 
-    // スペースキー・Escキー
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space') {
         this.app.spacePressed = true;
@@ -54,7 +51,6 @@ export class CanvasController {
       }
     });
 
-    // マウスイベント
     this.viewport.onmousedown = (e) => {
       if (this.app.spacePressed || e.button === 1 || e.button === 2) {
         this.app.isPanning = true;
@@ -95,7 +91,6 @@ export class CanvasController {
       }
     });
 
-    // タブレット用タッチイベント
     this.viewport.addEventListener('touchstart', (e) => this._onTouchStart(e), { passive: false });
     window.addEventListener('touchmove', (e) => this._onTouchMove(e), { passive: false });
     window.addEventListener('touchend', (e) => this._onTouchEnd(e), { passive: false });
@@ -187,7 +182,6 @@ export class CanvasController {
       this.app.dragStartPos = [mx, my];
       this.app.dragStartCorners = layer.corners.map(([x, y]) => [x, y]);
 
-      // 1. 四隅操作ハンドルの判定
       for (let i = 0; i < 4; i++) {
         if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= hitRadiusPx / this.app.zoomLevel) {
           this.app.dragMode = `corner_${i}`;
@@ -195,14 +189,12 @@ export class CanvasController {
         }
       }
 
-      // 2. テクスチャ内側の判定 (レイヤー全体移動)
       if (pointInPolygon([mx, my], layer.corners)) {
         this.app.dragMode = 'move';
         return;
       }
     }
 
-    // 3. キャンバスのパン (スクロール)
     this.app.isPanning = true;
     this.app.panStart = [clientX - this.app.panX, clientY - this.app.panY];
     this.viewport.style.cursor = 'grabbing';
@@ -215,7 +207,6 @@ export class CanvasController {
     const dx = mx - this.app.dragStartPos[0], dy = my - this.app.dragStartPos[1];
     const layer = this.app.layers[this.app.activeIdx];
 
-    // 全体移動
     if (this.app.dragMode === 'move') {
       let newCorners = this.app.dragStartCorners.map(([x, y]) => [x + dx, y + dy]);
       if (this.app.pixelSnap) newCorners = newCorners.map(([x, y]) => [Math.round(x), Math.round(y)]);
@@ -224,7 +215,6 @@ export class CanvasController {
       return;
     }
 
-    // 四隅頂点変形
     const idx = parseInt(this.app.dragMode.split('_')[1]);
     if (layer.transformMode === 'free') {
       let nx = this.app.dragStartCorners[idx][0] + dx, ny = this.app.dragStartCorners[idx][1] + dy;
