@@ -269,19 +269,30 @@
         <div class="paint-tool-group">
           <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ">✏️ ドット</button>
           <button class="paint-tool-btn" data-tool="line" title="直線 (連続)">📏 直線</button>
+          <button class="paint-tool-btn" data-tool="rectFill" title="矩形塗りつぶし">⬛ 矩形塗潰</button>
           <button class="paint-tool-btn" data-tool="bucket" title="塗りつぶし">🪣 塗潰</button>
           <button class="paint-tool-btn" data-tool="picker" title="スポイト (色取得)">🎯 スポイト</button>
           <button class="paint-tool-btn" data-tool="rectSelect" title="矩形選択">🔲 矩形選択</button>
-          <button class="paint-tool-btn" data-tool="polySelect" title="多角形選択">📐 多角形選択</button>
+          <button class="paint-tool-btn" data-tool="polySelect" title="多角形選択 (ダブルクリック/始点クリック/Enterで確定)">📐 多角形選択</button>
           <button class="paint-tool-btn" data-tool="wand" title="自動選択 (Magic Wand)">🪄 自動選択</button>
           <button class="paint-tool-btn" data-tool="colorSelect" title="同色選択">🎯 同色選択</button>
           <button class="paint-tool-btn" data-tool="text" title="テキスト挿入">🔤 文字</button>
           <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
         </div>
+
+        <!-- 選択範囲演算モード切替グループ -->
+        <div class="paint-tool-group sel-mode-group" title="選択ツールの演算モード">
+          <span style="font-size:10px; color:#aaa; margin-left:4px;">選択:</span>
+          <button class="sel-mode-btn active" data-sel-mode="replace" title="新規選択">新規</button>
+          <button class="sel-mode-btn" data-sel-mode="add" title="現在の選択範囲に追加">＋追加</button>
+          <button class="sel-mode-btn" data-sel-mode="subtract" title="現在の選択範囲から一部削除">－削除</button>
+          <button class="sel-mode-btn" data-sel-mode="intersect" title="現在の選択範囲と重なる部分のみ残す（乗算）">×乗算</button>
+          <button id="btn-paint-clear-sel" title="選択解除 (Esc / Ctrl+D)">✕ 解除</button>
+        </div>
+
         <div class="paint-tool-group">
-          <button id="btn-paint-undo" title="元に戻す">↩ Undo</button>
-          <button id="btn-paint-redo" title="やり直し">↪ Redo</button>
-          <button id="btn-paint-clear-sel" title="選択解除">✕ 選択解除</button>
+          <button id="btn-paint-undo" title="元に戻す (Ctrl+Z)">↩ Undo</button>
+          <button id="btn-paint-redo" title="やり直し (Ctrl+Y)">↪ Redo</button>
           <button id="btn-paint-keybindings" title="キーバインド設定">⌨️ キー設定</button>
         </div>
         <div class="paint-tool-group ml-auto">
@@ -346,6 +357,7 @@
 
       <footer id="paint-footer">
         <span id="paint-lbl-tool">ツール: ドット</span>
+        <span id="paint-lbl-hint" style="margin-left:16px; color:#aaa;"></span>
         <span id="paint-lbl-coord" style="margin-left:auto;">X: 0, Y: 0</span>
       </footer>
     </div>
