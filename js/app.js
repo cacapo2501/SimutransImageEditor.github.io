@@ -9,6 +9,9 @@ import { PaintEditor } from './paint-editor.js';
 import { MaskGenerator } from './mask-generator.js';
 import { LayerManager } from './layer-manager.js';
 import { ToneTintController } from './tone-tint-controller.js';
+import { renderSidebarUI } from './ui-sidebar.js';
+import { renderPaintModalUI } from './ui-paint-modal.js';
+import { renderSubModalsUI } from './ui-sub-modals.js';
 
 function safePickFile(accept = '.png') {
   return new Promise((resolve) => {
@@ -39,6 +42,11 @@ function safePickFile(accept = '.png') {
 
 class AdvancedMultiplyApp {
   constructor() {
+    // 各UIテンプレートを同期的にDOMへ構築
+    renderSidebarUI();
+    renderPaintModalUI();
+    renderSubModalsUI();
+
     this.storage = new StorageAPI();
     this.colorPicker = new HSVColorPicker();
     this.paletteManager = new PaletteManager(this);
@@ -115,7 +123,6 @@ class AdvancedMultiplyApp {
         const response = await fetch(`./${filename}`, { cache: 'no-cache' });
         if (response.ok) {
           const text = await response.text();
-          // GitHub Pagesの404 HTMLページが誤って返された場合はスキップ
           if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) continue;
 
           const parsed = parseSpecialColorsCsv(text);
