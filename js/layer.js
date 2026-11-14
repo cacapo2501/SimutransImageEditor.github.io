@@ -13,10 +13,12 @@ export class Layer {
       this._tileX = Math.max(0.01, opts.tileX || 1.0);
       this._tileY = Math.max(0.01, opts.tileY || 1.0);
       this._targetMaskColor = opts.targetMaskColor ? [...opts.targetMaskColor] : null;
+      this._excludeMaskColor = Boolean(opts.excludeMaskColor);
       this._layerType = opts.layerType || 'multiply';
       this._fillAll = opts.fillAll || false;
       this._transparentE7ffff = opts.transparentE7ffff || false;
       this._cachedImageData = null;
+      this._cachedTiledData = null;
       if (this._imageElement) this._prepareImageData();
     } else {
       this._name = null;
@@ -26,10 +28,12 @@ export class Layer {
       this._tileX = opts.tileX || 1.0;
       this._tileY = opts.tileY || 1.0;
       this._targetMaskColor = opts.targetMaskColor || null;
+      this._excludeMaskColor = Boolean(opts.excludeMaskColor);
       this._layerType = opts.layerType || 'multiply';
       this._fillAll = opts.fillAll || false;
       this._transparentE7ffff = opts.transparentE7ffff || false;
       this._cachedImageData = null;
+      this._cachedTiledData = null;
     }
 
     if (opts.corners) {
@@ -44,11 +48,27 @@ export class Layer {
   get opacity() { return this.sourceLayer ? this.sourceLayer.opacity : this._opacity; }
   set opacity(v) { if (this.sourceLayer) this.sourceLayer.opacity = v; else this._opacity = v; }
   get tileX() { return this.sourceLayer ? this.sourceLayer.tileX : this._tileX; }
-  set tileX(v) { if (this.sourceLayer) this.sourceLayer.tileX = v; else this._tileX = Math.max(0.01, v); }
+  set tileX(v) {
+    if (this.sourceLayer) {
+      this.sourceLayer.tileX = v;
+    } else {
+      this._tileX = Math.max(0.01, v);
+      this._cachedTiledData = null;
+    }
+  }
   get tileY() { return this.sourceLayer ? this.sourceLayer.tileY : this._tileY; }
-  set tileY(v) { if (this.sourceLayer) this.sourceLayer.tileY = v; else this._tileY = Math.max(0.01, v); }
+  set tileY(v) {
+    if (this.sourceLayer) {
+      this.sourceLayer.tileY = v;
+    } else {
+      this._tileY = Math.max(0.01, v);
+      this._cachedTiledData = null;
+    }
+  }
   get targetMaskColor() { return this.sourceLayer ? this.sourceLayer.targetMaskColor : this._targetMaskColor; }
   set targetMaskColor(v) { if (this.sourceLayer) this.sourceLayer.targetMaskColor = v; else this._targetMaskColor = v ? [...v] : null; }
+  get excludeMaskColor() { return this.sourceLayer ? this.sourceLayer.excludeMaskColor : this._excludeMaskColor; }
+  set excludeMaskColor(v) { if (this.sourceLayer) this.sourceLayer.excludeMaskColor = Boolean(v); else this._excludeMaskColor = Boolean(v); }
   get transformMode() { return this.sourceLayer ? this.sourceLayer.transformMode : this._transformMode; }
   set transformMode(v) { if (this.sourceLayer) this.sourceLayer.transformMode = v; else this._transformMode = v; }
   get layerType() { return this.sourceLayer ? this.sourceLayer.layerType : this._layerType; }
@@ -56,7 +76,14 @@ export class Layer {
   get fillAll() { return this.sourceLayer ? this.sourceLayer.fillAll : this._fillAll; }
   set fillAll(v) { if (this.sourceLayer) this.sourceLayer.fillAll = v; else this._fillAll = v; }
   get transparentE7ffff() { return this.sourceLayer ? this.sourceLayer.transparentE7ffff : this._transparentE7ffff; }
-  set transparentE7ffff(v) { if (this.sourceLayer) this.sourceLayer.transparentE7ffff = v; else this._transparentE7ffff = v; }
+  set transparentE7ffff(v) {
+    if (this.sourceLayer) {
+      this.sourceLayer.transparentE7ffff = v;
+    } else {
+      this._transparentE7ffff = v;
+      this._cachedTiledData = null;
+    }
+  }
   get visible() { return this._visible; }
   set visible(v) { this._visible = v; }
 
@@ -69,6 +96,7 @@ export class Layer {
     const ctx = c.getContext('2d');
     ctx.drawImage(img, 0, 0);
     this._cachedImageData = ctx.getImageData(0, 0, c.width, c.height);
+    this._cachedTiledData = null;
   }
 
   replaceImage(img, newName = null) {
@@ -106,7 +134,10 @@ export class Layer {
   }
 
   _getTiledImageData() {
-    const base = this.sourceLayer ? this.sourceLayer._cachedImageData : this._cachedImageData;
+    const master = this.sourceLayer || this;
+    if (master._cachedTiledData) return master._cachedTiledData;
+
+    const base = master._cachedImageData;
     if (!base) return null;
     const repX = Math.ceil(this.tileX), repY = Math.ceil(this.tileY);
     const tW = Math.max(1, Math.round(base.width * this.tileX));
@@ -125,7 +156,19 @@ export class Layer {
         ctx.drawImage(tc, x * base.width, y * base.height);
       }
     }
-    return ctx.getImageData(0, 0, tW, tH);
+
+    const tiled = ctx.getImageData(0, 0, tW, tH);
+    if (this.transparentE7ffff) {
+      const d = tiled.data;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] === 231 && d[i + 1] === 255 && d[i + 2] === 255) {
+          d[i] = 192; d[i + 1] = 192; d[i + 2] = 192; d[i + 3] = 0;
+        }
+      }
+    }
+
+    master._cachedTiledData = tiled;
+    return tiled;
   }
 
   getMultiplierMap(targetW, targetH, maskRgbData) {
@@ -140,12 +183,16 @@ export class Layer {
 
     const out = new Float32Array(targetW * targetH).fill(1.0);
     const tCol = this.targetMaskColor;
+    const exclude = this.excludeMaskColor;
 
     for (let i = 0; i < targetW * targetH; i++) {
       if (tCol && maskRgbData) {
-        if (maskRgbData[i * 3] !== tCol[0] || maskRgbData[i * 3 + 1] !== tCol[1] || maskRgbData[i * 3 + 2] !== tCol[2]) {
-          continue;
-        }
+        const isMatch = (
+          maskRgbData[i * 3] === tCol[0] &&
+          maskRgbData[i * 3 + 1] === tCol[1] &&
+          maskRgbData[i * 3 + 2] === tCol[2]
+        );
+        if (exclude ? isMatch : !isMatch) continue;
       }
       const alpha = sampled[i * 4 + 3] * this.opacity;
       const gray = 0.299 * sampled[i * 4] + 0.587 * sampled[i * 4 + 1] + 0.114 * sampled[i * 4 + 2];
@@ -159,23 +206,23 @@ export class Layer {
     const tiled = this._getTiledImageData();
     if (!tiled) return null;
 
-    if (this.transparentE7ffff) {
-      const d = tiled.data;
-      for (let i = 0; i < d.length; i += 4) {
-        if (d[i] === 231 && d[i + 1] === 255 && d[i + 2] === 255) {
-          d[i] = 192; d[i + 1] = 192; d[i + 2] = 192; d[i + 3] = 0;
-        }
-      }
-    }
-
     const sampled = sampleWarpedTexture(tiled, this.corners, targetW, targetH, this.fillAll, this.transformMode);
     if (!sampled) return null;
 
     const tCol = this.targetMaskColor;
+    const exclude = this.excludeMaskColor;
+
     for (let i = 0; i < targetW * targetH; i++) {
       if (tCol && maskRgbData) {
-        if (maskRgbData[i * 3] !== tCol[0] || maskRgbData[i * 3 + 1] !== tCol[1] || maskRgbData[i * 3 + 2] !== tCol[2]) {
+        const isMatch = (
+          maskRgbData[i * 3] === tCol[0] &&
+          maskRgbData[i * 3 + 1] === tCol[1] &&
+          maskRgbData[i * 3 + 2] === tCol[2]
+        );
+        // excludeがtrueの場合は一致したピクセルに重ねない（透過0にする）
+        if (exclude ? isMatch : !isMatch) {
           sampled[i * 4 + 3] = 0;
+          continue;
         }
       }
       sampled[i * 4 + 3] *= this.opacity;
@@ -194,6 +241,7 @@ export class Layer {
       tile_x: Math.round(this.tileX * 100) / 100,
       tile_y: Math.round(this.tileY * 100) / 100,
       target_mask_color: this.targetMaskColor ? [...this.targetMaskColor] : null,
+      exclude_mask_color: Boolean(this.excludeMaskColor),
       layer_type: this.layerType,
       fill_all: Boolean(this.fillAll),
       transparent_e7ffff: Boolean(this.transparentE7ffff),
