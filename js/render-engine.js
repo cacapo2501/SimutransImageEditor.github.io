@@ -7,7 +7,7 @@ export class RenderEngine {
     const total = app.baseW * app.baseH;
     let multAccum = new Float32Array(total).fill(1.0);
 
-    // 1. 乗算テクスチャ積算 (editableMask のみ)
+    // 1. 乗算テクスチャ積算
     app.layers.forEach(layer => {
       if (layer.visible && layer.layerType === 'multiply') {
         const mMap = layer.getMultiplierMap(app.baseW, app.baseH, app.maskRgb);
@@ -22,7 +22,6 @@ export class RenderEngine {
     for (let i = 0; i < total; i++) {
       outAlpha[i] = app.baseAlpha[i] / 255.0;
 
-      // SpecialColorピクセルは全編集の対象外 (元色を維持)
       if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) {
         outRgb[i * 3] = app.baseRgb[i * 3] / 255.0;
         outRgb[i * 3 + 1] = app.baseRgb[i * 3 + 1] / 255.0;
@@ -30,7 +29,6 @@ export class RenderEngine {
         continue;
       }
 
-      // 背景色 (#E7FFFF) も乗算・トーン変更は行わず元色を維持
       if (app.isBgMask && app.isBgMask[i]) {
         outRgb[i * 3] = app.baseRgb[i * 3] / 255.0;
         outRgb[i * 3 + 1] = app.baseRgb[i * 3 + 1] / 255.0;
@@ -76,7 +74,7 @@ export class RenderEngine {
       }
     }
 
-    // 3. ハイライトブレンド (editableMask のみ)
+    // 3. ハイライトブレンド
     for (let i = 0; i < total; i++) {
       if (!app.editableMask[i]) continue;
       if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;
@@ -111,12 +109,10 @@ export class RenderEngine {
         const sData = layer.getWarpedStructure(app.baseW, app.baseH, app.maskRgb);
         if (!sData) return;
         for (let i = 0; i < total; i++) {
-          // 通常のSpecialColorピクセルはストラクチャも上乗せ対象外 (完全保護)
           if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;
 
           const sa = sData[i * 4 + 3];
           if (sa > 0.001) {
-            // 背景色 (#E7FFFF) ピクセルの場合：ストラクチャの色で上書き描画
             if (app.isBgMask[i] && structureAppliedMask[i] === 0) {
               outRgb[i * 3] = sData[i * 4];
               outRgb[i * 3 + 1] = sData[i * 4 + 1];
@@ -124,7 +120,6 @@ export class RenderEngine {
               outAlpha[i] = sa;
               structureAppliedMask[i] = 1;
             } else {
-              // 通常領域または複数ストラクチャのブレンド
               outRgb[i * 3] = outRgb[i * 3] * (1.0 - sa) + sData[i * 4] * sa;
               outRgb[i * 3 + 1] = outRgb[i * 3 + 1] * (1.0 - sa) + sData[i * 4 + 1] * sa;
               outRgb[i * 3 + 2] = outRgb[i * 3 + 2] * (1.0 - sa) + sData[i * 4 + 2] * sa;
@@ -136,7 +131,7 @@ export class RenderEngine {
       }
     });
 
-    // 5. SpecialColor保護ぼかし (ストラクチャが乗っていない背景色とSpecialColorを除外)
+    // 5. SpecialColor保護ぼかし
     if (app.enableBlur && app.blurRadius > 0.001) {
       const invalid = new Uint8Array(total);
       for (let i = 0; i < total; i++) {
