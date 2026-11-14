@@ -189,6 +189,7 @@ export class PaintInputController {
       } else if (e.touches.length === 2) {
         ed.isDrawing = false;
         ed.clipMgr.isDraggingFloating = false;
+        if (ed.onionSkinMgr) ed.onionSkinMgr.isDragging = false;
         const t1 = e.touches[0], t2 = e.touches[1];
         this.touchStartDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
         this.touchStartZoom = ed.zoomLevel;

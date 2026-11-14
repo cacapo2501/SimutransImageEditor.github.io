@@ -17,6 +17,7 @@ export class PaintToolHandler {
 
   handlePointerDown(px, py) {
     const ed = this.editor;
+    if (ed.onionSkinMgr && ed.onionSkinMgr.handlePointerDown(px, py)) return;
     if (ed.clipMgr.handlePointerDown(px, py)) return;
     if (px < 0 || px >= ed.width || py < 0 || py >= ed.height) return;
 
@@ -79,6 +80,7 @@ export class PaintToolHandler {
 
   handlePointerMove(px, py) {
     const ed = this.editor;
+    if (ed.onionSkinMgr && ed.onionSkinMgr.handlePointerMove(px, py)) return;
     if (ed.clipMgr.handlePointerMove(px, py)) return;
 
     if (ed.isDrawing) {
@@ -96,6 +98,7 @@ export class PaintToolHandler {
 
   handlePointerUp(px, py) {
     const ed = this.editor;
+    if (ed.onionSkinMgr && ed.onionSkinMgr.handlePointerUp()) return;
     if (ed.clipMgr.handlePointerUp()) return;
     if (!ed.isDrawing) return;
     ed.isDrawing = false;
@@ -144,7 +147,7 @@ export class PaintToolHandler {
     oCtx.clearRect(0, 0, ed.width, ed.height);
 
     // 1. オニオンスキン（外部画像位置目安・出力には含まれない）
-    if (ed.onionSkinMgr) ed.onionSkinMgr.drawOverlay(oCtx);
+    if (ed.onionSkinMgr) ed.onionSkinMgr.drawOverlay(oCtx, ed.zoomLevel);
 
     // 2. フローティング貼付画像
     ed.clipMgr.drawFloatingOverlay(oCtx, ed.zoomLevel);

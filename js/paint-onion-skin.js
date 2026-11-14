@@ -4,12 +4,15 @@ export class PaintOnionSkinManager {
     this.skins = [];
     this.selectedId = null;
     this._nextId = 1;
+    this.isDragging = false;
+    this.dragOffset = [0, 0];
   }
 
   // エディタ終了・保存時にオニオンスキンを完全に破棄（本体画像には一切出力しない）
   clearAll() {
     this.skins = [];
     this.selectedId = null;
+    this.isDragging = false;
     this.renderUI();
     if (this.editor && this.editor.oCtx) {
       this.editor._drawOverlay();
@@ -36,6 +39,7 @@ export class PaintOnionSkinManager {
         const s = this.getSelected();
         if (!s) return;
         s.x = parseInt(e.target.value, 10) || 0;
+        this._updateSelectedListLabel();
         this.editor._drawOverlay();
       };
     }
@@ -46,6 +50,7 @@ export class PaintOnionSkinManager {
         const s = this.getSelected();
         if (!s) return;
         s.y = parseInt(e.target.value, 10) || 0;
+        this._updateSelectedListLabel();
         this.editor._drawOverlay();
       };
     }
@@ -77,13 +82,60 @@ export class PaintOnionSkinManager {
     return this.skins.find(s => s.id === this.selectedId) || null;
   }
 
+  // チェックが入っていて（visible === true）、かつ選択中のオニオンスキンを取得
+  getActiveDraggableSkin() {
+    const s = this.getSelected();
+    return (s && s.visible) ? s : null;
+  }
+
   nudgeSelected(dx, dy) {
     const s = this.getSelected();
     if (!s) return;
     s.x += dx;
     s.y += dy;
     this._syncSelectedControls();
+    this._updateSelectedListLabel();
     this.editor._drawOverlay();
+  }
+
+  _updateSelectedListLabel() {
+    const s = this.getSelected();
+    if (!s) return;
+    const lbl = document.querySelector(`.onion-item-row[data-id="${s.id}"] .onion-item-name`);
+    if (lbl) lbl.textContent = `${s.name} (${s.x},${s.y})`;
+  }
+
+  // キャンバス上のポインター操作によるドラッグ移動
+  handlePointerDown(px, py) {
+    const s = this.getActiveDraggableSkin();
+    if (!s) return false;
+    if (px >= s.x && px < s.x + s.width && py >= s.y && py < s.y + s.height) {
+      this.isDragging = true;
+      this.dragOffset = [px - s.x, py - s.y];
+      return true;
+    }
+    return false;
+  }
+
+  handlePointerMove(px, py) {
+    if (!this.isDragging) return false;
+    const s = this.getActiveDraggableSkin();
+    if (!s) {
+      this.isDragging = false;
+      return false;
+    }
+    s.x = px - this.dragOffset[0];
+    s.y = py - this.dragOffset[1];
+    this._syncSelectedControls();
+    this._updateSelectedListLabel();
+    this.editor._drawOverlay();
+    return true;
+  }
+
+  handlePointerUp() {
+    if (!this.isDragging) return false;
+    this.isDragging = false;
+    return true;
   }
 
   openFilePicker() {
@@ -173,14 +225,16 @@ export class PaintOnionSkinManager {
     this.skins.forEach(s => {
       const row = document.createElement('div');
       row.className = 'onion-item-row' + (s.id === this.selectedId ? ' selected' : '');
+      row.dataset.id = String(s.id);
 
       const chk = document.createElement('input');
       chk.type = 'checkbox';
       chk.checked = s.visible;
-      chk.title = '表示/非表示';
+      chk.title = '表示/非表示 (チェックON＋選択中でドラッグ移動可)';
       chk.onclick = (e) => {
         e.stopPropagation();
         s.visible = chk.checked;
+        if (!s.visible && this.selectedId === s.id) this.isDragging = false;
         this.editor._drawOverlay();
       };
 
@@ -203,6 +257,7 @@ export class PaintOnionSkinManager {
       row.onclick = () => {
         this.selectedId = s.id;
         this.renderUI();
+        this.editor._drawOverlay();
       };
 
       row.appendChild(chk);
@@ -239,7 +294,7 @@ export class PaintOnionSkinManager {
   }
 
   // プレビュー専用オーバーレイキャンバス(oCtx)にのみ描画するため、本体キャンバスには一切書き込まない
-  drawOverlay(oCtx) {
+  drawOverlay(oCtx, zoomLevel = 1) {
     if (this.skins.length === 0) return;
 
     oCtx.save();
@@ -250,6 +305,17 @@ export class PaintOnionSkinManager {
       oCtx.globalAlpha = s.opacity;
       const src = s.transE7ffff ? s.transCanvas : s.rawCanvas;
       oCtx.drawImage(src, s.x, s.y);
+    }
+
+    // チェックONかつ選択中のオニオンスキンはドラッグ移動可能枠を破線表示
+    const active = this.getActiveDraggableSkin();
+    if (active) {
+      oCtx.globalAlpha = 0.9;
+      oCtx.lineWidth = Math.max(0.4, 1 / Math.max(1, zoomLevel * 0.5));
+      oCtx.strokeStyle = '#FF66CC';
+      oCtx.setLineDash([2, 2]);
+      oCtx.strokeRect(active.x, active.y, active.width, active.height);
+      oCtx.setLineDash([]);
     }
     oCtx.restore();
   }
