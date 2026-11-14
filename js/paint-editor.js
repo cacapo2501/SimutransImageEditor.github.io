@@ -14,7 +14,6 @@ export class PaintEditor {
     this.oCtx = this.overlayCanvas.getContext('2d');
     this.viewport = document.getElementById('paint-viewport');
 
-    // スポイトサンプラー
     this.samplerModal = document.getElementById('modal-image-sampler');
     this.samplerCanvas = document.getElementById('sampler-canvas');
     this.samplerCtx = this.samplerCanvas.getContext('2d', { willReadFrequently: true });
@@ -28,11 +27,9 @@ export class PaintEditor {
     this.samplerPanStart = [0, 0];
     this.samplerMouseDownPos = [0, 0];
 
-    // 色置換
     this.replaceModal = document.getElementById('modal-color-replace');
     this.replaceRules = [];
 
-    // 描画状態
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
     this.zoomLevel = 8.0;
@@ -380,7 +377,6 @@ export class PaintEditor {
     });
   }
 
-  // --- 画像スポイトモーダル ---
   _openSamplerModal() {
     this.samplerPickedColors.clear();
     this._renderSamplerPickedUI();
@@ -556,7 +552,6 @@ export class PaintEditor {
     });
   }
 
-  // --- 色置換モーダル ---
   _openColorReplaceDialog() {
     this.replaceRules = [
       { from: this.currentColor, to: '#FFFFFF' }
@@ -672,11 +667,9 @@ export class PaintEditor {
     alert(`色置換が完了しました。（${replacedCount} ピクセルを置換）`);
   }
 
-  // --- 描画・スポイト処理 ---
   _handleToolStart(x, y) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
 
-    // ★ 現在編集中の画像から色を取得するスポイト機能 ★
     if (this.currentTool === 'picker') {
       const p = this.ctx.getImageData(x, y, 1, 1).data;
       if (p[3] > 0) {
