@@ -236,7 +236,11 @@
       </details>
 
       <div class="sidebar-footer">
-        <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存</button>
+        <div class="btn-group w-100" style="display:flex; flex-direction:column; gap:8px;">
+          <button id="btn-save-base-png" class="btn-primary">ベース画像をPNG保存</button>
+          <button id="btn-save-mask-png" class="btn-primary">マスク画像をPNG保存</button>
+        </div>
+        <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0; margin-top:10px;">合成結果をPNG保存</button>
       </div>
     </aside>
 
@@ -420,7 +424,7 @@
   <!-- ★ HSV + RGB カラーピッカーモーダル (RGBスライダー・数値入力欄を完備) ★ -->
   <dialog id="modal-color-picker">
     <div class="picker-content">
-      <h3 style="font-size:13px; margin-bottom:8px;">カラーピッカー (HSV / RGB)</h3>
+      <h3 style="font-size:13px; margin-bottom:8px;">カラーピッカ― (HSV / RGB)</h3>
       <div class="swatch-compare">
         <span>元色: <i id="picker-old-swatch"></i></span>
         <span>新色: <i id="picker-new-swatch"></i></span>
