@@ -21,6 +21,23 @@ export function loadImageAsync(src) {
   });
 }
 
+function downloadImageElementAsPng(img, filename) {
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth || img.width;
+  c.height = img.naturalHeight || img.height;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, 0, 0);
+
+  const safeName = filename.toLowerCase().endsWith('.png') ? filename : `${filename}.png`;
+  c.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = safeName;
+    a.click();
+  }, 'image/png');
+}
+
 export class ProjectIO {
   static save(app) {
     if (!app.baseImage) return alert('保存するデータがありません。');
@@ -152,6 +169,21 @@ export class ProjectIO {
     r.readAsText(file);
   }
 
+  // ベース画像単体PNG保存
+  static exportBasePng(app) {
+    if (!app.baseImage) return alert('保存するベース画像がありません。');
+    downloadImageElementAsPng(app.baseImage, app.baseName || 'base.png');
+    document.getElementById('status-bar').textContent = 'ベース画像をPNG保存しました。';
+  }
+
+  // マスク画像単体PNG保存
+  static exportMaskPng(app) {
+    if (!app.maskImage) return alert('保存するマスク画像がありません。');
+    downloadImageElementAsPng(app.maskImage, app.maskName || 'mask.png');
+    document.getElementById('status-bar').textContent = 'マスク画像をPNG保存しました。';
+  }
+
+  // 合成結果PNG保存
   static exportPng(app) {
     const pixels = app.computeFinalImage();
     if (!pixels) return alert('保存できる画像がありません。');
