@@ -11,6 +11,7 @@ import { LayerManager } from './layer-manager.js';
 import { ToneTintController } from './tone-tint-controller.js';
 import { DeftileBuilder } from './deftile-builder.js';
 import { ImageIOController } from './image-io-controller.js';
+import { drawSimutransIsoTiles } from './paint-algorithms.js';
 import { renderSidebarUI } from './ui-sidebar.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
@@ -88,6 +89,12 @@ class AdvancedMultiplyApp {
     this.blurRadius = 0.0;
     this.pixelSnap = true;
 
+    // メイン画面タイルひし形補助線設定
+    this.showMainIsoTile = false;
+    this.mainIsoTileW = 64;
+    this.mainIsoTileH = 32;
+    this.mainIsoColor = '#FFAA00';
+
     this.zoomLevel = 1.0;
     this.panX = 60; this.panY = 60;
     this.isPanning = false; this.spacePressed = false;
@@ -105,7 +112,7 @@ class AdvancedMultiplyApp {
     this.deftileBuilder = new DeftileBuilder(this, safePickFile);
     this.imageIOCtrl = new ImageIOController(this, safePickFile);
 
-    this._bindZoomEvents();
+    this._bindZoomAndGuideEvents();
     this.imageIOCtrl.bindAll();
     this.layerManager.bindEvents();
     this.toneTintCtrl.bindEvents();
@@ -268,7 +275,6 @@ class AdvancedMultiplyApp {
     this.ctx.fillStyle = '#181818';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // 半透明ピクセルの視認用チェッカーボード背景
     this._drawCheckerboard(this.panX, this.panY, vw, vh);
 
     let imgData;
@@ -291,6 +297,17 @@ class AdvancedMultiplyApp {
     tc.getContext('2d').putImageData(imgData, 0, 0);
     this.ctx.imageSmoothingEnabled = this.zoomLevel < 1.0;
     this.ctx.drawImage(tc, this.panX, this.panY, vw, vh);
+
+    // メイン編集用ピクセルパーフェクトタイルひし形補助線
+    if (this.showMainIsoTile) {
+      const gc = document.createElement('canvas');
+      gc.width = this.baseW;
+      gc.height = this.baseH;
+      const gCtx = gc.getContext('2d');
+      drawSimutransIsoTiles(gCtx, this.baseW, this.baseH, this.mainIsoTileW, this.mainIsoTileH, this.mainIsoColor);
+      this.ctx.imageSmoothingEnabled = false;
+      this.ctx.drawImage(gc, this.panX, this.panY, vw, vh);
+    }
 
     if (this.isEyedropper) {
       this.ctx.fillStyle = '#FFFF00';
@@ -346,11 +363,30 @@ class AdvancedMultiplyApp {
     }
   }
 
-  _bindZoomEvents() {
+  _bindZoomAndGuideEvents() {
     document.getElementById('btn-zoom-in').onclick = () => this.setZoom(this.zoomLevel * 1.25);
     document.getElementById('btn-zoom-out').onclick = () => this.setZoom(this.zoomLevel * 0.8);
     document.getElementById('btn-zoom-reset').onclick = () => this.setZoom(1.0);
     document.getElementById('btn-zoom-fit').onclick = () => this.zoomFit();
+
+    const chkIso = document.getElementById('chk-main-iso');
+    const inpIsoW = document.getElementById('inp-main-iso-w');
+    const inpIsoH = document.getElementById('inp-main-iso-h');
+    const inpIsoColor = document.getElementById('inp-main-iso-color');
+
+    if (chkIso) chkIso.onchange = (e) => { this.showMainIsoTile = e.target.checked; this.render(); };
+    if (inpIsoW) {
+      inpIsoW.oninput = (e) => {
+        const w = Math.max(4, Math.min(512, parseInt(e.target.value, 10) || 64));
+        this.mainIsoTileW = w;
+        const autoH = Math.max(2, Math.round(w / 2));
+        this.mainIsoTileH = autoH;
+        if (inpIsoH) inpIsoH.value = autoH;
+        this.render();
+      };
+    }
+    if (inpIsoH) inpIsoH.oninput = (e) => { this.mainIsoTileH = Math.max(2, Math.min(512, parseInt(e.target.value, 10) || 32)); this.render(); };
+    if (inpIsoColor) inpIsoColor.oninput = (e) => { this.mainIsoColor = e.target.value; this.render(); };
   }
 }
 

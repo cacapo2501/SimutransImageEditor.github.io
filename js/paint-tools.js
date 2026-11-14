@@ -142,7 +142,14 @@ export class PaintToolHandler {
     const ed = this.editor;
     const oCtx = ed.oCtx;
     oCtx.clearRect(0, 0, ed.width, ed.height);
+
+    // 1. オニオンスキン（外部画像位置目安・出力には含まれない）
+    if (ed.onionSkinMgr) ed.onionSkinMgr.drawOverlay(oCtx);
+
+    // 2. フローティング貼付画像
     ed.clipMgr.drawFloatingOverlay(oCtx, ed.zoomLevel);
+
+    // 3. 選択範囲
     drawSelectionOverlay(oCtx, ed.width, ed.height, ed.selectionMask);
 
     if (ed.currentTool === 'line' && ed.lineStart && curPos) {

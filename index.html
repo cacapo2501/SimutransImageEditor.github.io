@@ -19,6 +19,19 @@
         <button id="btn-zoom-in">＋</button>
         <button id="btn-zoom-reset">等倍 (100%)</button>
         <button id="btn-zoom-fit">全体表示 (Fit)</button>
+
+        <div class="guide-control-group" style="margin-left:8px; display:inline-flex; align-items:center; gap:4px;" title="メインキャンバス上にベースタイルのアイソメトリック菱形を表示">
+          <label class="inline-chk-lbl">
+            <input type="checkbox" id="chk-main-iso"> タイル菱形:
+          </label>
+          <span style="font-size:10px; color:#aaa;">幅</span>
+          <input type="number" id="inp-main-iso-w" class="num-input-mini" value="64" min="4" max="512">
+          <span style="font-size:10px; color:#aaa;">×高</span>
+          <input type="number" id="inp-main-iso-h" class="num-input-mini" value="32" min="2" max="512">
+          <span style="font-size:10px; color:#aaa;">px</span>
+          <input type="color" id="inp-main-iso-color" class="color-input-mini" value="#FFAA00" title="タイル菱形の色を選択">
+        </div>
+
         <span class="guide-text">中/右ドラッグ or Space+ドラッグ: スクロール | ホイール: 拡縮</span>
       </div>
       <div id="canvas-viewport">

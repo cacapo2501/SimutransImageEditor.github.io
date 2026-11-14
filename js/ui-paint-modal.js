@@ -85,6 +85,38 @@ export function renderPaintModalUI() {
               </div>
             </div>
 
+            <!-- オニオンスキン（外部画像位置目安・保存時自動破棄） -->
+            <fieldset class="sub-panel">
+              <legend>🧅 オニオンスキン (位置目安)</legend>
+              <div class="btn-group">
+                <button id="btn-onion-add" class="btn-primary">＋ 画像重ね(複数可)</button>
+                <button id="btn-onion-clear">全削除</button>
+              </div>
+              <div id="onion-skin-list" style="max-height:95px; overflow-y:auto; display:flex; flex-direction:column; gap:3px;">
+                <div class="info-text" style="text-align:center; padding:4px 0;">未登録（保存時には出力されません）</div>
+              </div>
+              <div id="onion-selected-controls" style="display:none; border-top:1px solid #3a3a3a; padding-top:5px;">
+                <div class="step-row">
+                  <span style="font-size:11px; width:20px;">X:</span>
+                  <button type="button" id="btn-onion-x-minus" style="padding:2px 6px;">-1</button>
+                  <input type="number" id="inp-onion-x" class="num-input-mini" value="0" style="width:52px;">
+                  <button type="button" id="btn-onion-x-plus" style="padding:2px 6px;">+1</button>
+                </div>
+                <div class="step-row mt-05">
+                  <span style="font-size:11px; width:20px;">Y:</span>
+                  <button type="button" id="btn-onion-y-minus" style="padding:2px 6px;">-1</button>
+                  <input type="number" id="inp-onion-y" class="num-input-mini" value="0" style="width:52px;">
+                  <button type="button" id="btn-onion-y-plus" style="padding:2px 6px;">+1</button>
+                </div>
+                <div class="row mt-05">
+                  <span style="font-size:11px;">濃さ:</span>
+                  <span id="lbl-onion-opacity" class="val-badge" style="min-width:36px;">45%</span>
+                  <input type="range" id="slider-onion-opacity" min="0.05" max="1" step="0.05" value="0.45">
+                </div>
+                <label class="mt-05"><input type="checkbox" id="chk-onion-trans-e7ffff" checked> #E7FFFF を透過</label>
+              </div>
+            </fieldset>
+
             <fieldset class="sub-panel" id="base-palette-tools">
               <legend>グレースケール生成設定</legend>
               <div class="row">

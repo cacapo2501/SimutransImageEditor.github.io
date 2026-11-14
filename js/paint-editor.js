@@ -3,6 +3,7 @@ import { PaintDialogs } from './paint-dialogs.js';
 import { PaintResizeController, cloneCanvasFromSource } from './paint-resize.js';
 import { PaintInputController } from './paint-input.js';
 import { PaintToolHandler } from './paint-tools.js';
+import { PaintOnionSkinManager } from './paint-onion-skin.js';
 import { renderEditorPaletteUI, updateEditorCurrentColorUI } from './paint-palette-ui.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
@@ -28,6 +29,7 @@ export class PaintEditor {
     this.resizeCtrl = null;
     this.inputCtrl = null;
     this.toolHandler = null;
+    this.onionSkinMgr = null;
 
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
@@ -81,9 +83,11 @@ export class PaintEditor {
     this.resizeCtrl = new PaintResizeController(this);
     this.inputCtrl = new PaintInputController(this);
     this.toolHandler = new PaintToolHandler(this);
+    this.onionSkinMgr = new PaintOnionSkinManager(this);
 
     this.resizeCtrl.bindEvents();
     this.inputCtrl.bindAll();
+    this.onionSkinMgr.bindEvents();
 
     const btnToggleLive = document.getElementById('btn-toggle-live-preview-size');
     if (btnToggleLive) {
@@ -146,6 +150,7 @@ export class PaintEditor {
     this.rectFillStart = null;
     this.selStart = null;
     this.clipMgr.reset();
+    this.onionSkinMgr.clearAll();
 
     this.undoStack = [];
     this.redoStack = [];
@@ -181,6 +186,8 @@ export class PaintEditor {
 
   applyAndClose() {
     if (this.clipMgr && this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
+    // オニオンスキンはプレビュー専用のため、確定・保存前に必ず破棄する
+    if (this.onionSkinMgr) this.onionSkinMgr.clearAll();
 
     const outCanvas = document.createElement('canvas');
     outCanvas.width = this.width;
@@ -209,6 +216,7 @@ export class PaintEditor {
   }
 
   _cancelAndClose() {
+    if (this.onionSkinMgr) this.onionSkinMgr.clearAll();
     if (this.targetType === 'base' && this.undoStack.length > 0 && this.undoStack[0].maskCanvas) {
       this.app.applyMaskImage(this.undoStack[0].maskCanvas, this.app.maskName);
       this.app.render();

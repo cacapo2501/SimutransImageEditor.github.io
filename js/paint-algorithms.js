@@ -220,9 +220,52 @@ function getSimutransTileData(Tw, Th) {
   return cachedIsoData;
 }
 
+// 画像左下 (0, height) を基準としたSimutransタイル敷き詰め描画（ペイント＆メイン画面共通）
+export function drawSimutransIsoTiles(ctx, width, height, isoTileW, isoTileH, isoColor = '#FFAA00') {
+  if (!isoTileW || !isoTileH || isoTileW < 4 || isoTileH < 2) return;
+
+  const Tw = Math.floor(isoTileW);
+  const Th = Math.floor(isoTileH);
+  const halfW = Tw / 2;
+  const halfH = Th / 2;
+  const { effH, border: borderPixels } = getSimutransTileData(Tw, Th);
+
+  const baseTileX = 0;
+  const baseTileY = height - effH;
+  const maxSpan = Math.ceil(width / halfW) + Math.ceil(height / halfH) + 2;
+
+  ctx.fillStyle = hexToRgba(isoColor, 0.55);
+  for (let u = -maxSpan; u <= maxSpan; u++) {
+    for (let v = -maxSpan; v <= maxSpan; v++) {
+      if (u === 0 && v === 0) continue;
+      const tileX = Math.round(baseTileX + (u - v) * halfW);
+      const tileY = Math.round(baseTileY - (u + v) * halfH);
+
+      if (tileX < 0 || tileY + effH > height) continue;
+      if (tileX >= width || tileY + effH <= 0) continue;
+
+      for (let i = 0; i < borderPixels.length; i++) {
+        const px = tileX + borderPixels[i][0];
+        const py = tileY + borderPixels[i][1];
+        if (px >= 0 && px < width && py >= 0 && py < height) {
+          ctx.fillRect(px, py, 1, 1);
+        }
+      }
+    }
+  }
+
+  ctx.fillStyle = hexToRgba(isoColor, 0.95);
+  for (let i = 0; i < borderPixels.length; i++) {
+    const px = baseTileX + borderPixels[i][0];
+    const py = baseTileY + borderPixels[i][1];
+    if (px >= 0 && px < width && py >= 0 && py < height) {
+      ctx.fillRect(px, py, 1, 1);
+    }
+  }
+}
+
 // ピクセルパーフェクト補助線（直交グリッド）＆ 画像左下基準Simutransタイル敷き詰め描画
 export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
-  // 1. 等間隔直交補助線（1px単位のfillRectによる完全ピクセルパーフェクト描画）
   if (opts.showGrid && opts.gridStep >= 1) {
     oCtx.fillStyle = hexToRgba(opts.gridColor || '#00FF66', 0.75);
     const step = Math.max(1, Math.floor(opts.gridStep));
@@ -234,51 +277,7 @@ export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
     }
   }
 
-  // 2. 画像の左下 (x=0, y=height) を描き始めとしたSimutransタイル敷き詰めルール描画
-  if (opts.showIsoTile && opts.isoTileW >= 4 && opts.isoTileH >= 2) {
-    const Tw = Math.floor(opts.isoTileW);
-    const Th = Math.floor(opts.isoTileH);
-    const halfW = Tw / 2;
-    const halfH = Th / 2;
-    const { effH, border: borderPixels } = getSimutransTileData(Tw, Th);
-    const isoHex = opts.isoColor || '#FFAA00';
-
-    // ひし形の実効高さ (Th - 1) に合わせ、基準タイル (u=0, v=0) の左下隅を画像の左下 (0, height) に配置
-    const baseTileX = 0;
-    const baseTileY = height - effH;
-
-    const maxSpan = Math.ceil(width / halfW) + Math.ceil(height / halfH) + 2;
-
-    // 敷き詰めルールに従って展開する周囲のタイル群を描画（重複ゼロ・隙間ゼロで敷き詰め）
-    oCtx.fillStyle = hexToRgba(isoHex, 0.55);
-    for (let u = -maxSpan; u <= maxSpan; u++) {
-      for (let v = -maxSpan; v <= maxSpan; v++) {
-        if (u === 0 && v === 0) continue; // 基準タイルは後で強調描画
-        const tileX = Math.round(baseTileX + (u - v) * halfW);
-        const tileY = Math.round(baseTileY - (u + v) * halfH);
-
-        // 画像の左端(x=0)・下端(y=height)を起点とし、上・右方向へ敷き詰める
-        if (tileX < 0 || tileY + effH > height) continue;
-        if (tileX >= width || tileY + effH <= 0) continue;
-
-        for (let i = 0; i < borderPixels.length; i++) {
-          const px = tileX + borderPixels[i][0];
-          const py = tileY + borderPixels[i][1];
-          if (px >= 0 && px < width && py >= 0 && py < height) {
-            oCtx.fillRect(px, py, 1, 1);
-          }
-        }
-      }
-    }
-
-    // 描き始めの基準タイル (u=0, v=0: 画像左下基準) を高コントラストで強調描画
-    oCtx.fillStyle = hexToRgba(isoHex, 0.95);
-    for (let i = 0; i < borderPixels.length; i++) {
-      const px = baseTileX + borderPixels[i][0];
-      const py = baseTileY + borderPixels[i][1];
-      if (px >= 0 && px < width && py >= 0 && py < height) {
-        oCtx.fillRect(px, py, 1, 1);
-      }
-    }
+  if (opts.showIsoTile) {
+    drawSimutransIsoTiles(oCtx, width, height, opts.isoTileW, opts.isoTileH, opts.isoColor);
   }
 }
