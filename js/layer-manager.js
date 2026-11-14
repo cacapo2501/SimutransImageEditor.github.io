@@ -36,6 +36,15 @@ export class LayerManager {
       }
     };
 
+    document.getElementById('chk-exclude-mask').onchange = (e) => {
+      if (this.app.activeIdx >= 0) {
+        this.app.layers[this.app.activeIdx].excludeMaskColor = e.target.checked;
+        this.syncActiveUI();
+        this.app.markDirty();
+        this.app.render();
+      }
+    };
+
     document.getElementById('chk-fill-all').onchange = (e) => {
       if (this.app.activeIdx >= 0) {
         this.app.layers[this.app.activeIdx].fillAll = e.target.checked;
@@ -110,6 +119,7 @@ export class LayerManager {
     document.getElementById('btn-clear-mask').onclick = () => {
       if (this.app.activeIdx < 0) return;
       this.app.layers[this.app.activeIdx].targetMaskColor = null;
+      this.app.layers[this.app.activeIdx].excludeMaskColor = false;
       this.syncActiveUI();
       this.app.markDirty();
       this.app.render();
@@ -161,6 +171,7 @@ export class LayerManager {
 
     document.querySelector(`input[name="layer-type"][value="${l.layerType}"]`).checked = true;
     document.getElementById('chk-trans-e7ffff').checked = l.transparentE7ffff;
+    document.getElementById('chk-exclude-mask').checked = l.excludeMaskColor;
     document.getElementById('chk-fill-all').checked = l.fillAll;
     document.getElementById('slider-opacity').value = l.opacity;
     document.getElementById('lbl-opacity').textContent = `${Math.round(l.opacity * 100)}%`;
@@ -172,8 +183,20 @@ export class LayerManager {
     if (l.targetMaskColor) {
       const hex = rgbToHex(...l.targetMaskColor);
       document.getElementById('layer-mask-swatch').style.backgroundColor = hex;
-      document.getElementById('lbl-layer-mask').textContent = `適用先: ${hex}`;
-      document.getElementById('mask-color-combo').value = hex;
+      document.getElementById('lbl-layer-mask').textContent = l.excludeMaskColor
+        ? `適用先: ${hex} 以外 (この色を除外)`
+        : `適用先: ${hex} (この色のみに適用)`;
+
+      const combo = document.getElementById('mask-color-combo');
+      if (Array.from(combo.options).some(opt => opt.value === hex)) {
+        combo.value = hex;
+      } else {
+        const opt = document.createElement('option');
+        opt.value = hex;
+        opt.textContent = `${hex} (スポイト指定色)`;
+        combo.appendChild(opt);
+        combo.value = hex;
+      }
     } else {
       document.getElementById('layer-mask-swatch').style.backgroundColor = '#FFFFFF';
       document.getElementById('lbl-layer-mask').textContent = '適用先: 全体 (マスクなし)';
@@ -213,7 +236,8 @@ export class LayerManager {
       corners: src.corners.map(([x, y]) => [x + 10, y + 10]),
       sourceLayer: master,
       fillAll: master.fillAll,
-      transparentE7ffff: master.transparentE7ffff
+      transparentE7ffff: master.transparentE7ffff,
+      excludeMaskColor: master.excludeMaskColor
     });
     this.app.layers.push(copy);
     this.refreshList();
