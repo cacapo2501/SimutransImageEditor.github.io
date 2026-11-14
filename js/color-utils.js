@@ -15,6 +15,21 @@ export function hexToRgb(hex) {
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 
+// HEX -> 24bit整数キー (高速ルックアップ用)
+export function hexToInt(hex) {
+  let clean = hex.replace('#', '').trim();
+  if (clean.length === 3) {
+    clean = clean.split('').map(c => c + c).join('');
+  }
+  const num = parseInt(clean, 16);
+  return isNaN(num) ? 0xFFFFFF : (num & 0xFFFFFF);
+}
+
+// 24bit整数キー -> HEX
+export function intToHex(val) {
+  return `#${(val & 0xFFFFFF).toString(16).padStart(6, '0').toUpperCase()}`;
+}
+
 // RGB (0-255) -> HSV (H:0-360, S:0-100, V:0-100)
 export function rgbToHsv(r, g, b) {
   const rf = r / 255, gf = g / 255, bf = b / 255;
@@ -62,12 +77,11 @@ export function hsvToRgb(h, s, v) {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
-// special_colors.csv パース（R,G,B / 色名,R,G,B / #RRGGBB / BOM付きに対応）
+// special_colors.csv パース
 export function parseSpecialColorsCsv(csvText) {
   const specialColors = new Set();
   if (!csvText) return specialColors;
 
-  // UTF-8 BOM除去
   const cleanText = csvText.replace(/^\uFEFF/, '');
   const lines = cleanText.split(/\r?\n/);
 
@@ -75,7 +89,6 @@ export function parseSpecialColorsCsv(csvText) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // 1. 行内に #RRGGBB 形式が含まれている場合はカラーコードとして抽出
     const hexMatches = trimmed.match(/#[0-9A-Fa-f]{6}\b/g);
     if (hexMatches && hexMatches.length > 0) {
       for (const h of hexMatches) {
@@ -84,10 +97,8 @@ export function parseSpecialColorsCsv(csvText) {
       continue;
     }
 
-    // 2. HEXコードではない '#' 始まりはコメント行としてスキップ
     if (trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
 
-    // 3. カンマ・タブ・セミコロン区切りから連続する3つの0-255整数 (R, G, B) を抽出
     const parts = trimmed.split(/[,;\t]+/).map(s => s.trim());
     for (let i = 0; i <= parts.length - 3; i++) {
       if (/^\d{1,3}$/.test(parts[i]) && /^\d{1,3}$/.test(parts[i + 1]) && /^\d{1,3}$/.test(parts[i + 2])) {
@@ -104,16 +115,16 @@ export function parseSpecialColorsCsv(csvText) {
   return specialColors;
 }
 
-// 出力時SpecialColor衝突回避（ベース画像で元々SpecialColorのピクセルは完全保護）
+// 出力時SpecialColor衝突回避
 export function resolveSpecialColorConflicts(pixels, width, height, specialColors, isBaseSpecialColor = null) {
   if (!specialColors || specialColors.size === 0) return 0;
   let conflicts = 0;
   const total = width * height;
+  const specialInts = new Set();
+  specialColors.forEach(hex => specialInts.add(hexToInt(hex)));
 
   for (let i = 0; i < total; i++) {
-    if (isBaseSpecialColor && isBaseSpecialColor[i]) {
-      continue;
-    }
+    if (isBaseSpecialColor && isBaseSpecialColor[i]) continue;
 
     const idx = i * 4;
     if (pixels[idx + 3] === 0) continue;
@@ -121,9 +132,9 @@ export function resolveSpecialColorConflicts(pixels, width, height, specialColor
     const r = pixels[idx];
     const g = pixels[idx + 1];
     const b = pixels[idx + 2];
-    const hex = rgbToHex(r, g, b);
+    const rgbInt = (r << 16) | (g << 8) | b;
 
-    if (specialColors.has(hex)) {
+    if (specialInts.has(rgbInt)) {
       pixels[idx] = r > 0 ? r - 1 : r + 1;
       conflicts++;
     }
