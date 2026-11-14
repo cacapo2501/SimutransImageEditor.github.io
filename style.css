@@ -469,25 +469,42 @@ fieldset.sub-panel label input[type="checkbox"] {
 }
 
 #paint-toolbar {
-  height: 42px;
+  min-height: 42px;
+  height: auto;
   background: #282828;
   border-bottom: 1px solid #3d3d3d;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0 8px;
+  padding: 4px 8px;
   gap: 6px;
   flex-shrink: 0;
 }
 
 .paint-tool-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+}
+
+.sel-mode-group {
+  background: #1f1f1f;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #3a3a3a;
 }
 
 .paint-tool-btn.active {
   background: #005a9e !important;
   border-color: #0078d4 !important;
+  color: #fff !important;
+  font-weight: bold;
+}
+
+.sel-mode-btn.active {
+  background: #007a5a !important;
+  border-color: #00b386 !important;
   color: #fff !important;
   font-weight: bold;
 }
