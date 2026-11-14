@@ -30,8 +30,10 @@ export class PaintEditor {
     this.replaceModal = document.getElementById('modal-color-replace');
     this.replaceRules = [];
 
+    // 描画・選択状態
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
+    this.selectionMode = 'replace'; // 'replace' | 'add' | 'subtract' | 'intersect'
     this.zoomLevel = 8.0;
     this.panX = 40;
     this.panY = 40;
@@ -40,6 +42,8 @@ export class PaintEditor {
     this.lastDrawPos = null;
 
     this.lineStart = null;
+    this.rectFillStart = null;
+    this.selStart = null;
     this.polyPoints = [];
     this.selectionMask = null;
 
@@ -50,6 +54,7 @@ export class PaintEditor {
     this.keybindings = {
       pencil: 'KeyB',
       line: 'KeyL',
+      rectFill: 'KeyR',
       bucket: 'KeyG',
       picker: 'KeyI',
       rectSelect: 'KeyM',
@@ -97,6 +102,9 @@ export class PaintEditor {
 
     this.selectionMask = null;
     this.polyPoints = [];
+    this.lineStart = null;
+    this.rectFillStart = null;
+    this.selStart = null;
     this.undoStack = [];
     this.redoStack = [];
     this._pushHistory();
@@ -236,14 +244,27 @@ export class PaintEditor {
   }
 
   _bindEvents() {
+    // ツール切替ボタン
     document.querySelectorAll('.paint-tool-btn').forEach(btn => {
       btn.onclick = () => {
         document.querySelectorAll('.paint-tool-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.currentTool = btn.dataset.tool;
         this.lineStart = null;
+        this.rectFillStart = null;
+        this.selStart = null;
         this.polyPoints = [];
         this._drawOverlay();
+        this._updateStatus();
+      };
+    });
+
+    // 選択範囲演算モード切替ボタン（新規・追加・一部削除・乗算）
+    document.querySelectorAll('.sel-mode-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.sel-mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.selectionMode = btn.dataset.selMode;
         this._updateStatus();
       };
     });
@@ -277,14 +298,8 @@ export class PaintEditor {
       }
     };
 
-    document.getElementById('btn-open-image-sampler').onclick = () => {
-      this._openSamplerModal();
-    };
-
-    document.getElementById('btn-open-color-replace').onclick = () => {
-      this._openColorReplaceDialog();
-    };
-
+    document.getElementById('btn-open-image-sampler').onclick = () => this._openSamplerModal();
+    document.getElementById('btn-open-color-replace').onclick = () => this._openColorReplaceDialog();
     document.getElementById('btn-paint-keybindings').onclick = () => this._openKeybindingDialog();
 
     this.viewport.onwheel = (e) => {
@@ -323,6 +338,14 @@ export class PaintEditor {
       this._handleToolStart(px, py);
     };
 
+    // ダブルクリックで多角形選択を確定
+    this.viewport.ondblclick = (e) => {
+      if (this.currentTool === 'polySelect' && this.polyPoints.length >= 3) {
+        e.preventDefault();
+        this._finalizePolySelect();
+      }
+    };
+
     window.addEventListener('mousemove', (e) => {
       if (this.isPanning) {
         this.panX = e.clientX - this.panStart[0];
@@ -333,8 +356,12 @@ export class PaintEditor {
       if (!this.modal.open) return;
       const { px, py } = getCoords(e);
       document.getElementById('paint-lbl-coord').textContent = `X: ${px}, Y: ${py}`;
+
       if (this.isDrawing) {
         this._handleToolMove(px, py);
+      } else if (this.currentTool === 'polySelect' && this.polyPoints.length > 0) {
+        // 多角形選択の頂点配置中のラバーバンドプレビュー
+        this._drawOverlay([px, py]);
       }
     });
 
@@ -360,10 +387,20 @@ export class PaintEditor {
         this.redo();
         return;
       }
+      // Enterキーで多角形選択を確定
+      if (e.code === 'Enter' && this.currentTool === 'polySelect' && this.polyPoints.length >= 3) {
+        e.preventDefault();
+        this._finalizePolySelect();
+        return;
+      }
       if (e.code === 'Escape' || ((e.ctrlKey || e.metaKey) && e.code === 'KeyD')) {
-        this.selectionMask = null;
-        this.polyPoints = [];
-        this._drawOverlay();
+        if (this.polyPoints.length > 0) {
+          this.polyPoints = [];
+          this._drawOverlay();
+        } else {
+          this.selectionMask = null;
+          this._drawOverlay();
+        }
         return;
       }
 
@@ -377,6 +414,40 @@ export class PaintEditor {
     });
   }
 
+  // --- 選択範囲の演算統合（新規・追加・一部削除・乗算） ---
+  _applySelectionMask(newMask) {
+    const total = this.width * this.height;
+
+    if (this.selectionMode === 'replace' || !this.selectionMask) {
+      if (this.selectionMode === 'subtract' || this.selectionMode === 'intersect') {
+        this.selectionMask = null;
+      } else {
+        this.selectionMask = newMask;
+      }
+    } else {
+      const result = new Uint8Array(total);
+      let hasAny = false;
+      for (let i = 0; i < total; i++) {
+        const oldVal = this.selectionMask[i] === 1;
+        const newVal = newMask[i] === 1;
+        let keep = false;
+
+        if (this.selectionMode === 'add') keep = oldVal || newVal;
+        else if (this.selectionMode === 'subtract') keep = oldVal && !newVal;
+        else if (this.selectionMode === 'intersect') keep = oldVal && newVal;
+
+        if (keep) {
+          result[i] = 1;
+          hasAny = true;
+        }
+      }
+      this.selectionMask = hasAny ? result : null;
+    }
+
+    this._drawOverlay();
+  }
+
+  // --- 画像スポイトモーダル ---
   _openSamplerModal() {
     this.samplerPickedColors.clear();
     this._renderSamplerPickedUI();
@@ -552,6 +623,7 @@ export class PaintEditor {
     });
   }
 
+  // --- 色置換モーダル ---
   _openColorReplaceDialog() {
     this.replaceRules = [
       { from: this.currentColor, to: '#FFFFFF' }
@@ -667,6 +739,7 @@ export class PaintEditor {
     alert(`色置換が完了しました。（${replacedCount} ピクセルを置換）`);
   }
 
+  // --- 描画・選択ツール処理 ---
   _handleToolStart(x, y) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
 
@@ -693,6 +766,9 @@ export class PaintEditor {
       this._drawPixel(x, y);
     } else if (this.currentTool === 'line') {
       this.lineStart = [x, y];
+    } else if (this.currentTool === 'rectFill') {
+      this.rectFillStart = [x, y];
+      this._drawOverlay([x, y]);
     } else if (this.currentTool === 'bucket') {
       this._pushHistory();
       this._floodFill(x, y, this.currentColor);
@@ -700,11 +776,17 @@ export class PaintEditor {
     } else if (this.currentTool === 'rectSelect') {
       this.selStart = [x, y];
     } else if (this.currentTool === 'polySelect') {
-      this.polyPoints.push([x, y]);
-      if (this.polyPoints.length >= 3 && Math.hypot(x - this.polyPoints[0][0], y - this.polyPoints[0][1]) <= 1) {
+      // 3頂点以上あり、始点付近をクリックした場合は多角形を閉じて確定
+      if (this.polyPoints.length >= 3 && Math.hypot(x - this.polyPoints[0][0], y - this.polyPoints[0][1]) <= 1.5) {
         this._finalizePolySelect();
+      } else {
+        // 直前の頂点と完全重複していない場合のみ追加
+        const last = this.polyPoints[this.polyPoints.length - 1];
+        if (!last || last[0] !== x || last[1] !== y) {
+          this.polyPoints.push([x, y]);
+        }
+        this._drawOverlay([x, y]);
       }
-      this._drawOverlay();
       this.isDrawing = false;
     } else if (this.currentTool === 'wand') {
       this._magicWand(x, y);
@@ -723,17 +805,32 @@ export class PaintEditor {
       const [lx, ly] = this.lastDrawPos;
       this._drawLineContinuous(lx, ly, x, y, (px, py) => this._drawPixel(px, py));
       this.lastDrawPos = [x, y];
-    } else if (this.currentTool === 'line' || this.currentTool === 'rectSelect') {
+    } else if (this.currentTool === 'line' || this.currentTool === 'rectFill' || this.currentTool === 'rectSelect') {
       this._drawOverlay([x, y]);
     }
   }
 
   _handleToolEnd(x, y) {
     this.isDrawing = false;
+
     if (this.currentTool === 'line' && this.lineStart) {
       this._pushHistory();
       this._drawLineContinuous(this.lineStart[0], this.lineStart[1], x, y, (px, py) => this._drawPixel(px, py));
       this.lineStart = null;
+      this._drawOverlay();
+    } else if (this.currentTool === 'rectFill' && this.rectFillStart) {
+      this._pushHistory();
+      const x0 = Math.max(0, Math.min(this.rectFillStart[0], x));
+      const x1 = Math.min(this.width - 1, Math.max(this.rectFillStart[0], x));
+      const y0 = Math.max(0, Math.min(this.rectFillStart[1], y));
+      const y1 = Math.min(this.height - 1, Math.max(this.rectFillStart[1], y));
+
+      for (let py = y0; py <= y1; py++) {
+        for (let px = x0; px <= x1; px++) {
+          this._drawPixel(px, py);
+        }
+      }
+      this.rectFillStart = null;
       this._drawOverlay();
     } else if (this.currentTool === 'rectSelect' && this.selStart) {
       const x0 = Math.max(0, Math.min(this.selStart[0], x));
@@ -741,14 +838,14 @@ export class PaintEditor {
       const y0 = Math.max(0, Math.min(this.selStart[1], y));
       const y1 = Math.min(this.height - 1, Math.max(this.selStart[1], y));
 
-      this.selectionMask = new Uint8Array(this.width * this.height);
+      const newMask = new Uint8Array(this.width * this.height);
       for (let sy = y0; sy <= y1; sy++) {
         for (let sx = x0; sx <= x1; sx++) {
-          this.selectionMask[sy * this.width + sx] = 1;
+          newMask[sy * this.width + sx] = 1;
         }
       }
       this.selStart = null;
-      this._drawOverlay();
+      this._applySelectionMask(newMask);
     }
   }
 
@@ -816,9 +913,9 @@ export class PaintEditor {
     const sIdx = (startY * this.width + startX) * 4;
     const [sr, sg, sb] = [d[sIdx], d[sIdx + 1], d[sIdx + 2]];
 
-    this.selectionMask = new Uint8Array(this.width * this.height);
+    const newMask = new Uint8Array(this.width * this.height);
     const queue = [[startX, startY]];
-    this.selectionMask[startY * this.width + startX] = 1;
+    newMask[startY * this.width + startX] = 1;
 
     while (queue.length > 0) {
       const [cx, cy] = queue.pop();
@@ -826,16 +923,16 @@ export class PaintEditor {
       for (const [nx, ny] of neighbors) {
         if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue;
         const nPos = ny * this.width + nx;
-        if (this.selectionMask[nPos]) continue;
+        if (newMask[nPos]) continue;
 
         const nIdx = nPos * 4;
         if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb) {
-          this.selectionMask[nPos] = 1;
+          newMask[nPos] = 1;
           queue.push([nx, ny]);
         }
       }
     }
-    this._drawOverlay();
+    this._applySelectionMask(newMask);
   }
 
   _colorSelect(startX, startY) {
@@ -843,33 +940,49 @@ export class PaintEditor {
     const sIdx = (startY * this.width + startX) * 4;
     const [sr, sg, sb] = [d[sIdx], d[sIdx + 1], d[sIdx + 2]];
 
-    this.selectionMask = new Uint8Array(this.width * this.height);
+    const newMask = new Uint8Array(this.width * this.height);
     for (let i = 0; i < this.width * this.height; i++) {
       if (d[i * 4] === sr && d[i * 4 + 1] === sg && d[i * 4 + 2] === sb) {
-        this.selectionMask[i] = 1;
+        newMask[i] = 1;
       }
     }
-    this._drawOverlay();
+    this._applySelectionMask(newMask);
   }
 
+  // 多角形選択の確定（ピクセル中心判定による高精度Ray-casting＋演算モード適用）
   _finalizePolySelect() {
     if (this.polyPoints.length < 3) return;
-    this.selectionMask = new Uint8Array(this.width * this.height);
-    const pts = this.polyPoints;
+    const newMask = new Uint8Array(this.width * this.height);
+    const pts = this.polyPoints.map(([px, py]) => [px + 0.5, py + 0.5]);
 
     for (let y = 0; y < this.height; y++) {
+      const py = y + 0.5;
       for (let x = 0; x < this.width; x++) {
+        const px = x + 0.5;
         let inside = false;
         for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
           const xi = pts[i][0], yi = pts[i][1];
           const xj = pts[j][0], yj = pts[j][1];
-          const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+          const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
           if (intersect) inside = !inside;
         }
-        if (inside) this.selectionMask[y * this.width + x] = 1;
+        if (inside) newMask[y * this.width + x] = 1;
       }
     }
+
+    // 外周線上のピクセルも確実に含める
+    for (let i = 0; i < this.polyPoints.length; i++) {
+      const [x0, y0] = this.polyPoints[i];
+      const [x1, y1] = this.polyPoints[(i + 1) % this.polyPoints.length];
+      this._drawLineContinuous(x0, y0, x1, y1, (lx, ly) => {
+        if (lx >= 0 && lx < this.width && ly >= 0 && ly < this.height) {
+          newMask[ly * this.width + lx] = 1;
+        }
+      });
+    }
+
     this.polyPoints = [];
+    this._applySelectionMask(newMask);
   }
 
   _insertText(x, y) {
@@ -899,20 +1012,30 @@ export class PaintEditor {
     }
   }
 
+  // オーバーレイ描画（選択範囲の境界強調・矩形塗りつぶし・多角形ラバーバンド）
   _drawOverlay(curPos = null) {
     this.oCtx.clearRect(0, 0, this.width, this.height);
 
+    // 1. 選択範囲のハイライトと輪郭エッジ描画
     if (this.selectionMask) {
-      this.oCtx.fillStyle = 'rgba(0, 150, 255, 0.25)';
       for (let y = 0; y < this.height; y++) {
         for (let x = 0; x < this.width; x++) {
-          if (this.selectionMask[y * this.width + x]) {
-            this.oCtx.fillRect(x, y, 1, 1);
-          }
+          const idx = y * this.width + x;
+          if (!this.selectionMask[idx]) continue;
+
+          const isEdge =
+            x === 0 || !this.selectionMask[idx - 1] ||
+            x === this.width - 1 || !this.selectionMask[idx + 1] ||
+            y === 0 || !this.selectionMask[idx - this.width] ||
+            y === this.height - 1 || !this.selectionMask[idx + this.width];
+
+          this.oCtx.fillStyle = isEdge ? 'rgba(0, 230, 255, 0.85)' : 'rgba(0, 150, 255, 0.25)';
+          this.oCtx.fillRect(x, y, 1, 1);
         }
       }
     }
 
+    // 2. 直線プレビュー
     if (this.currentTool === 'line' && this.lineStart && curPos) {
       this.oCtx.fillStyle = this.currentColor;
       this._drawLineContinuous(this.lineStart[0], this.lineStart[1], curPos[0], curPos[1], (px, py) => {
@@ -920,25 +1043,58 @@ export class PaintEditor {
       });
     }
 
+    // 3. 矩形塗りつぶしプレビュー
+    if (this.currentTool === 'rectFill' && this.rectFillStart && curPos) {
+      const x0 = Math.min(this.rectFillStart[0], curPos[0]);
+      const y0 = Math.min(this.rectFillStart[1], curPos[1]);
+      const w = Math.abs(curPos[0] - this.rectFillStart[0]) + 1;
+      const h = Math.abs(curPos[1] - this.rectFillStart[1]) + 1;
+      this.oCtx.fillStyle = this.currentColor;
+      this.oCtx.globalAlpha = 0.7;
+      this.oCtx.fillRect(x0, y0, w, h);
+      this.oCtx.globalAlpha = 1.0;
+    }
+
+    // 4. 矩形選択プレビュー
     if (this.currentTool === 'rectSelect' && this.selStart && curPos) {
-      this.oCtx.strokeStyle = '#FFFF00';
-      this.oCtx.setLineDash([2, 2]);
       const x = Math.min(this.selStart[0], curPos[0]);
       const y = Math.min(this.selStart[1], curPos[1]);
       const w = Math.abs(curPos[0] - this.selStart[0]) + 1;
       const h = Math.abs(curPos[1] - this.selStart[1]) + 1;
-      this.oCtx.strokeRect(x, y, w, h);
-      this.oCtx.setLineDash([]);
+      this.oCtx.fillStyle = 'rgba(255, 255, 0, 0.25)';
+      this.oCtx.fillRect(x, y, w, h);
     }
 
+    // 5. 多角形選択の辺・頂点マーカー・ラバーバンドプレビュー
     if (this.polyPoints.length > 0) {
+      this.oCtx.lineWidth = 1 / Math.max(1, this.zoomLevel * 0.5);
       this.oCtx.strokeStyle = '#00FF66';
       this.oCtx.beginPath();
       this.oCtx.moveTo(this.polyPoints[0][0] + 0.5, this.polyPoints[0][1] + 0.5);
       for (let i = 1; i < this.polyPoints.length; i++) {
         this.oCtx.lineTo(this.polyPoints[i][0] + 0.5, this.polyPoints[i][1] + 0.5);
       }
+      if (curPos) {
+        this.oCtx.lineTo(curPos[0] + 0.5, curPos[1] + 0.5);
+      }
       this.oCtx.stroke();
+
+      // 始点への仮閉じ線（破線）
+      if (curPos && this.polyPoints.length >= 2) {
+        this.oCtx.setLineDash([1, 1]);
+        this.oCtx.strokeStyle = 'rgba(0, 255, 102, 0.55)';
+        this.oCtx.beginPath();
+        this.oCtx.moveTo(curPos[0] + 0.5, curPos[1] + 0.5);
+        this.oCtx.lineTo(this.polyPoints[0][0] + 0.5, this.polyPoints[0][1] + 0.5);
+        this.oCtx.stroke();
+        this.oCtx.setLineDash([]);
+      }
+
+      // 頂点ドット（始点は緑で強調）
+      this.polyPoints.forEach(([vx, vy], idx) => {
+        this.oCtx.fillStyle = idx === 0 ? '#00FF66' : '#FFFF00';
+        this.oCtx.fillRect(vx, vy, 1, 1);
+      });
     }
   }
 
@@ -950,6 +1106,7 @@ export class PaintEditor {
     const labels = {
       pencil: 'ドットブラシ',
       line: '直線 (連続)',
+      rectFill: '矩形塗りつぶし',
       bucket: '塗りつぶし',
       picker: 'スポイト (色取得)',
       rectSelect: '矩形選択',
@@ -961,7 +1118,7 @@ export class PaintEditor {
 
     for (const [tool, code] of Object.entries(this.keybindings)) {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${labels[tool]}</td><td><button class="btn-bind" data-tool="${tool}">${code}</button></td>`;
+      tr.innerHTML = `<td>${labels[tool] || tool}</td><td><button class="btn-bind" data-tool="${tool}">${code}</button></td>`;
       tbody.appendChild(tr);
     }
 
@@ -984,6 +1141,23 @@ export class PaintEditor {
   }
 
   _updateStatus() {
-    document.getElementById('paint-lbl-tool').textContent = `ツール: ${this.currentTool}`;
+    const modeNames = {
+      replace: '新規',
+      add: '＋追加',
+      subtract: '－一部削除',
+      intersect: '×乗算(交差)'
+    };
+    document.getElementById('paint-lbl-tool').textContent = `ツール: ${this.currentTool} | 選択モード: ${modeNames[this.selectionMode] || this.selectionMode}`;
+
+    const hintEl = document.getElementById('paint-lbl-hint');
+    if (hintEl) {
+      if (this.currentTool === 'polySelect') {
+        hintEl.textContent = 'クリックで頂点追加 / 始点クリック・ダブルクリック・Enterで確定 / Escで取消';
+      } else if (this.currentTool === 'rectFill') {
+        hintEl.textContent = 'ドラッグで矩形範囲を一括塗りつぶし';
+      } else {
+        hintEl.textContent = '';
+      }
+    }
   }
 }
