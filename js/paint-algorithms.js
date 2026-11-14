@@ -176,22 +176,23 @@ export function drawSelectionOverlay(oCtx, width, height, selectionMask) {
   }
 }
 
-// Simutrans標準アイソメトリックタイル (Tw x Th) のピクセルパーフェクト境界座標生成キャッシュ
+// Simutrans標準アイソメトリックタイル (Tw x Th, 実効高 = Th - 1, 上下端1行=4px) の境界座標キャッシュ
 let cachedIsoKey = '';
-let cachedIsoBorderPixels = [];
+let cachedIsoData = { effH: 31, border: [] };
 
-function getSimutransTileBorderPixels(Tw, Th) {
+function getSimutransTileData(Tw, Th) {
   const key = `${Tw}x${Th}`;
-  if (cachedIsoKey === key) return cachedIsoBorderPixels;
+  if (cachedIsoKey === key) return cachedIsoData;
 
+  const effH = Math.max(1, Th - 1);
   const halfW = Tw / 2;
   const halfH = Th / 2;
   const step = Tw / Th;
-  const fill = new Uint8Array(Tw * Th);
+  const fill = new Uint8Array(Tw * effH);
 
-  for (let y = 0; y < Th; y++) {
-    const dy = y < halfH ? y : (Th - 1 - y);
-    const wHalf = Math.max(1, Math.round((dy + 0.5) * step));
+  for (let y = 0; y < effH; y++) {
+    const dy = y < halfH ? y : (effH - 1 - y);
+    const wHalf = Math.max(1, Math.round((dy + 1) * step));
     const xStart = Math.max(0, Math.floor(halfW - wHalf));
     const xEnd = Math.min(Tw - 1, Math.ceil(halfW + wHalf) - 1);
     for (let x = xStart; x <= xEnd; x++) {
@@ -200,14 +201,14 @@ function getSimutransTileBorderPixels(Tw, Th) {
   }
 
   const border = [];
-  for (let y = 0; y < Th; y++) {
+  for (let y = 0; y < effH; y++) {
     for (let x = 0; x < Tw; x++) {
       if (!fill[y * Tw + x]) continue;
       if (
         x === 0 || !fill[y * Tw + (x - 1)] ||
         x === Tw - 1 || !fill[y * Tw + (x + 1)] ||
         y === 0 || !fill[(y - 1) * Tw + x] ||
-        y === Th - 1 || !fill[(y + 1) * Tw + x]
+        y === effH - 1 || !fill[(y + 1) * Tw + x]
       ) {
         border.push([x, y]);
       }
@@ -215,8 +216,8 @@ function getSimutransTileBorderPixels(Tw, Th) {
   }
 
   cachedIsoKey = key;
-  cachedIsoBorderPixels = border;
-  return border;
+  cachedIsoData = { effH, border };
+  return cachedIsoData;
 }
 
 // ピクセルパーフェクト補助線（直交グリッド）＆ 画像左下基準Simutransタイル敷き詰め描画
@@ -239,16 +240,16 @@ export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
     const Th = Math.floor(opts.isoTileH);
     const halfW = Tw / 2;
     const halfH = Th / 2;
-    const borderPixels = getSimutransTileBorderPixels(Tw, Th);
+    const { effH, border: borderPixels } = getSimutransTileData(Tw, Th);
     const isoHex = opts.isoColor || '#FFAA00';
 
-    // 描き始めの基準タイル (u=0, v=0) のバウンディングボックス左下隅を画像の左下 (0, height) に配置
+    // ひし形の実効高さ (Th - 1) に合わせ、基準タイル (u=0, v=0) の左下隅を画像の左下 (0, height) に配置
     const baseTileX = 0;
-    const baseTileY = height - Th;
+    const baseTileY = height - effH;
 
     const maxSpan = Math.ceil(width / halfW) + Math.ceil(height / halfH) + 2;
 
-    // 敷き詰めルールに従って展開する周囲のタイル群を描画（左下基準より左・下にはみ出す領域は除外）
+    // 敷き詰めルールに従って展開する周囲のタイル群を描画（重複ゼロ・隙間ゼロで敷き詰め）
     oCtx.fillStyle = hexToRgba(isoHex, 0.55);
     for (let u = -maxSpan; u <= maxSpan; u++) {
       for (let v = -maxSpan; v <= maxSpan; v++) {
@@ -257,8 +258,8 @@ export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
         const tileY = Math.round(baseTileY - (u + v) * halfH);
 
         // 画像の左端(x=0)・下端(y=height)を起点とし、上・右方向へ敷き詰める
-        if (tileX < 0 || tileY + Th > height) continue;
-        if (tileX >= width || tileY + Th <= 0) continue;
+        if (tileX < 0 || tileY + effH > height) continue;
+        if (tileX >= width || tileY + effH <= 0) continue;
 
         for (let i = 0; i < borderPixels.length; i++) {
           const px = tileX + borderPixels[i][0];
