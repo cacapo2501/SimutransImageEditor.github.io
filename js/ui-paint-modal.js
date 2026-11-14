@@ -1,6 +1,6 @@
 export function renderPaintModalUI() {
-  const container = document.getElementById('modal-container');
-  if (!container) return;
+  if (document.getElementById('modal-paint-editor')) return;
+  const container = document.getElementById('modal-container') || document.body;
 
   container.insertAdjacentHTML('beforeend', `
     <dialog id="modal-paint-editor">
