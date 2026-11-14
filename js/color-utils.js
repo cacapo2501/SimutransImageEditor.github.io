@@ -82,14 +82,13 @@ export function parseSpecialColorsCsv(csvText) {
   return specialColors;
 }
 
-// ★ 出力時SpecialColor衝突回避（ベース画像で元々SpecialColorのピクセルは完全保護） ★
+// 出力時SpecialColor衝突回避（ベース画像で元々SpecialColorのピクセルは完全保護）
 export function resolveSpecialColorConflicts(pixels, width, height, specialColors, isBaseSpecialColor = null) {
   if (!specialColors || specialColors.size === 0) return 0;
   let conflicts = 0;
   const total = width * height;
 
   for (let i = 0; i < total; i++) {
-    // ベース画像の元々のSpecialColorピクセルはR成分変更の対象外
     if (isBaseSpecialColor && isBaseSpecialColor[i]) {
       continue;
     }
@@ -102,7 +101,6 @@ export function resolveSpecialColorConflicts(pixels, width, height, specialColor
     const b = pixels[idx + 2];
     const hex = rgbToHex(r, g, b);
 
-    // 編集の結果、偶然SpecialColorと一致してしまったピクセルのみ補正
     if (specialColors.has(hex)) {
       pixels[idx] = r > 0 ? r - 1 : r + 1;
       conflicts++;
