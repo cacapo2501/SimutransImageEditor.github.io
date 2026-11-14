@@ -15,7 +15,7 @@ export function hexToRgb(hex) {
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 
-// HEX -> 24bit整数キー (高速ルックアップ用)
+// HEX -> 24bit整数キー
 export function hexToInt(hex) {
   let clean = hex.replace('#', '').trim();
   if (clean.length === 3) {
@@ -115,16 +115,20 @@ export function parseSpecialColorsCsv(csvText) {
   return specialColors;
 }
 
-// 出力時SpecialColor衝突回避
-export function resolveSpecialColorConflicts(pixels, width, height, specialColors, isBaseSpecialColor = null) {
+// ★ 出力時SpecialColor衝突回避（#E7FFFFおよびベース画像のSpecialColorは完全保護） ★
+export function resolveSpecialColorConflicts(pixels, width, height, specialColors, isBaseSpecialColor = null, isBgMask = null) {
   if (!specialColors || specialColors.size === 0) return 0;
   let conflicts = 0;
   const total = width * height;
   const specialInts = new Set();
-  specialColors.forEach(hex => specialInts.add(hexToInt(hex)));
+  specialColors.forEach(hex => {
+    const val = hexToInt(hex);
+    if (val !== 0xE7FFFF) specialInts.add(val); // #E7FFFFは透過背景色として保護
+  });
 
   for (let i = 0; i < total; i++) {
     if (isBaseSpecialColor && isBaseSpecialColor[i]) continue;
+    if (isBgMask && isBgMask[i]) continue;
 
     const idx = i * 4;
     if (pixels[idx + 3] === 0) continue;
@@ -133,6 +137,8 @@ export function resolveSpecialColorConflicts(pixels, width, height, specialColor
     const g = pixels[idx + 1];
     const b = pixels[idx + 2];
     const rgbInt = (r << 16) | (g << 8) | b;
+
+    if (rgbInt === 0xE7FFFF) continue;
 
     if (specialInts.has(rgbInt)) {
       pixels[idx] = r > 0 ? r - 1 : r + 1;

@@ -14,6 +14,47 @@ import { PaintDialogs } from './paint-dialogs.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 
+function resizeSourceCanvas(srcSource, oldW, oldH, newW, newH, mode, anchor, fillHex = '#E7FFFF') {
+  const out = document.createElement('canvas');
+  out.width = newW;
+  out.height = newH;
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  if (mode === 'scale') {
+    ctx.drawImage(srcSource, 0, 0, oldW, oldH, 0, 0, newW, newH);
+    return out;
+  }
+
+  // キャンバス拡張・切り抜き：余白を #E7FFFF で塗りつぶし
+  ctx.fillStyle = fillHex;
+  ctx.fillRect(0, 0, newW, newH);
+
+  let dx = 0, dy = 0;
+  if (anchor === 'bottom-center') {
+    dx = Math.floor((newW - oldW) / 2);
+    dy = newH - oldH;
+  } else if (anchor === 'center') {
+    dx = Math.floor((newW - oldW) / 2);
+    dy = Math.floor((newH - oldH) / 2);
+  }
+  ctx.drawImage(srcSource, dx, dy);
+  return out;
+}
+
+function cloneCanvasFromSource(src) {
+  if (!src) return null;
+  const w = src.naturalWidth || src.width;
+  const h = src.naturalHeight || src.height;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(src, 0, 0);
+  return c;
+}
+
 export class PaintEditor {
   constructor(app) {
     this.app = app;
@@ -53,7 +94,6 @@ export class PaintEditor {
     this.polyPoints = [];
     this.selectionMask = null;
 
-    // 補助線設定（2種類の個別色対応）
     this.showGrid = false;
     this.gridStep = 8;
     this.gridColor = '#00FF66';
@@ -62,6 +102,7 @@ export class PaintEditor {
     this.isoTileH = 32;
     this.isoColor = '#FFAA00';
 
+    // 履歴スタック: { imageData, width, height, maskCanvas }
     this.undoStack = [];
     this.redoStack = [];
     this.maxUndo = 25;
@@ -89,6 +130,7 @@ export class PaintEditor {
     this.dialogs = new PaintDialogs(this);
 
     this._bindEvents();
+    this._bindResizeModalEvents();
     this.initialized = true;
     return true;
   }
@@ -110,6 +152,12 @@ export class PaintEditor {
     if (!srcImg) {
       alert(`${targetType === 'base' ? 'ベース' : 'マスク'}画像が読み込まれていません。`);
       return;
+    }
+
+    // ベース画像編集時のみサイズ変更ボタンを表示し、マスク画像編集時は非表示にする
+    const btnResize = document.getElementById('btn-paint-resize');
+    if (btnResize) {
+      btnResize.style.display = targetType === 'base' ? 'inline-block' : 'none';
     }
 
     this.width = srcImg.naturalWidth || srcImg.width;
@@ -159,41 +207,157 @@ export class PaintEditor {
     outCanvas.height = this.height;
     outCanvas.getContext('2d').drawImage(this.canvas, 0, 0);
 
-    const img = new Image();
-    img.onload = () => {
-      if (this.targetType === 'base') {
-        this.app.applyBaseImage(img, this.app.baseName);
-      } else {
-        this.app.applyMaskImage(img, this.app.maskName);
-      }
-      this.app.markDirty();
+    // 現在の履歴先頭に連動マスクが保持されていればメインアプリへも確定反映
+    const latestState = this.undoStack[this.undoStack.length - 1];
+    if (this.targetType === 'base' && latestState && latestState.maskCanvas) {
+      this.app.applyBaseImage(outCanvas, this.app.baseName, { resetMask: false });
+      this.app.applyMaskImage(latestState.maskCanvas, this.app.maskName);
+    } else if (this.targetType === 'base') {
+      this.app.applyBaseImage(outCanvas, this.app.baseName, { resetMask: false });
+    } else {
+      this.app.applyMaskImage(outCanvas, this.app.maskName);
+    }
+
+    this.app.markDirty();
+    this.app.render();
+    this.modal.close();
+  }
+
+  _cancelAndClose() {
+    // ベース編集時のリサイズをキャンセルした場合、初期状態のマスク画像へ戻す
+    if (this.targetType === 'base' && this.undoStack.length > 0 && this.undoStack[0].maskCanvas) {
+      this.app.applyMaskImage(this.undoStack[0].maskCanvas, this.app.maskName);
       this.app.render();
-      this.modal.close();
-    };
-    img.src = outCanvas.toDataURL('image/png');
+    }
+    this.modal.close();
   }
 
   _pushHistory() {
     const data = this.ctx.getImageData(0, 0, this.width, this.height);
-    this.undoStack.push(data);
+    const maskSnap = (this.targetType === 'base' && this.app.maskImage)
+      ? cloneCanvasFromSource(this.app.maskImage)
+      : null;
+
+    this.undoStack.push({
+      imageData: data,
+      width: this.width,
+      height: this.height,
+      maskCanvas: maskSnap
+    });
     if (this.undoStack.length > this.maxUndo) this.undoStack.shift();
     this.redoStack = [];
+  }
+
+  _restoreHistoryState(state) {
+    if (!state) return;
+    this.width = state.width;
+    this.height = state.height;
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+    this.overlayCanvas.width = this.width;
+    this.overlayCanvas.height = this.height;
+    this.ctx.putImageData(state.imageData, 0, 0);
+
+    if (this.targetType === 'base' && state.maskCanvas) {
+      this.app.baseW = this.width;
+      this.app.baseH = this.height;
+      this.app.applyMaskImage(state.maskCanvas, this.app.maskName);
+    }
+
+    this.selectionMask = null;
+    this.polyPoints = [];
+    this._updateTransform();
+    this._drawOverlay();
+    this._updateStatus();
   }
 
   undo() {
     if (this.clipMgr && this.clipMgr.floatingLayer) { this.clipMgr.cancelFloatingLayer(); return; }
     if (this.undoStack.length <= 1) return;
     this.redoStack.push(this.undoStack.pop());
-    this.ctx.putImageData(this.undoStack[this.undoStack.length - 1], 0, 0);
-    this._drawOverlay();
+    this._restoreHistoryState(this.undoStack[this.undoStack.length - 1]);
   }
 
   redo() {
     if (this.redoStack.length === 0) return;
     const next = this.redoStack.pop();
     this.undoStack.push(next);
-    this.ctx.putImageData(next, 0, 0);
+    this._restoreHistoryState(next);
+  }
+
+  // --- ★ ベース画像サイズ変更（マスク画像も連動してリサイズ） ★ ---
+  _bindResizeModalEvents() {
+    const modal = document.getElementById('modal-resize-image');
+    if (!modal) return;
+
+    document.querySelectorAll('input[name="resize-mode"]').forEach(r => {
+      r.onchange = (e) => {
+        const anchorRow = document.getElementById('row-resize-anchor');
+        if (anchorRow) anchorRow.style.display = e.target.value === 'canvas' ? 'flex' : 'none';
+      };
+    });
+
+    document.getElementById('btn-resize-ok').onclick = () => {
+      const newW = Math.max(1, Math.min(2048, parseInt(document.getElementById('inp-resize-width').value, 10) || this.width));
+      const newH = Math.max(1, Math.min(2048, parseInt(document.getElementById('inp-resize-height').value, 10) || this.height));
+      const modeEl = document.querySelector('input[name="resize-mode"]:checked');
+      const mode = modeEl ? modeEl.value : 'canvas';
+      const anchor = document.getElementById('sel-resize-anchor').value || 'bottom-center';
+
+      modal.close();
+      if (newW === this.width && newH === this.height) return;
+
+      this._resizeBaseAndMask(newW, newH, mode, anchor);
+    };
+
+    document.getElementById('btn-resize-cancel').onclick = () => modal.close();
+  }
+
+  _openResizeDialog() {
+    if (this.targetType !== 'base') return;
+    if (this.clipMgr && this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
+
+    const modal = document.getElementById('modal-resize-image');
+    if (!modal) return;
+    document.getElementById('lbl-resize-current').textContent = `現在のサイズ: ${this.width} × ${this.height} px`;
+    document.getElementById('inp-resize-width').value = this.width;
+    document.getElementById('inp-resize-height').value = this.height;
+    modal.showModal();
+  }
+
+  _resizeBaseAndMask(newW, newH, mode, anchor) {
+    const oldW = this.width;
+    const oldH = this.height;
+
+    // 1. ベースキャンバスをリサイズ
+    const resizedBase = resizeSourceCanvas(this.canvas, oldW, oldH, newW, newH, mode, anchor, '#E7FFFF');
+
+    this.width = newW;
+    this.height = newH;
+    this.canvas.width = newW;
+    this.canvas.height = newH;
+    this.overlayCanvas.width = newW;
+    this.overlayCanvas.height = newH;
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.drawImage(resizedBase, 0, 0);
+
+    // 2. マスク画像も連動して同じサイズ・方式・基準でリサイズ
+    if (this.app.maskImage) {
+      const mOldW = this.app.maskImage.naturalWidth || this.app.maskImage.width || oldW;
+      const mOldH = this.app.maskImage.naturalHeight || this.app.maskImage.height || oldH;
+      const resizedMask = resizeSourceCanvas(this.app.maskImage, mOldW, mOldH, newW, newH, mode, anchor, '#E7FFFF');
+      this.app.baseW = newW;
+      this.app.baseH = newH;
+      this.app.applyMaskImage(resizedMask, this.app.maskName);
+    }
+
+    this.selectionMask = null;
+    this.polyPoints = [];
+    this._pushHistory();
+    this._updateTransform();
     this._drawOverlay();
+    this._updateStatus();
+    this._showHint(`サイズを ${newW}×${newH}px に変更しました（マスク画像も連動変更済）`);
   }
 
   _renderPaletteUI() {
@@ -300,6 +464,7 @@ export class PaintEditor {
       };
     });
 
+    bindClick('btn-paint-resize', () => this._openResizeDialog());
     bindClick('btn-paint-copy', () => this.clipMgr.copySelection());
     bindClick('btn-paint-paste', () => this.clipMgr.pasteClipboard());
     bindClick('btn-paint-import-img', () => this.clipMgr.importExternalImage());
@@ -308,7 +473,6 @@ export class PaintEditor {
     bindClick('btn-commit-floating', () => this.clipMgr.commitFloatingLayer());
     bindClick('btn-cancel-floating', () => this.clipMgr.cancelFloatingLayer());
 
-    // 補助線2種類のON/OFF・間隔・色指定イベント
     const chkGrid = document.getElementById('chk-paint-grid');
     const inpGridStep = document.getElementById('inp-paint-grid-step');
     const inpGridColor = document.getElementById('inp-paint-grid-color');
@@ -336,7 +500,7 @@ export class PaintEditor {
     if (inpIsoColor) inpIsoColor.oninput = (e) => { this.isoColor = e.target.value; this._drawOverlay(); };
 
     bindClick('btn-paint-apply', () => this.applyAndClose());
-    bindClick('btn-paint-cancel', () => this.modal.close());
+    bindClick('btn-paint-cancel', () => this._cancelAndClose());
     bindClick('btn-paint-undo', () => this.undo());
     bindClick('btn-paint-redo', () => this.redo());
     bindClick('btn-paint-clear-sel', () => {
@@ -416,7 +580,7 @@ export class PaintEditor {
       if (!this.modal.open) return;
       const { px, py } = getPixelCoords(e.clientX, e.clientY);
       const coordLbl = document.getElementById('paint-lbl-coord');
-      if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py}`;
+      if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py} (${this.width}×${this.height})`;
       this._handlePointerMove(px, py);
     });
 
@@ -452,7 +616,7 @@ export class PaintEditor {
         const t = e.touches[0];
         const { px, py } = getPixelCoords(t.clientX, t.clientY);
         const coordLbl = document.getElementById('paint-lbl-coord');
-        if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py}`;
+        if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py} (${this.width}×${this.height})`;
         this._handlePointerMove(px, py);
       } else if (e.touches.length === 2 && this.touchStartDist) {
         const t1 = e.touches[0], t2 = e.touches[1];
@@ -716,7 +880,7 @@ export class PaintEditor {
     };
     const toolLbl = document.getElementById('paint-lbl-tool');
     if (toolLbl) {
-      toolLbl.textContent = `ツール: ${this.currentTool} | 選択モード: ${modeNames[this.selectionMode] || this.selectionMode}`;
+      toolLbl.textContent = `ツール: ${this.currentTool} | 選択モード: ${modeNames[this.selectionMode] || this.selectionMode} (${this.width}×${this.height}px)`;
     }
 
     if (this.currentTool === 'polySelect') {

@@ -8,6 +8,9 @@ export function renderSidebarUI() {
       <summary>画像・プロジェクト</summary>
       <div class="panel-body">
         <div class="btn-group">
+          <button id="btn-new-base" class="btn-primary">🆕 新規作成 (#E7FFFF)</button>
+        </div>
+        <div class="btn-group mt-05">
           <button id="btn-load-base">ベースPNGを開く</button>
           <button id="btn-load-mask">マスク画像を開く</button>
         </div>

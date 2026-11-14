@@ -185,11 +185,19 @@ export class ProjectIO {
   }
 
   // 合成結果PNG保存
+  // 合成結果PNG保存
   static exportPng(app) {
     const pixels = app.computeFinalImage();
     if (!pixels) return alert('保存できる画像がありません。');
 
-    const conflicts = resolveSpecialColorConflicts(pixels, app.baseW, app.baseH, app.specialColors, app.isBaseSpecialColor);
+    const conflicts = resolveSpecialColorConflicts(
+      pixels,
+      app.baseW,
+      app.baseH,
+      app.specialColors,
+      app.isBaseSpecialColor,
+      app.isBgMask
+    );
     const c = document.createElement('canvas');
     c.width = app.baseW;
     c.height = app.baseH;
@@ -200,7 +208,7 @@ export class ProjectIO {
       a.href = URL.createObjectURL(blob);
       a.download = 'export_result.png';
       a.click();
-      if (conflicts > 0) alert(`画像を保存しました。\n※ 乗算等によりSpecialColorと重複した ${conflicts} ピクセルのR成分を補正しました。(ベース画像固有のSpecialColorは保護されました)`);
+      if (conflicts > 0) alert(`画像を保存しました。\n※ 乗算等によりSpecialColorと重複した ${conflicts} ピクセルのR成分を補正しました。(ベース画像固有のSpecialColorおよび#E7FFFFは保護されました)`);
     }, 'image/png');
   }
 }

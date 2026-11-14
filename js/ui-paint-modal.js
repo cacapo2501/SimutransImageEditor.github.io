@@ -18,6 +18,7 @@ export function renderPaintModalUI() {
             <button class="paint-tool-btn" data-tool="colorSelect" title="同色選択">🎯 同色選択</button>
             <button class="paint-tool-btn" data-tool="text" title="テキスト挿入">🔤 文字</button>
             <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
+            <button id="btn-paint-resize" title="ベース画像の大きさ変更（マスク画像も連動）">📐 画像サイズ変更</button>
           </div>
 
           <div class="paint-tool-group sel-mode-group" title="選択ツールの演算モード">
@@ -43,7 +44,6 @@ export function renderPaintModalUI() {
             <button id="btn-cancel-floating">✕ 破棄 (Esc)</button>
           </div>
 
-          <!-- 補助線2種類（間隔・サイズ・色指定） -->
           <div class="paint-tool-group guide-control-group">
             <label class="inline-chk-lbl" title="等間隔の直交補助線を表示">
               <input type="checkbox" id="chk-paint-grid"> 補助線:
@@ -76,7 +76,6 @@ export function renderPaintModalUI() {
         </header>
 
         <div id="paint-main-body">
-          <!-- 左側カラー編集ペイン全体を縦スクロール可能に構成 -->
           <aside id="paint-sidebar">
             <div class="sub-panel">
               <legend>描画色</legend>

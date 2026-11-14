@@ -8,11 +8,36 @@
   margin: auto;
 }
 
-#modal-color-picker::backdrop { background: rgba(0, 0, 0, 0.6); }
-.picker-content { width: 340px; }
-.swatch-compare { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
-.swatch-compare i { display: inline-block; width: 40px; height: 24px; border: 1px solid #666; vertical-align: middle; }
-.hsv-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+#modal-color-picker::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.picker-content {
+  width: 340px;
+}
+
+.swatch-compare {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0;
+}
+
+.swatch-compare i {
+  display: inline-block;
+  width: 40px;
+  height: 24px;
+  border: 1px solid #666;
+  vertical-align: middle;
+}
+
+.hsv-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 12px;
+}
 
 .rgb-sliders {
   display: flex;
@@ -42,8 +67,18 @@
   border-radius: 2px;
 }
 
-.quick-palette { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 10px 0; }
-.palette-btn { height: 24px; border: 1px solid #555; border-radius: 2px; }
+.quick-palette {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.palette-btn {
+  height: 24px;
+  border: 1px solid #555;
+  border-radius: 2px;
+}
 
 /* キーバインド設定ダイアログ */
 #modal-keybindings {
@@ -55,9 +90,12 @@
   margin: auto;
 }
 
-#modal-keybindings::backdrop { background: rgba(0, 0, 0, 0.6); }
+#modal-keybindings::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
 
-#table-keybindings th, #table-keybindings td {
+#table-keybindings th,
+#table-keybindings td {
   padding: 4px 6px;
   border-bottom: 1px solid #333;
 }
@@ -88,7 +126,9 @@
   overflow: hidden;
 }
 
-#modal-image-sampler::backdrop { background: rgba(0, 0, 0, 0.75); }
+#modal-image-sampler::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+}
 
 .sampler-container {
   display: flex;
@@ -195,7 +235,9 @@
   margin: auto;
 }
 
-#modal-color-replace::backdrop { background: rgba(0, 0, 0, 0.7); }
+#modal-color-replace::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
 
 .replace-modal-content {
   display: flex;
@@ -254,4 +296,20 @@
   align-items: center;
   padding: 0 12px;
   gap: 8px;
+}
+
+/* 新規作成 & 画像サイズ変更モーダル */
+#modal-new-image,
+#modal-resize-image {
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #eee;
+  padding: 16px;
+  margin: auto;
+}
+
+#modal-new-image::backdrop,
+#modal-resize-image::backdrop {
+  background: rgba(0, 0, 0, 0.65);
 }

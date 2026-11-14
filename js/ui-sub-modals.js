@@ -3,6 +3,72 @@ export function renderSubModalsUI() {
   const container = document.getElementById('modal-container') || document.body;
 
   container.insertAdjacentHTML('beforeend', `
+    <!-- 新規画像作成モーダル (#E7FFFF塗りつぶし) -->
+    <dialog id="modal-new-image">
+      <div class="picker-content" style="width:360px;">
+        <h3 style="font-size:13px; margin-bottom:8px;">新規画像作成 (#E7FFFF 背景塗りつぶし)</h3>
+        <p class="desc-text" style="margin-bottom:8px;">指定した大きさの #E7FFFF 塗りつぶしベース画像を新規作成します。</p>
+        <div class="btn-group" style="margin-bottom:8px;">
+          <button type="button" class="btn-preset-size" data-w="64" data-h="64">64×64</button>
+          <button type="button" class="btn-preset-size" data-w="64" data-h="96">64×96</button>
+          <button type="button" class="btn-preset-size" data-w="64" data-h="128">64×128</button>
+          <button type="button" class="btn-preset-size" data-w="128" data-h="128">128×128</button>
+        </div>
+        <div class="row">
+          <label style="width:70px;">幅 (px):</label>
+          <input type="number" id="inp-new-width" value="64" min="1" max="2048" style="background:#1a1a1a; border:1px solid #444; color:#eee; padding:4px; border-radius:3px;">
+        </div>
+        <div class="row mt-05">
+          <label style="width:70px;">高さ (px):</label>
+          <input type="number" id="inp-new-height" value="96" min="1" max="2048" style="background:#1a1a1a; border:1px solid #444; color:#eee; padding:4px; border-radius:3px;">
+        </div>
+        <label class="mt-05" style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
+          <input type="checkbox" id="chk-new-open-paint" checked> 作成後すぐにペイントエディタを開く
+        </label>
+        <div class="btn-group mt-1">
+          <button id="btn-new-img-ok" class="btn-primary">作成する</button>
+          <button id="btn-new-img-cancel">キャンセル</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- 画像サイズ変更モーダル（ベース編集時専用・マスク連動） -->
+    <dialog id="modal-resize-image">
+      <div class="picker-content" style="width:380px;">
+        <h3 style="font-size:13px; margin-bottom:6px;">画像サイズの変更（マスク画像も連動変更）</h3>
+        <div class="info-text" id="lbl-resize-current" style="margin-bottom:8px;">現在のサイズ: 64 × 96 px</div>
+        <div class="row">
+          <label style="width:80px;">新しい幅:</label>
+          <input type="number" id="inp-resize-width" value="64" min="1" max="2048" style="background:#1a1a1a; border:1px solid #444; color:#eee; padding:4px; border-radius:3px;">
+          <span style="font-size:11px;">px</span>
+        </div>
+        <div class="row mt-05">
+          <label style="width:80px;">新しい高さ:</label>
+          <input type="number" id="inp-resize-height" value="96" min="1" max="2048" style="background:#1a1a1a; border:1px solid #444; color:#eee; padding:4px; border-radius:3px;">
+          <span style="font-size:11px;">px</span>
+        </div>
+
+        <fieldset class="sub-panel mt-05">
+          <legend>変更方法</legend>
+          <label><input type="radio" name="resize-mode" value="canvas" checked> キャンバス拡張・切抜（ドット等倍維持 / 余白は #E7FFFF）</label>
+          <label><input type="radio" name="resize-mode" value="scale"> 画像全体を拡大・縮小（ニアレストネイバー補間）</label>
+          <div class="row mt-05" id="row-resize-anchor">
+            <label style="width:80px;">配置基準:</label>
+            <select id="sel-resize-anchor">
+              <option value="bottom-center" selected>下中央 (Simutrans建物基準)</option>
+              <option value="center">中央</option>
+              <option value="top-left">左上</option>
+            </select>
+          </div>
+        </fieldset>
+
+        <div class="btn-group mt-1">
+          <button id="btn-resize-ok" class="btn-primary">サイズ変更を適用</button>
+          <button id="btn-resize-cancel">キャンセル</button>
+        </div>
+      </div>
+    </dialog>
+
     <!-- 色置換・複数色置換モーダル -->
     <dialog id="modal-color-replace">
       <div class="replace-modal-content">
