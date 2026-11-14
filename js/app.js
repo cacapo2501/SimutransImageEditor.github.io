@@ -86,7 +86,6 @@ class AdvancedMultiplyApp {
     this.ctx = this.canvas.getContext('2d');
     this.viewport = document.getElementById('canvas-viewport');
 
-    // 各機能コントローラーの初期化
     this.canvasCtrl = new CanvasController(this);
     this.paintEditor = new PaintEditor(this);
     this.layerManager = new LayerManager(this, safePickFile);
@@ -101,24 +100,44 @@ class AdvancedMultiplyApp {
   }
 
   async _loadDefaultSpecialColors() {
-    const candidateFiles = ['SpecialColor.csv', 'special_colors.csv', 'SpecialColors.csv'];
+    const candidateFiles = [
+      'special_colors.csv',
+      'SpecialColor.csv',
+      'SpecialColors.csv',
+      'special_color.csv',
+      'data/special_colors.csv',
+      'csv/special_colors.csv'
+    ];
     const infoLabel = document.getElementById('lbl-csv-info');
+
     for (const filename of candidateFiles) {
       try {
-        const response = await fetch(`./${filename}`);
+        const response = await fetch(`./${filename}`, { cache: 'no-cache' });
         if (response.ok) {
-          const parsed = parseSpecialColorsCsv(await response.text());
+          const text = await response.text();
+          // GitHub Pagesの404 HTMLページが誤って返された場合はスキップ
+          if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) continue;
+
+          const parsed = parseSpecialColorsCsv(text);
           if (parsed.size > 0) {
             this.specialColors = parsed;
-            if (infoLabel) infoLabel.textContent = `特殊色: ${this.specialColors.size}件登録済 (GitHubデフォルト)`;
+            if (infoLabel) {
+              infoLabel.textContent = `特殊色: ${this.specialColors.size}件登録済 (${filename})`;
+            }
+            this.paletteManager.generateBasePalette();
             MaskGenerator.recomputeBaseSpecialColors(this);
             this.render();
             return;
           }
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn(`Failed to fetch ${filename}:`, err);
+      }
     }
-    if (infoLabel && this.specialColors.size === 0) infoLabel.textContent = '特殊色: 0件登録済 (手動選択可)';
+
+    if (infoLabel && this.specialColors.size === 0) {
+      infoLabel.textContent = '特殊色: 0件登録済 (ルートに special_colors.csv 未検出 / 手動選択可)';
+    }
   }
 
   markDirty() { this.isDirty = true; }
@@ -152,7 +171,6 @@ class AdvancedMultiplyApp {
     this.render();
   }
 
-  // 他モジュールからの委譲インターフェース
   refreshLayerList() { this.layerManager.refreshList(); }
   selectLayer(idx) { this.layerManager.select(idx); }
   onToneTargetChanged(sel) { this.toneTintCtrl.onToneTargetChanged(sel); }
@@ -275,7 +293,6 @@ class AdvancedMultiplyApp {
   }
 
   _bindCoreEvents() {
-    // 画像読込・単体保存
     document.getElementById('btn-load-base').onclick = async () => {
       const f = await safePickFile('.png');
       if (f) this.loadBaseFromFile(f);
@@ -287,7 +304,6 @@ class AdvancedMultiplyApp {
     document.getElementById('btn-save-base').onclick = () => ProjectIO.exportBasePng(this);
     document.getElementById('btn-save-mask').onclick = () => ProjectIO.exportMaskPng(this);
 
-    // ペイントエディタ起動
     document.getElementById('btn-paint-base').onclick = () => this.paintEditor.open('base');
     document.getElementById('btn-paint-mask').onclick = async () => {
       if (!this.maskImage && this.baseImage) {
@@ -296,7 +312,6 @@ class AdvancedMultiplyApp {
       this.paintEditor.open('mask');
     };
 
-    // フォルダ・Google Drive連携
     document.getElementById('btn-load-folder').onclick = async () => {
       const files = await this.storage.pickLocalDirectory();
       if (files && files.length > 0) {
@@ -319,7 +334,6 @@ class AdvancedMultiplyApp {
       }
     };
 
-    // 特殊色CSV読込
     document.getElementById('file-csv').onchange = (e) => {
       const file = e.target.files[0];
       if (file) {
@@ -327,6 +341,7 @@ class AdvancedMultiplyApp {
         r.onload = () => {
           this.specialColors = parseSpecialColorsCsv(r.result);
           document.getElementById('lbl-csv-info').textContent = `特殊色: ${this.specialColors.size}件登録済 (手動選択)`;
+          this.paletteManager.generateBasePalette();
           MaskGenerator.recomputeBaseSpecialColors(this);
           this.markDirty();
           this.render();
@@ -335,13 +350,11 @@ class AdvancedMultiplyApp {
       }
     };
 
-    // ズームバー
     document.getElementById('btn-zoom-in').onclick = () => this.setZoom(this.zoomLevel * 1.25);
     document.getElementById('btn-zoom-out').onclick = () => this.setZoom(this.zoomLevel * 0.8);
     document.getElementById('btn-zoom-reset').onclick = () => this.setZoom(1.0);
     document.getElementById('btn-zoom-fit').onclick = () => this.zoomFit();
 
-    // プロジェクト保存/読込・合成結果PNG保存
     document.getElementById('btn-save-proj').onclick = () => ProjectIO.save(this);
     document.getElementById('btn-save-proj-as').onclick = () => ProjectIO.save(this);
     document.getElementById('btn-load-proj').onclick = async () => {
