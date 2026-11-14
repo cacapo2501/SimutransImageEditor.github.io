@@ -62,20 +62,42 @@ export function hsvToRgb(h, s, v) {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
-// SpecialColors.csv パース
+// special_colors.csv パース（R,G,B / 色名,R,G,B / #RRGGBB / BOM付きに対応）
 export function parseSpecialColorsCsv(csvText) {
   const specialColors = new Set();
-  const lines = csvText.split(/\r?\n/);
+  if (!csvText) return specialColors;
+
+  // UTF-8 BOM除去
+  const cleanText = csvText.replace(/^\uFEFF/, '');
+  const lines = cleanText.split(/\r?\n/);
+
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const parts = trimmed.split(',');
-    if (parts.length >= 3) {
-      const r = parseInt(parts[0].trim(), 10);
-      const g = parseInt(parts[1].trim(), 10);
-      const b = parseInt(parts[2].trim(), 10);
-      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-        specialColors.add(rgbToHex(r, g, b));
+    if (!trimmed) continue;
+
+    // 1. 行内に #RRGGBB 形式が含まれている場合はカラーコードとして抽出
+    const hexMatches = trimmed.match(/#[0-9A-Fa-f]{6}\b/g);
+    if (hexMatches && hexMatches.length > 0) {
+      for (const h of hexMatches) {
+        specialColors.add(h.toUpperCase());
+      }
+      continue;
+    }
+
+    // 2. HEXコードではない '#' 始まりはコメント行としてスキップ
+    if (trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+
+    // 3. カンマ・タブ・セミコロン区切りから連続する3つの0-255整数 (R, G, B) を抽出
+    const parts = trimmed.split(/[,;\t]+/).map(s => s.trim());
+    for (let i = 0; i <= parts.length - 3; i++) {
+      if (/^\d{1,3}$/.test(parts[i]) && /^\d{1,3}$/.test(parts[i + 1]) && /^\d{1,3}$/.test(parts[i + 2])) {
+        const r = parseInt(parts[i], 10);
+        const g = parseInt(parts[i + 1], 10);
+        const b = parseInt(parts[i + 2], 10);
+        if (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255) {
+          specialColors.add(rgbToHex(r, g, b));
+          break;
+        }
       }
     }
   }
