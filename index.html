@@ -266,6 +266,7 @@
   <dialog id="modal-paint-editor">
     <div id="paint-editor-container">
       <header id="paint-toolbar">
+        <!-- 描画・選択ツール -->
         <div class="paint-tool-group">
           <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ">✏️ ドット</button>
           <button class="paint-tool-btn" data-tool="line" title="直線 (連続)">📏 直線</button>
@@ -280,9 +281,9 @@
           <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
         </div>
 
-        <!-- 選択範囲演算モード切替グループ -->
+        <!-- 選択範囲演算モード -->
         <div class="paint-tool-group sel-mode-group" title="選択ツールの演算モード">
-          <span style="font-size:10px; color:#aaa; margin-left:4px;">選択:</span>
+          <span style="font-size:10px; color:#aaa;">選択:</span>
           <button class="sel-mode-btn active" data-sel-mode="replace" title="新規選択">新規</button>
           <button class="sel-mode-btn" data-sel-mode="add" title="現在の選択範囲に追加">＋追加</button>
           <button class="sel-mode-btn" data-sel-mode="subtract" title="現在の選択範囲から一部削除">－削除</button>
@@ -290,6 +291,41 @@
           <button id="btn-paint-clear-sel" title="選択解除 (Esc / Ctrl+D)">✕ 解除</button>
         </div>
 
+        <!-- コピー・貼付・外部画像貼付・上下/左右反転 -->
+        <div class="paint-tool-group">
+          <button id="btn-paint-copy" title="選択範囲をコピー (Ctrl+C)">📋 コピー</button>
+          <button id="btn-paint-paste" title="貼り付け (Ctrl+V)">📌 貼付</button>
+          <button id="btn-paint-import-img" title="外部画像を取り込んで貼り付け">🖼️ 画像貼付</button>
+          <button id="btn-paint-flip-h" title="左右反転 (貼付中/選択範囲/全体)">↔ 左右反転</button>
+          <button id="btn-paint-flip-v" title="上下反転 (貼付中/選択範囲/全体)">↕ 上下反転</button>
+        </div>
+
+        <!-- フローティング貼り付け確定バー（貼り付け中のみ表示） -->
+        <div class="paint-tool-group floating-bar" id="floating-action-bar" style="display:none;">
+          <span style="font-size:10px; color:#00ff88; font-weight:bold;">貼付調整中:</span>
+          <button id="btn-commit-floating" class="btn-primary">✓ 確定 (Enter)</button>
+          <button id="btn-cancel-floating">✕ 破棄 (Esc)</button>
+        </div>
+
+        <!-- 補助線＆タイル菱形表示オプション -->
+        <div class="paint-tool-group guide-control-group">
+          <label class="inline-chk-lbl" title="等間隔の直交補助線を表示">
+            <input type="checkbox" id="chk-paint-grid"> 補助線:
+          </label>
+          <input type="number" id="inp-paint-grid-step" class="num-input-mini" value="8" min="1" max="256">
+          <span style="font-size:10px; color:#aaa;">px</span>
+
+          <label class="inline-chk-lbl" style="margin-left:6px;" title="ベースタイルのアイソメトリック菱形を表示">
+            <input type="checkbox" id="chk-paint-iso"> タイル菱形:
+          </label>
+          <span style="font-size:10px; color:#aaa;">幅</span>
+          <input type="number" id="inp-paint-iso-w" class="num-input-mini" value="64" min="4" max="512">
+          <span style="font-size:10px; color:#aaa;">×高</span>
+          <input type="number" id="inp-paint-iso-h" class="num-input-mini" value="32" min="2" max="512">
+          <span style="font-size:10px; color:#aaa;">px</span>
+        </div>
+
+        <!-- 履歴・キー設定・完了 -->
         <div class="paint-tool-group">
           <button id="btn-paint-undo" title="元に戻す (Ctrl+Z)">↩ Undo</button>
           <button id="btn-paint-redo" title="やり直し (Ctrl+Y)">↪ Redo</button>
@@ -487,10 +523,4 @@
         <button id="btn-picker-cancel">キャンセル</button>
       </div>
     </div>
-  </dialog>
-
-  <input type="file" id="input-file-hidden" style="display: none;">
-
-  <script type="module" src="./js/app.js"></script>
-</body>
-</html>
+  </dialog
