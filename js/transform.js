@@ -1,134 +1,217 @@
-export function getPerspectiveTransform(src, dst) {
-  const a = [], b = [];
-  for (let i = 0; i < 4; i++) {
-    const [sx, sy] = src[i], [dx, dy] = dst[i];
-    a.push([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy]); b.push(dx);
-    a.push([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy]); b.push(dy);
+// 4点射影変換（ホモグラフィ）行列の計算: (u,v) [0..1]^2 -> (x,y)
+function computeHomography(corners) {
+  const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = corners;
+  const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3;
+  const dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+
+  const det = dx1 * dy2 - dx2 * dy1;
+  if (Math.abs(det) < 1e-8) {
+    return [x1 - x0, x3 - x0, x0, y1 - y0, y3 - y0, y0, 0, 0, 1];
   }
-  for (let i = 0; i < 8; i++) {
-    let maxRow = i;
-    for (let k = i + 1; k < 8; k++) if (Math.abs(a[k][i]) > Math.abs(a[maxRow][i])) maxRow = k;
-    [a[i], a[maxRow]] = [a[maxRow], a[i]]; [b[i], b[maxRow]] = [b[maxRow], b[i]];
-    for (let k = i + 1; k < 8; k++) {
-      const c = -a[k][i] / a[i][i];
-      for (let j = i; j < 8; j++) a[k][j] = i === j ? 0 : a[k][j] + c * a[i][j];
-      b[k] += c * b[i];
-    }
-  }
-  const h = new Array(9);
-  for (let i = 7; i >= 0; i--) {
-    let sum = 0;
-    for (let j = i + 1; j < 8; j++) sum += a[i][j] * h[j];
-    h[i] = (b[i] - sum) / a[i][i];
-  }
-  h[8] = 1;
-  return h;
+
+  const g = (dx3 * dy2 - dx2 * dy3) / det;
+  const h = (dx1 * dy3 - dx3 * dy1) / det;
+  const a = x1 - x0 + g * x1;
+  const b = x3 - x0 + h * x3;
+  const c = x0;
+  const d = y1 - y0 + g * y1;
+  const e = y3 - y0 + h * y3;
+  const f = y0;
+
+  return [a, b, c, d, e, f, g, h, 1];
 }
 
-export function invertMatrix3x3(m) {
-  const [a, b, c, d, e, f, g, h, k] = m;
-  const A = e * k - f * h, B = -(d * k - f * g), C = d * h - e * g;
+// 3x3 行列の逆行列
+function invert3x3(m) {
+  const [a, b, c, d, e, f, g, h, i] = m;
+  const A = e * i - f * h;
+  const B = -(d * i - f * g);
+  const C = d * h - e * g;
+  const D = -(b * i - c * h);
+  const E = a * i - c * g;
+  const F = -(a * h - b * g);
+  const G = b * f - c * e;
+  const H = -(a * f - c * d);
+  const I = a * e - b * d;
   const det = a * A + b * B + c * C;
-  if (Math.abs(det) < 1e-12) return null;
-  const inv = 1.0 / det;
+  if (Math.abs(det) < 1e-10) return null;
+  const invDet = 1.0 / det;
   return [
-    A * inv, (c * h - b * k) * inv, (b * f - c * e) * inv,
-    B * inv, (a * k - c * g) * inv, (c * d - a * f) * inv,
-    C * inv, (b * g - a * h) * inv, (a * e - b * d) * inv
+    A * invDet, D * invDet, G * invDet,
+    B * invDet, E * invDet, H * invDet,
+    C * invDet, F * invDet, I * invDet
   ];
 }
 
-export function sampleWarpedTexture(srcImageData, corners, targetW, targetH, fillAll, transformMode) {
-  const srcW = srcImageData.width, srcH = srcImageData.height;
-  const H = getPerspectiveTransform([[0, 0], [srcW, 0], [srcW, srcH], [0, srcH]], corners);
-  const invH = invertMatrix3x3(H);
-  if (!invH) return null;
+// テクスチャの変形サンプリング (box / affine / free)
+export function sampleWarpedTexture(tiledImageData, corners, targetW, targetH, fillAll = false, transformMode = 'box') {
+  const srcW = tiledImageData.width;
+  const srcH = tiledImageData.height;
+  const srcData = tiledImageData.data;
+
   const out = new Float32Array(targetW * targetH * 4);
-  const useWrap = fillAll && (transformMode === 'box' || transformMode === 'affine');
-  const src = srcImageData.data;
+  const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = corners;
+
+  if (transformMode === 'free') {
+    const H = computeHomography(corners);
+    const invH = invert3x3(H);
+    if (!invH) return out;
+
+    const [ia, ib, ic, id, ie, if_, ig, ih, ii] = invH;
+
+    for (let y = 0; y < targetH; y++) {
+      const py = y + 0.5;
+      for (let x = 0; x < targetW; x++) {
+        const px = x + 0.5;
+        const w = ig * px + ih * py + ii;
+        if (Math.abs(w) < 1e-8) continue;
+
+        let u = (ia * px + ib * py + ic) / w;
+        let v = (id * px + ie * py + if_) / w;
+
+        if (fillAll) {
+          u = ((u % 1) + 1) % 1;
+          v = ((v % 1) + 1) % 1;
+        } else {
+          if (u < 0 || u >= 1 || v < 0 || v >= 1) continue;
+        }
+
+        const sx = Math.min(srcW - 1, Math.max(0, Math.floor(u * srcW)));
+        const sy = Math.min(srcH - 1, Math.max(0, Math.floor(v * srcH)));
+        const sIdx = (sy * srcW + sx) * 4;
+        const dIdx = (y * targetW + x) * 4;
+
+        out[dIdx] = srcData[sIdx] / 255.0;
+        out[dIdx + 1] = srcData[sIdx + 1] / 255.0;
+        out[dIdx + 2] = srcData[sIdx + 2] / 255.0;
+        out[dIdx + 3] = srcData[sIdx + 3] / 255.0;
+      }
+    }
+    return out;
+  }
+
+  // box または affine (3頂点アフィン逆写像)
+  const ux = x1 - x0, uy = y1 - y0;
+  const vx = x3 - x0, vy = y3 - y0;
+  const det = ux * vy - uy * vx;
+  if (Math.abs(det) < 1e-8) return out;
+  const invDet = 1.0 / det;
 
   for (let y = 0; y < targetH; y++) {
+    const dy = (y + 0.5) - y0;
     for (let x = 0; x < targetW; x++) {
-      const denom = invH[6] * x + invH[7] * y + invH[8];
-      if (Math.abs(denom) < 1e-7) continue;
-      let u = (invH[0] * x + invH[1] * y + invH[2]) / denom;
-      let v = (invH[3] * x + invH[4] * y + invH[5]) / denom;
+      const dx = (x + 0.5) - x0;
+      let u = (dx * vy - dy * vx) * invDet;
+      let v = (ux * dy - uy * dx) * invDet;
 
-      if (useWrap) {
-        u = ((u % srcW) + srcW) % srcW;
-        v = ((v % srcH) + srcH) % srcH;
+      if (fillAll) {
+        u = ((u % 1) + 1) % 1;
+        v = ((v % 1) + 1) % 1;
       } else {
-        if (u < 0 || u >= srcW || v < 0 || v >= srcH) continue;
+        if (u < 0 || u >= 1 || v < 0 || v >= 1) continue;
       }
 
-      const sIdx = (Math.floor(v) * srcW + Math.floor(u)) * 4;
-      const idx = (y * targetW + x) * 4;
-      out[idx] = src[sIdx] / 255.0;
-      out[idx + 1] = src[sIdx + 1] / 255.0;
-      out[idx + 2] = src[sIdx + 2] / 255.0;
-      out[idx + 3] = src[sIdx + 3] / 255.0;
+      const sx = Math.min(srcW - 1, Math.max(0, Math.floor(u * srcW)));
+      const sy = Math.min(srcH - 1, Math.max(0, Math.floor(v * srcH)));
+      const sIdx = (sy * srcW + sx) * 4;
+      const dIdx = (y * targetW + x) * 4;
+
+      out[dIdx] = srcData[sIdx] / 255.0;
+      out[dIdx + 1] = srcData[sIdx + 1] / 255.0;
+      out[dIdx + 2] = srcData[sIdx + 2] / 255.0;
+      out[dIdx + 3] = srcData[sIdx + 3] / 255.0;
     }
   }
   return out;
 }
 
-export function applyProtectedBlur(pixelsF32, width, height, blurRadius, invalidMask) {
-  if (blurRadius <= 0.001) return pixelsF32;
-  const sigma = blurRadius;
-  const kRadius = Math.max(1, Math.ceil(sigma * 3));
-  const kSize = kRadius * 2 + 1;
-  const kernel = new Float32Array(kSize);
-  let kSum = 0;
-  for (let i = -kRadius; i <= kRadius; i++) {
-    const val = Math.exp(-(i * i) / (2 * sigma * sigma));
-    kernel[i + kRadius] = val;
-    kSum += val;
+// SpecialColor・背景色を完全に除外してぼかすガウシアンフィルタ
+export function applyProtectedBlur(rgbFloat32, width, height, radius, invalidMask) {
+  if (radius <= 0.001) return new Float32Array(rgbFloat32);
+
+  const rCeil = Math.ceil(radius * 2.5);
+  const sigma = Math.max(0.1, radius);
+  const twoSigmaSq = 2 * sigma * sigma;
+
+  const kernel = [];
+  for (let k = -rCeil; k <= rCeil; k++) {
+    kernel.push({ offset: k, weight: Math.exp(-(k * k) / twoSigmaSq) });
   }
-  for (let i = 0; i < kSize; i++) kernel[i] /= kSum;
 
-  const total = width * height;
-  const tempImg = new Float32Array(total * 3), tempW = new Float32Array(total);
-  const outImg = new Float32Array(total * 3), outW = new Float32Array(total);
+  const temp = new Float32Array(rgbFloat32.length);
+  const out = new Float32Array(rgbFloat32.length);
 
+  // 水平方向パス
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
-      let r = 0, g = 0, b = 0, w = 0;
-      for (let k = -kRadius; k <= kRadius; k++) {
-        const nx = Math.min(width - 1, Math.max(0, x + k));
+      if (invalidMask && invalidMask[idx]) {
+        temp[idx * 3] = rgbFloat32[idx * 3];
+        temp[idx * 3 + 1] = rgbFloat32[idx * 3 + 1];
+        temp[idx * 3 + 2] = rgbFloat32[idx * 3 + 2];
+        continue;
+      }
+
+      let rSum = 0, gSum = 0, bSum = 0, wSum = 0;
+      for (const { offset, weight } of kernel) {
+        const nx = x + offset;
+        if (nx < 0 || nx >= width) continue;
         const nIdx = y * width + nx;
-        if (!invalidMask[nIdx]) {
-          const kw = kernel[k + kRadius];
-          r += pixelsF32[nIdx * 3] * kw; g += pixelsF32[nIdx * 3 + 1] * kw; b += pixelsF32[nIdx * 3 + 2] * kw;
-          w += kw;
-        }
+        if (invalidMask && invalidMask[nIdx]) continue;
+
+        rSum += rgbFloat32[nIdx * 3] * weight;
+        gSum += rgbFloat32[nIdx * 3 + 1] * weight;
+        bSum += rgbFloat32[nIdx * 3 + 2] * weight;
+        wSum += weight;
       }
-      tempImg[idx * 3] = r; tempImg[idx * 3 + 1] = g; tempImg[idx * 3 + 2] = b; tempW[idx] = w;
+
+      if (wSum > 0) {
+        temp[idx * 3] = rSum / wSum;
+        temp[idx * 3 + 1] = gSum / wSum;
+        temp[idx * 3 + 2] = bSum / wSum;
+      } else {
+        temp[idx * 3] = rgbFloat32[idx * 3];
+        temp[idx * 3 + 1] = rgbFloat32[idx * 3 + 1];
+        temp[idx * 3 + 2] = rgbFloat32[idx * 3 + 2];
+      }
     }
   }
+
+  // 垂直方向パス
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
-      let r = 0, g = 0, b = 0, w = 0;
-      for (let k = -kRadius; k <= kRadius; k++) {
-        const ny = Math.min(height - 1, Math.max(0, y + k));
-        const nIdx = ny * width + x;
-        const kw = kernel[k + kRadius];
-        r += tempImg[nIdx * 3] * kw; g += tempImg[nIdx * 3 + 1] * kw; b += tempImg[nIdx * 3 + 2] * kw;
-        w += tempW[nIdx] * kw;
+      if (invalidMask && invalidMask[idx]) {
+        out[idx * 3] = rgbFloat32[idx * 3];
+        out[idx * 3 + 1] = rgbFloat32[idx * 3 + 1];
+        out[idx * 3 + 2] = rgbFloat32[idx * 3 + 2];
+        continue;
       }
-      outImg[idx * 3] = r; outImg[idx * 3 + 1] = g; outImg[idx * 3 + 2] = b; outW[idx] = w;
+
+      let rSum = 0, gSum = 0, bSum = 0, wSum = 0;
+      for (const { offset, weight } of kernel) {
+        const ny = y + offset;
+        if (ny < 0 || ny >= height) continue;
+        const nIdx = ny * width + x;
+        if (invalidMask && invalidMask[nIdx]) continue;
+
+        rSum += temp[nIdx * 3] * weight;
+        gSum += temp[nIdx * 3 + 1] * weight;
+        bSum += temp[nIdx * 3 + 2] * weight;
+        wSum += weight;
+      }
+
+      if (wSum > 0) {
+        out[idx * 3] = rSum / wSum;
+        out[idx * 3 + 1] = gSum / wSum;
+        out[idx * 3 + 2] = bSum / wSum;
+      } else {
+        out[idx * 3] = temp[idx * 3];
+        out[idx * 3 + 1] = temp[idx * 3 + 1];
+        out[idx * 3 + 2] = temp[idx * 3 + 2];
+      }
     }
   }
-  const res = new Float32Array(pixelsF32.length);
-  for (let i = 0; i < total; i++) {
-    if (invalidMask[i] || outW[i] < 1e-5) {
-      res[i * 3] = pixelsF32[i * 3]; res[i * 3 + 1] = pixelsF32[i * 3 + 1]; res[i * 3 + 2] = pixelsF32[i * 3 + 2];
-    } else {
-      res[i * 3] = Math.min(1.0, Math.max(0, outImg[i * 3] / outW[i]));
-      res[i * 3 + 1] = Math.min(1.0, Math.max(0, outImg[i * 3 + 1] / outW[i]));
-      res[i * 3 + 2] = Math.min(1.0, Math.max(0, outImg[i * 3 + 2] / outW[i]));
-    }
-  }
-  return res;
+
+  return out;
 }
