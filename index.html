@@ -235,12 +235,9 @@
         </div>
       </details>
 
+      <!-- 画面下部常時固定フッター -->
       <div class="sidebar-footer">
-        <div class="btn-group w-100" style="display:flex; flex-direction:column; gap:8px;">
-          <button id="btn-save-base-png" class="btn-primary">ベース画像をPNG保存</button>
-          <button id="btn-save-mask-png" class="btn-primary">マスク画像をPNG保存</button>
-        </div>
-        <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0; margin-top:10px;">合成結果をPNG保存</button>
+        <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存</button>
       </div>
     </aside>
 
@@ -260,6 +257,223 @@
       <footer id="status-bar">準備完了 | スポイト: OFF</footer>
     </main>
   </div>
+
+  <!-- ペイントエディタ 全画面モーダル -->
+  <dialog id="modal-paint-editor">
+    <div id="paint-editor-container">
+      <header id="paint-toolbar">
+        <div class="paint-tool-group">
+          <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ">✏️ ドット</button>
+          <button class="paint-tool-btn" data-tool="line" title="直線 (連続)">📏 直線</button>
+          <button class="paint-tool-btn" data-tool="bucket" title="塗りつぶし">🪣 塗潰</button>
+          <button class="paint-tool-btn" data-tool="picker" title="スポイト (色取得)">🎯 スポイト</button>
+          <button class="paint-tool-btn" data-tool="rectSelect" title="矩形選択">🔲 矩形選択</button>
+          <button class="paint-tool-btn" data-tool="polySelect" title="多角形選択">📐 多角形選択</button>
+          <button class="paint-tool-btn" data-tool="wand" title="自動選択 (Magic Wand)">🪄 自動選択</button>
+          <button class="paint-tool-btn" data-tool="colorSelect" title="同色選択">🎯 同色選択</button>
+          <button class="paint-tool-btn" data-tool="text" title="テキスト挿入">🔤 文字</button>
+          <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
+        </div>
+        <div class="paint-tool-group">
+          <button id="btn-paint-undo" title="元に戻す">↩ Undo</button>
+          <button id="btn-paint-redo" title="やり直し">↪ Redo</button>
+          <button id="btn-paint-clear-sel" title="選択解除">✕ 選択解除</button>
+          <button id="btn-paint-keybindings" title="キーバインド設定">⌨️ キー設定</button>
+        </div>
+        <div class="paint-tool-group ml-auto">
+          <span id="paint-lbl-zoom" class="val-badge">100%</span>
+          <button id="btn-paint-apply" class="btn-primary">✓ 完了(反映)</button>
+          <button id="btn-paint-cancel">キャンセル</button>
+        </div>
+      </header>
+
+      <div id="paint-main-body">
+        <aside id="paint-sidebar">
+          <div class="sub-panel">
+            <legend>描画色</legend>
+            <div class="color-preview-row">
+              <span id="paint-current-color-swatch" class="color-swatch"></span>
+              <strong id="paint-current-color-hex">#FFFFFF</strong>
+            </div>
+          </div>
+
+          <fieldset class="sub-panel" id="base-palette-tools">
+            <legend>グレースケール生成設定</legend>
+            <div class="row">
+              <span>明色:</span>
+              <input type="text" id="inp-gray-max" value="#FEFEFE" style="width:70px;">
+            </div>
+            <div class="row mt-05">
+              <span>暗色:</span>
+              <input type="text" id="inp-gray-min" value="#404040" style="width:70px;">
+            </div>
+            <div class="row mt-05">
+              <span>段階:</span>
+              <input type="number" id="inp-gray-steps" value="16" min="2" max="64" style="width:50px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px;">
+            </div>
+            <button id="btn-gen-base-palette" class="w-100 mt-05">パレット再生成 (SpecialColor回避)</button>
+          </fieldset>
+
+          <fieldset class="sub-panel" id="mask-palette-tools" style="display:none;">
+            <legend>マスクパレット設定</legend>
+            <div class="btn-group">
+              <button id="btn-add-mask-custom-color" class="btn-primary">＋ 任意色を追加</button>
+              <button id="btn-open-image-sampler">🖼️ 画像からスポイト</button>
+            </div>
+            <span class="info-text">※右クリックでパレットから色を削除</span>
+          </fieldset>
+
+          <fieldset class="sub-panel" style="flex:1; overflow-y:auto;">
+            <legend>カラーパレット一覧</legend>
+            <div id="paint-palette-slots"></div>
+            <div id="paint-palette-empty-msg" class="info-text" style="display:none; text-align:center; padding:10px 0;">
+              パレットは空です。<br>「＋ 任意色を追加」または「画像からスポイト」で色を追加してください。
+            </div>
+          </fieldset>
+        </aside>
+
+        <div id="paint-viewport">
+          <div id="paint-canvas-wrapper">
+            <canvas id="paint-canvas"></canvas>
+            <canvas id="paint-overlay-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <footer id="paint-footer">
+        <span id="paint-lbl-tool">ツール: ドット</span>
+        <span id="paint-lbl-coord" style="margin-left:auto;">X: 0, Y: 0</span>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- 色置換・複数色置換モーダル -->
+  <dialog id="modal-color-replace">
+    <div class="replace-modal-content">
+      <header class="replace-header">
+        <h3>色置換・複数色置換</h3>
+        <button id="btn-close-replace" style="margin-left:auto;">✕ 閉じる</button>
+      </header>
+      <div class="replace-body">
+        <p class="desc-text">置換元（変換前）の色を置換先（変換後）の色へ一括置換します。</p>
+        <div id="replace-rules-container"></div>
+        <button id="btn-add-replace-rule" class="w-100 mt-05">＋ 置換ルールを追加</button>
+        <div class="row mt-1">
+          <label><input type="checkbox" id="chk-replace-selection-only" checked> 現在の選択範囲内のみに適用</label>
+        </div>
+      </div>
+      <footer class="replace-footer">
+        <button id="btn-execute-replace" class="btn-primary" style="flex:2;">✓ 置換を実行</button>
+        <button id="btn-cancel-replace" style="flex:1;">キャンセル</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- 画像スポイト採取モーダル -->
+  <dialog id="modal-image-sampler">
+    <div class="sampler-container">
+      <header class="sampler-header">
+        <h3>画像からピクセル色をスポイト採取</h3>
+        <div class="sampler-zoom-toolbar">
+          <button id="btn-sampler-zoom-out">－</button>
+          <span id="sampler-lbl-zoom" class="val-badge">100%</span>
+          <button id="btn-sampler-zoom-in">＋</button>
+          <button id="btn-sampler-zoom-reset">等倍</button>
+          <button id="btn-sampler-zoom-fit">全体</button>
+        </div>
+        <button id="btn-close-sampler" style="margin-left:auto;">✕ 閉じる</button>
+      </header>
+      <div class="sampler-inputs">
+        <input type="text" id="inp-sampler-url" placeholder="https://example.com/image.png (画像URL)">
+        <button id="btn-sampler-load-url">URLから読込</button>
+        <span style="color:#888;">または</span>
+        <button id="btn-sampler-local-file">📁 ローカル画像を選択</button>
+        <span class="guide-text" style="margin-left:auto;">操作: ドラッグで平行移動 | ホイールで拡縮 | クリックで色採取</span>
+      </div>
+      <div id="sampler-viewport">
+        <canvas id="sampler-canvas"></canvas>
+      </div>
+      <footer class="sampler-footer">
+        <div class="sampler-picked-list-wrap">
+          <span style="font-size:11px; color:#bbb;">採取した色 (クリックで解除):</span>
+          <div id="sampler-picked-swatches"></div>
+        </div>
+        <div class="btn-group" style="width:280px; margin-left:auto;">
+          <button id="btn-sampler-apply" class="btn-primary">✓ 採取した色をパレットに追加</button>
+          <button id="btn-sampler-clear">クリア</button>
+        </div>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- キーバインド設定ダイアログ -->
+  <dialog id="modal-keybindings">
+    <div class="picker-content" style="width:360px;">
+      <h3 style="font-size:13px; margin-bottom:8px;">ペイントツール キーバインド設定</h3>
+      <table id="table-keybindings" style="width:100%; font-size:11px; margin-bottom:12px;">
+        <thead><tr><th>ツール名</th><th>キー</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <button id="btn-close-keybindings" class="btn-primary w-100">閉じる</button>
+    </div>
+  </dialog>
+
+  <!-- HSV + RGB カラーピッカーモーダル -->
+  <dialog id="modal-color-picker">
+    <div class="picker-content">
+      <h3 style="font-size:13px; margin-bottom:8px;">カラーピッカー (HSV / RGB)</h3>
+      <div class="swatch-compare">
+        <span>元色: <i id="picker-old-swatch"></i></span>
+        <span>新色: <i id="picker-new-swatch"></i></span>
+        <strong id="picker-hex-label">#FFFFFF</strong>
+        <button id="btn-picker-eyedropper" style="margin-left:auto;">🎯 画面から採取</button>
+      </div>
+
+      <div class="hsv-sliders">
+        <div class="hsv-row">
+          <span style="width:50px;">色相(H):</span>
+          <input type="range" id="picker-h" min="0" max="360" step="1">
+          <span id="picker-h-val" style="width:35px; text-align:right;">0°</span>
+        </div>
+        <div class="hsv-row">
+          <span style="width:50px;">彩度(S):</span>
+          <input type="range" id="picker-s" min="0" max="100" step="1">
+          <span id="picker-s-val" style="width:35px; text-align:right;">0%</span>
+        </div>
+        <div class="hsv-row">
+          <span style="width:50px;">明度(V):</span>
+          <input type="range" id="picker-v" min="0" max="100" step="1">
+          <span id="picker-v-val" style="width:35px; text-align:right;">100%</span>
+        </div>
+      </div>
+
+      <div class="rgb-sliders">
+        <div class="rgb-row">
+          <span style="width:30px; color:#ff7b7b; font-weight:bold;">R:</span>
+          <input type="range" id="picker-r" min="0" max="255" step="1" value="255">
+          <input type="number" id="picker-r-val" min="0" max="255" value="255">
+        </div>
+        <div class="rgb-row">
+          <span style="width:30px; color:#7bff7b; font-weight:bold;">G:</span>
+          <input type="range" id="picker-g" min="0" max="255" step="1" value="255">
+          <input type="number" id="picker-g-val" min="0" max="255" value="255">
+        </div>
+        <div class="rgb-row">
+          <span style="width:30px; color:#7bb5ff; font-weight:bold;">B:</span>
+          <input type="range" id="picker-b" min="0" max="255" step="1" value="255">
+          <input type="number" id="picker-b-val" min="0" max="255" value="255">
+        </div>
+      </div>
+
+      <div class="quick-palette" id="picker-palette"></div>
+      <div class="btn-group mt-1">
+        <button id="btn-picker-ok" class="btn-primary">決定 (OK)</button>
+        <button id="btn-picker-cancel">キャンセル</button>
+      </div>
+    </div>
+  </dialog>
+
+  <input type="file" id="input-file-hidden" style="display: none;">
 
   <script type="module" src="./js/app.js"></script>
 </body>
