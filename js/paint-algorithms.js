@@ -176,74 +176,108 @@ export function drawSelectionOverlay(oCtx, width, height, selectionMask) {
   }
 }
 
-// 補助線（直交グリッド）＆ ベースタイル菱形表示（個別カラー対応・視認性最適化）
-export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
-  // 高倍率ズームでもサブピクセル補間で消えない適切な線幅を確保
-  const lineW = Math.max(0.45, 1.2 / Math.max(1, zoomLevel * 0.5));
+// Simutrans標準アイソメトリックタイル (Tw x Th) のピクセルパーフェクト境界座標生成キャッシュ
+let cachedIsoKey = '';
+let cachedIsoBorderPixels = [];
 
-  // 1. 等間隔直交補助線
-  if (opts.showGrid && opts.gridStep >= 1) {
-    oCtx.save();
-    oCtx.lineWidth = lineW;
-    oCtx.strokeStyle = hexToRgba(opts.gridColor || '#00FF66', 0.78);
-    oCtx.beginPath();
+function getSimutransTileBorderPixels(Tw, Th) {
+  const key = `${Tw}x${Th}`;
+  if (cachedIsoKey === key) return cachedIsoBorderPixels;
 
-    for (let x = opts.gridStep; x < width; x += opts.gridStep) {
-      oCtx.moveTo(x, 0);
-      oCtx.lineTo(x, height);
+  const halfW = Tw / 2;
+  const halfH = Th / 2;
+  const step = Tw / Th;
+  const fill = new Uint8Array(Tw * Th);
+
+  for (let y = 0; y < Th; y++) {
+    const dy = y < halfH ? y : (Th - 1 - y);
+    const wHalf = Math.max(1, Math.round((dy + 0.5) * step));
+    const xStart = Math.max(0, Math.floor(halfW - wHalf));
+    const xEnd = Math.min(Tw - 1, Math.ceil(halfW + wHalf) - 1);
+    for (let x = xStart; x <= xEnd; x++) {
+      fill[y * Tw + x] = 1;
     }
-    for (let y = opts.gridStep; y < height; y += opts.gridStep) {
-      oCtx.moveTo(0, y);
-      oCtx.lineTo(width, y);
-    }
-    oCtx.stroke();
-    oCtx.restore();
   }
 
-  // 2. ベースタイルのアイソメトリック菱形格子
+  const border = [];
+  for (let y = 0; y < Th; y++) {
+    for (let x = 0; x < Tw; x++) {
+      if (!fill[y * Tw + x]) continue;
+      if (
+        x === 0 || !fill[y * Tw + (x - 1)] ||
+        x === Tw - 1 || !fill[y * Tw + (x + 1)] ||
+        y === 0 || !fill[(y - 1) * Tw + x] ||
+        y === Th - 1 || !fill[(y + 1) * Tw + x]
+      ) {
+        border.push([x, y]);
+      }
+    }
+  }
+
+  cachedIsoKey = key;
+  cachedIsoBorderPixels = border;
+  return border;
+}
+
+// ピクセルパーフェクト補助線（直交グリッド）＆ 画像左下基準Simutransタイル敷き詰め描画
+export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
+  // 1. 等間隔直交補助線（1px単位のfillRectによる完全ピクセルパーフェクト描画）
+  if (opts.showGrid && opts.gridStep >= 1) {
+    oCtx.fillStyle = hexToRgba(opts.gridColor || '#00FF66', 0.75);
+    const step = Math.max(1, Math.floor(opts.gridStep));
+    for (let x = step; x < width; x += step) {
+      oCtx.fillRect(x, 0, 1, height);
+    }
+    for (let y = step; y < height; y += step) {
+      oCtx.fillRect(0, y, width, 1);
+    }
+  }
+
+  // 2. 画像の左下 (x=0, y=height) を描き始めとしたSimutransタイル敷き詰めルール描画
   if (opts.showIsoTile && opts.isoTileW >= 4 && opts.isoTileH >= 2) {
-    const Tw = opts.isoTileW;
-    const Th = opts.isoTileH;
-    const m = Th / Tw;
-    const anchorX = width / 2;
-    const anchorY = height;
+    const Tw = Math.floor(opts.isoTileW);
+    const Th = Math.floor(opts.isoTileH);
+    const halfW = Tw / 2;
+    const halfH = Th / 2;
+    const borderPixels = getSimutransTileBorderPixels(Tw, Th);
     const isoHex = opts.isoColor || '#FFAA00';
 
-    oCtx.save();
-    oCtx.lineWidth = lineW;
-    oCtx.strokeStyle = hexToRgba(isoHex, 0.6);
-    oCtx.beginPath();
+    // 描き始めの基準タイル (u=0, v=0) のバウンディングボックス左下隅を画像の左下 (0, height) に配置
+    const baseTileX = 0;
+    const baseTileY = height - Th;
 
-    const c1Base = anchorY + m * anchorX;
-    const k1Start = Math.floor(-c1Base / Th);
-    const k1End = Math.ceil((height + m * width - c1Base) / Th);
-    for (let k = k1Start; k <= k1End; k++) {
-      const c1 = c1Base + k * Th;
-      oCtx.moveTo(0, c1);
-      oCtx.lineTo(width, c1 - m * width);
+    const maxSpan = Math.ceil(width / halfW) + Math.ceil(height / halfH) + 2;
+
+    // 敷き詰めルールに従って展開する周囲のタイル群を描画（左下基準より左・下にはみ出す領域は除外）
+    oCtx.fillStyle = hexToRgba(isoHex, 0.55);
+    for (let u = -maxSpan; u <= maxSpan; u++) {
+      for (let v = -maxSpan; v <= maxSpan; v++) {
+        if (u === 0 && v === 0) continue; // 基準タイルは後で強調描画
+        const tileX = Math.round(baseTileX + (u - v) * halfW);
+        const tileY = Math.round(baseTileY - (u + v) * halfH);
+
+        // 画像の左端(x=0)・下端(y=height)を起点とし、上・右方向へ敷き詰める
+        if (tileX < 0 || tileY + Th > height) continue;
+        if (tileX >= width || tileY + Th <= 0) continue;
+
+        for (let i = 0; i < borderPixels.length; i++) {
+          const px = tileX + borderPixels[i][0];
+          const py = tileY + borderPixels[i][1];
+          if (px >= 0 && px < width && py >= 0 && py < height) {
+            oCtx.fillRect(px, py, 1, 1);
+          }
+        }
+      }
     }
 
-    const c2Base = anchorY - m * anchorX;
-    const k2Start = Math.floor((-m * width - c2Base) / Th);
-    const k2End = Math.ceil((height - c2Base) / Th);
-    for (let k = k2Start; k <= k2End; k++) {
-      const c2 = c2Base + k * Th;
-      oCtx.moveTo(0, c2);
-      oCtx.lineTo(width, c2 + m * width);
+    // 描き始めの基準タイル (u=0, v=0: 画像左下基準) を高コントラストで強調描画
+    oCtx.fillStyle = hexToRgba(isoHex, 0.95);
+    for (let i = 0; i < borderPixels.length; i++) {
+      const px = baseTileX + borderPixels[i][0];
+      const py = baseTileY + borderPixels[i][1];
+      if (px >= 0 && px < width && py >= 0 && py < height) {
+        oCtx.fillRect(px, py, 1, 1);
+      }
     }
-    oCtx.stroke();
-
-    // 最下段1タイルの基準菱形枠を同系色で強調表示
-    oCtx.lineWidth = lineW * 1.4;
-    oCtx.strokeStyle = hexToRgba(isoHex, 0.95);
-    oCtx.beginPath();
-    oCtx.moveTo(anchorX, anchorY);
-    oCtx.lineTo(anchorX + Tw / 2, anchorY - Th / 2);
-    oCtx.lineTo(anchorX, anchorY - Th);
-    oCtx.lineTo(anchorX - Tw / 2, anchorY - Th / 2);
-    oCtx.closePath();
-    oCtx.stroke();
-
-    oCtx.restore();
   }
 }
