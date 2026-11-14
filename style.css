@@ -33,7 +33,7 @@ body {
   border-right: 1px solid #3d3d3d;
   display: flex;
   flex-direction: column;
-  padding: 8px 8px 0 8px; /* フッター固定のため下部余白をフッター側に移譲 */
+  padding: 8px 8px 0 8px;
   overflow-y: auto;
   gap: 8px;
   position: relative;
@@ -324,7 +324,7 @@ fieldset.sub-panel label input[type="checkbox"] {
 
 #tint-table tr.selected { background: #005a9e; }
 
-/* ★ 画面最下部に常時固定するサイドバーフッター ★ */
+/* 画面最下部に常時固定するサイドバーフッター */
 .sidebar-footer {
   position: sticky;
   bottom: 0;
