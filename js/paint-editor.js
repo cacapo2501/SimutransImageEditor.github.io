@@ -5,6 +5,7 @@ import { PaintInputController } from './paint-input.js';
 import { PaintToolHandler } from './paint-tools.js';
 import { PaintOnionSkinManager } from './paint-onion-skin.js';
 import { PaintRepeatManager } from './paint-repeat.js';
+import { PaintSelectionMover } from './paint-selection-move.js';
 import { renderEditorPaletteUI, updateEditorCurrentColorUI } from './paint-palette-ui.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
@@ -32,6 +33,7 @@ export class PaintEditor {
     this.toolHandler = null;
     this.onionSkinMgr = null;
     this.repeatMgr = null;
+    this.selMover = null;
 
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
@@ -87,6 +89,7 @@ export class PaintEditor {
     this.toolHandler = new PaintToolHandler(this);
     this.onionSkinMgr = new PaintOnionSkinManager(this);
     this.repeatMgr = new PaintRepeatManager(this);
+    this.selMover = new PaintSelectionMover(this);
 
     this.resizeCtrl.bindEvents();
     this.inputCtrl.bindAll();
@@ -118,8 +121,10 @@ export class PaintEditor {
     let cur = 'crosshair';
     if (this.inputCtrl && this.inputCtrl.isPanning) {
       cur = 'grabbing';
-    } else if (this.dialogs?.colorReplace?.pickingRuleIdx !== null) {
-      cur = 'crosshair';
+    } else if (this.currentTool === 'hand') {
+      cur = 'grab';
+    } else if (this.currentTool === 'moveSel') {
+      cur = 'move';
     } else {
       cur = 'crosshair';
     }
@@ -169,6 +174,7 @@ export class PaintEditor {
     this.rectFillStart = null;
     this.selStart = null;
     this.clipMgr.reset();
+    this.selMover.reset();
     this.onionSkinMgr.clearAll();
 
     this.undoStack = [];
@@ -272,6 +278,7 @@ export class PaintEditor {
 
     this.selectionMask = null;
     this.polyPoints = [];
+    this.selMover.reset();
     this._updateTransform();
     this._drawOverlay();
     this._updateStatus();
@@ -348,7 +355,13 @@ export class PaintEditor {
       toolLbl.textContent = `ツール: ${this.currentTool} | 選択モード: ${modeNames[this.selectionMode] || this.selectionMode} (${this.width}×${this.height}px)`;
     }
 
-    if (this.repeatMgr && this.repeatMgr.enabled && !this.selectionMask) {
+    if (this.currentTool === 'hand') {
+      this._showHint('✋ ハンドスクロールモード: 描画・選択を解除済。1本指または左ドラッグでキャンバスをスクロール移動できます');
+    } else if (this.currentTool === 'moveSel') {
+      this._showHint(this.selectionMask
+        ? '↔️ 選択範囲の移動: 選択範囲内をドラッグまたは矢印キーで移動できます'
+        : '⚠️ 選択範囲がありません。先に選択ツールで範囲を指定してください');
+    } else if (this.repeatMgr && this.repeatMgr.enabled && !this.selectionMask) {
       this._showHint('🔁 上方リピートON中: 先に選択範囲を指定してその中を描画すると上方へ反復されます');
     } else if (this.repeatMgr && this.repeatMgr.isActive()) {
       this._showHint(`🔁 上方リピート有効: 選択範囲内の編集を上方 ${this.repeatMgr.stepY}px おきに ${this.repeatMgr.count} 回反復`);
