@@ -1,5 +1,5 @@
-import { computeAircraftShade, buildShadeColorConfig, assignPartMaskColors, fillQuad2D } from './aircraft-3d-shade.js';
-import { extractChromaticGroups, classifyAircraftGroups, buildGroup3DMeshes } from './aircraft-3d-groups.js';
+import { computeAircraftShade, buildShadeColorConfig, assignPartMaskColors, computeConvexHull2D, fillQuad2D, fillPolygon2D } from './aircraft-3d-shade.js';
+import { extractChromaticGroups, classifyAircraftGroups, buildGroup3DGeometry } from './aircraft-3d-groups.js';
 import { loadImageAsync } from './project-io.js';
 
 export function parseAircraftParamsFromName(filename) {
@@ -114,6 +114,7 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
   const pixelLength = Math.pow(length / 96, sqrtCoeff) * 96;
   const pixelHeight = Math.pow(height / 96, sqrtCoeff) * 96;
 
+  // 1. 色相 ±2° 以内による離散頂点グループ化
   const groups = extractChromaticGroups(srcData, imgW, imgH);
   if (groups.length === 0) {
     mapLegacyMonochromeFallback(srcData, imgW, imgH, length, height, sqrtCoeff, baseData, maskData, outW, outH);
@@ -122,10 +123,12 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
     return { baseCanvas, maskCanvas, groupCount: 0, summary: '単色モード展開' };
   }
 
+  // 2. 5部品分類（垂直尾翼 / プロペラ / 胴体 / エンジン / 主翼・水平尾翼）＆ 3D形状構築 ＆ マスク着色
   classifyAircraftGroups(groups, imgW, imgH, pixelLength, pixelHeight);
-  buildGroup3DMeshes(groups, imgW, imgH, pixelLength, pixelHeight);
+  buildGroup3DGeometry(groups, imgW, imgH, pixelLength, pixelHeight);
   assignPartMaskColors(groups);
 
+  // 3. 8方向ごとに上側（奥側）グループから手前側グループ順に塗りつぶし（上書き可）
   for (let deg = 0; deg < 360; deg += 45) {
     const rad = (deg * Math.PI) / 180;
     const cos = Math.cos(rad);
@@ -138,47 +141,86 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
       let minScreenY = Infinity;
       let vCount = 0;
 
-      const projQuads = grp.quads3d.map((q) => {
-        let qDepth = 0;
-        const pts2d = q.verts.map(([lx, ly, lz]) => {
-          const rx = cos * lx + sin * lz;
-          const rz = -sin * lx + cos * lz;
-          const sx = tx + rx;
-          const sy = ty + 0.5 * rz - ly;
-          const depth = rz + 0.02 * ly;
+      if (grp.quads3d && grp.quads3d.length > 0) {
+        // 円筒補間（胴体・エンジン）およびプロペラ回転円盤メッシュ
+        const projQuads = grp.quads3d.map((q) => {
+          let qDepth = 0;
+          const pts2d = q.verts.map(([lx, ly, lz]) => {
+            const rx = cos * lx + sin * lz;
+            const rz = -sin * lx + cos * lz;
+            const sx = tx + rx;
+            const sy = ty + 0.5 * rz - ly;
+            const depth = rz + 0.02 * ly;
 
-          sumDepth += depth;
-          if (sy < minScreenY) minScreenY = sy;
-          vCount++;
-          qDepth += depth;
-          return [sx, sy];
+            sumDepth += depth;
+            if (sy < minScreenY) minScreenY = sy;
+            vCount++;
+            qDepth += depth;
+            return [sx, sy];
+          });
+
+          const [nx0, ny0, nz0] = q.normal;
+          const wNx = cos * nx0 + sin * nz0;
+          const wNy = ny0;
+          const wNz = -sin * nx0 + cos * nz0;
+          const grayVal = computeAircraftShade(wNx, wNy, wNz, shadeCfg);
+
+          return { pts2d, grayVal, depth: qDepth / 4 };
         });
 
-        const [nx0, ny0, nz0] = q.normal;
-        const wNx = cos * nx0 + sin * nz0;
-        const wNy = ny0;
-        const wNz = -sin * nx0 + cos * nz0;
-        const grayVal = computeAircraftShade(wNx, wNy, wNz, shadeCfg);
+        projQuads.sort((a, b) => a.depth - b.depth);
+        return {
+          maskRgb: grp.maskRgb,
+          avgDepth: vCount > 0 ? sumDepth / vCount : 0,
+          minScreenY,
+          projQuads,
+          hullPoly: null,
+          hullGray: 204
+        };
+      }
 
-        return { pts2d, grayVal, depth: qDepth / 4 };
+      // 主翼・水平尾翼・垂直尾翼：グループの全頂点を投影して凸包ポリゴンで塗りつぶし
+      const projPts = (grp.hullPts3d || []).map(([lx, ly, lz]) => {
+        const rx = cos * lx + sin * lz;
+        const rz = -sin * lx + cos * lz;
+        const sx = tx + rx;
+        const sy = ty + 0.5 * rz - ly;
+        const depth = rz + 0.02 * ly;
+
+        sumDepth += depth;
+        if (sy < minScreenY) minScreenY = sy;
+        vCount++;
+        return [sx, sy];
       });
 
-      projQuads.sort((a, b) => a.depth - b.depth);
+      const [nx0, ny0, nz0] = grp.hullNormal || [0, 1, 0];
+      const wNx = cos * nx0 + sin * nz0;
+      const wNy = ny0;
+      const wNz = -sin * nx0 + cos * nz0;
+      const hullGray = computeAircraftShade(wNx, wNy, wNz, shadeCfg);
+      const hullPoly = computeConvexHull2D(projPts);
 
       return {
         maskRgb: grp.maskRgb,
         avgDepth: vCount > 0 ? sumDepth / vCount : 0,
         minScreenY,
-        projQuads
+        projQuads: null,
+        hullPoly,
+        hullGray
       };
     });
 
+    // 画像の上側（奥側）にあるグループから手前側へ順に描画し、手前の部品で上書き
     projectedGroups.sort((a, b) => (a.avgDepth - b.avgDepth) || (a.minScreenY - b.minScreenY));
 
     for (const pg of projectedGroups) {
-      for (const pq of pg.projQuads) {
-        const [q0, q1, q2, q3] = pq.pts2d;
-        fillQuad2D(baseData, maskData, outW, outH, q0, q1, q2, q3, pq.grayVal, pg.maskRgb);
+      if (pg.projQuads) {
+        for (const pq of pg.projQuads) {
+          const [q0, q1, q2, q3] = pq.pts2d;
+          fillQuad2D(baseData, maskData, outW, outH, q0, q1, q2, q3, pq.grayVal, pg.maskRgb);
+        }
+      } else if (pg.hullPoly) {
+        fillPolygon2D(baseData, maskData, outW, outH, pg.hullPoly, pg.hullGray, pg.maskRgb);
       }
     }
   }
@@ -186,9 +228,9 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
   baseCtx.putImageData(baseImgData, 0, 0);
   maskCtx.putImageData(maskImgData, 0, 0);
 
-  const counts = { fuselage: 0, wing: 0, vertical_stabilizer: 0, engine: 0 };
+  const counts = { fuselage: 0, wing: 0, vertical_stabilizer: 0, engine: 0, propeller: 0 };
   groups.forEach(g => { counts[g.partType] = (counts[g.partType] || 0) + 1; });
-  const summary = `胴体:${counts.fuselage} / 翼:${counts.wing} / 垂直尾翼:${counts.vertical_stabilizer} / エンジン:${counts.engine}`;
+  const summary = `胴体:${counts.fuselage} / 翼:${counts.wing} / 垂直尾翼:${counts.vertical_stabilizer} / エンジン:${counts.engine} / プロペラ:${counts.propeller}`;
 
   return { baseCanvas, maskCanvas, groupCount: groups.length, summary };
 }
@@ -198,7 +240,7 @@ export class AircraftMapperController {
     this.app = app;
     this.pickFileFn = pickFileFn;
     this.planCanvas = null;
-    this.planName = 'bp395h125_aircraft.png';
+    this.planName = 'bp158h059_aircraft.png';
   }
 
   bindEvents() {
@@ -262,7 +304,7 @@ export class AircraftMapperController {
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, w, h);
-    this.setPlanCanvas(c, 'bp395h125_new_plan.png');
+    this.setPlanCanvas(c, 'bp158h059_new_plan.png');
     if (openPaint) {
       this.openPlanInPaintEditor();
     }

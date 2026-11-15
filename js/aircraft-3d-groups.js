@@ -5,130 +5,120 @@ function hueDistance(h1, h2) {
   return Math.min(d, 360 - d);
 }
 
-// 平面図から有彩色ピクセルを「同じ色相 ±6°」かつ「8近傍連結」でグループ化
+// 離散頂点ドットを含む有彩色ピクセルを「色相 ±2° 以内」のみでグループ化（連結不要）
 export function extractChromaticGroups(srcData, imgW, imgH) {
-  const total = imgW * imgH;
-  const hArr = new Float32Array(total);
-  const sArr = new Float32Array(total);
-  const vArr = new Float32Array(total);
-  const valid = new Uint8Array(total);
-
-  for (let i = 0; i < total; i++) {
-    const idx = i * 4;
-    const r = srcData[idx];
-    const g = srcData[idx + 1];
-    const b = srcData[idx + 2];
-    const a = srcData[idx + 3];
-
-    if (a === 0) continue;
-    if (r === 255 && g === 255 && b === 255) continue;
-    if (r === 231 && g === 255 && b === 255) continue;
-
-    const [h, sPct, vPct] = rgbToHsv(r, g, b);
-    if (sPct >= 8) {
-      hArr[i] = h;
-      sArr[i] = sPct / 100.0;
-      vArr[i] = vPct / 100.0;
-      valid[i] = 1;
-    }
-  }
-
-  const visited = new Uint8Array(total);
   const groups = [];
-  const queue = new Int32Array(total);
 
-  for (let i = 0; i < total; i++) {
-    if (!valid[i] || visited[i]) continue;
+  for (let y = 0; y < imgH; y++) {
+    for (let x = 0; x < imgW; x++) {
+      const idx = (y * imgW + x) * 4;
+      const r = srcData[idx];
+      const g = srcData[idx + 1];
+      const b = srcData[idx + 2];
+      const a = srcData[idx + 3];
 
-    const seedHue = hArr[i];
-    const pixels = [];
-    let head = 0;
-    let tail = 0;
-    visited[i] = 1;
-    queue[tail++] = i;
+      if (a === 0) continue;
+      if (r === 255 && g === 255 && b === 255) continue;
+      if (r === 231 && g === 255 && b === 255) continue;
 
-    while (head < tail) {
-      const cur = queue[head++];
-      const cx = cur % imgW;
-      const cy = (cur - cx) / imgW;
-      pixels.push({ x: cx, y: cy, h: hArr[cur], s: sArr[cur], v: vArr[cur] });
+      const [h, sPct, vPct] = rgbToHsv(r, g, b);
+      // 黒・暗赤系 (V >= 4% かつ S >= 10%) を有彩色頂点として抽出
+      if (sPct < 10 || vPct < 4) continue;
 
-      for (let dy = -1; dy <= 1; dy++) {
-        const ny = cy + dy;
-        if (ny < 0 || ny >= imgH) continue;
-        for (let dx = -1; dx <= 1; dx++) {
-          if (dx === 0 && dy === 0) continue;
-          const nx = cx + dx;
-          if (nx < 0 || nx >= imgW) continue;
-          const nIdx = ny * imgW + nx;
-          if (valid[nIdx] && !visited[nIdx] && hueDistance(seedHue, hArr[nIdx]) <= 6.0) {
-            visited[nIdx] = 1;
-            queue[tail++] = nIdx;
-          }
+      let matched = null;
+      let bestDiff = 999;
+      for (const grp of groups) {
+        const diff = hueDistance(grp.seedHue, h);
+        if (diff <= 2.0 && diff < bestDiff) {
+          bestDiff = diff;
+          matched = grp;
         }
       }
-    }
 
-    groups.push({ id: groups.length, seedHue, pixels, partType: 'wing', quads3d: [] });
+      if (!matched) {
+        matched = {
+          id: groups.length,
+          seedHue: h,
+          pixels: [],
+          partType: 'wing',
+          quads3d: [],
+          hullPts3d: [],
+          hullNormal: [0, 1, 0]
+        };
+        groups.push(matched);
+      }
+      matched.pixels.push({ x, y, h, s: sPct / 100.0, v: vPct / 100.0 });
+    }
   }
 
   return groups;
 }
 
-// 3D寸法比から「垂直尾翼」「主翼・水平尾翼」「胴体」「エンジン」の4種へ自動分類
+// 横向き平面図（画像X軸＝機体前後軸：左が機首・右が尾翼、画像Y軸＝機体左右軸Z）での5分類
+// 垂直尾翼 / プロペラ / 胴体 / エンジン / 主翼・水平尾翼
 export function classifyAircraftGroups(groups, imgW, imgH, pixelLength, pixelHeight) {
   const scaleX = pixelLength / Math.max(1, imgW);
   const scaleZ = pixelLength / Math.max(1, imgH);
 
   groups.forEach((grp) => {
-    let minX = imgW, maxX = -1, minY = imgH, maxY = -1;
+    let minX = imgW, maxX = -1, minZ = imgH, maxZ = -1;
     let minV = 1.0, maxV = 0.0;
     for (const p of grp.pixels) {
       if (p.x < minX) minX = p.x;
       if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.y > maxY) maxY = p.y;
+      if (p.y < minZ) minZ = p.y;
+      if (p.y > maxZ) maxZ = p.y;
       if (p.v < minV) minV = p.v;
       if (p.v > maxV) maxV = p.v;
     }
-    grp.bounds2d = { minX, maxX, minY, maxY };
+    grp.bounds2d = { minX, maxX, minZ, maxZ };
     grp.spanX = (maxX - minX + 1) * scaleX;
-    grp.spanZ = (maxY - minY + 1) * scaleZ;
+    grp.spanZ = (maxZ - minZ + 1) * scaleZ;
     grp.spanY = (maxV - minV) * pixelHeight;
     grp.minV = minV;
     grp.maxV = maxV;
+    grp.centerZ = ((minZ + maxZ) / 2.0 - imgH / 2.0) * scaleZ;
     grp.partType = null;
   });
 
-  // 1. 垂直尾翼: 横幅 spanX が薄く、高さ変化 spanY が大きい縦板
-  const thinXThresh = Math.max(3.5, pixelLength * 0.085);
-  const tallYThresh = Math.max(3.0, pixelHeight * 0.22);
+  // 1. 垂直尾翼: 左右幅 spanZ が極薄く、高さ変化 spanY が大きい縦板
+  const thinZThresh = Math.max(2.2, pixelLength * 0.065);
+  const tallYThresh = Math.max(2.2, pixelHeight * 0.22);
   for (const grp of groups) {
-    if (grp.spanX <= thinXThresh && grp.spanY >= tallYThresh && grp.spanY > grp.spanX * 1.2) {
+    if (grp.spanZ <= thinZThresh && grp.spanY >= tallYThresh && grp.spanY > grp.spanZ * 1.25) {
       grp.partType = 'vertical_stabilizer';
     }
   }
 
-  // 2. 胴体: 未分類のうち前後長 spanZ が長く最大面積の円筒形
-  const fuselageCands = groups.filter(g => g.partType === null && g.spanZ >= g.spanX * 1.3);
+  // 2. プロペラ: 前後厚み spanX が極薄く（1〜2px程度）、左右 spanZ または上下 spanY に広がっている円盤/ブレード
+  const thinXPropThresh = Math.max(2.0, pixelLength * 0.055);
+  for (const grp of groups) {
+    if (grp.partType !== null) continue;
+    if (grp.spanX <= thinXPropThresh && (grp.spanZ >= grp.spanX * 1.35 || grp.spanY >= grp.spanX * 1.35)) {
+      grp.partType = 'propeller';
+    }
+  }
+
+  // 3. 胴体: 未分類のうち前後長 spanX が最も長く、機体中心線付近にある円筒形
+  const fuselageCands = groups.filter(g => g.partType === null && g.spanX >= g.spanZ * 1.2);
   if (fuselageCands.length > 0) {
-    fuselageCands.sort((a, b) => (b.pixels.length - a.pixels.length) || (b.spanZ - a.spanZ));
+    fuselageCands.sort((a, b) => (b.spanX - a.spanX) || (Math.abs(a.centerZ) - Math.abs(b.centerZ)));
     fuselageCands[0].partType = 'fuselage';
   } else {
     const rest = groups.filter(g => g.partType === null);
     if (rest.length > 0) {
-      rest.sort((a, b) => b.pixels.length - a.pixels.length);
+      rest.sort((a, b) => b.spanX - a.spanX);
       rest[0].partType = 'fuselage';
     }
   }
 
-  // 3. エンジン vs 主翼・水平尾翼
+  // 4. エンジン vs 主翼・水平尾翼
   const fuselage = groups.find(g => g.partType === 'fuselage');
-  const fuselageW = fuselage ? fuselage.spanX : pixelLength * 0.15;
+  const fuselageZ = fuselage ? fuselage.spanZ : pixelLength * 0.14;
 
   for (const grp of groups) {
     if (grp.partType !== null) continue;
-    if (grp.spanZ > grp.spanX * 1.25 && grp.spanX <= fuselageW * 1.3) {
+    if (grp.spanX > grp.spanZ * 1.2 && grp.spanZ <= Math.max(fuselageZ * 1.35, pixelLength * 0.14)) {
       grp.partType = 'engine';
     } else {
       grp.partType = 'wing';
@@ -136,8 +126,8 @@ export function classifyAircraftGroups(groups, imgW, imgH, pixelLength, pixelHei
   }
 }
 
-// グループ種別に応じた3D四角形ポリゴンメッシュ生成
-export function buildGroup3DMeshes(groups, imgW, imgH, pixelLength, pixelHeight) {
+// 部品種別ごとの3D立体形状（胴体/エンジン=円筒丸み自動補完、その他=離散頂点ポリゴン）構築
+export function buildGroup3DGeometry(groups, imgW, imgH, pixelLength, pixelHeight) {
   const scaleX = pixelLength / Math.max(1, imgW);
   const scaleZ = pixelLength / Math.max(1, imgH);
   const halfW = imgW / 2.0;
@@ -145,143 +135,105 @@ export function buildGroup3DMeshes(groups, imgW, imgH, pixelLength, pixelHeight)
 
   for (const grp of groups) {
     if (grp.partType === 'fuselage' || grp.partType === 'engine') {
-      grp.quads3d = buildCylinderQuads(grp, halfW, halfH, scaleX, scaleZ, pixelHeight);
-    } else if (grp.partType === 'vertical_stabilizer') {
-      grp.quads3d = buildVerticalFinQuads(grp, halfW, halfH, scaleX, scaleZ, pixelHeight);
+      grp.quads3d = buildHorizontalCylinderQuads(grp, halfW, halfH, scaleX, scaleZ, pixelHeight);
+    } else if (grp.partType === 'propeller') {
+      grp.quads3d = buildPropellerQuads(grp, halfW, halfH, scaleX, scaleZ, pixelHeight);
     } else {
-      grp.quads3d = buildWingQuads(grp, imgW, imgH, halfW, halfH, scaleX, scaleZ, pixelHeight);
+      // 主翼・水平尾翼・垂直尾翼：離散頂点から3D頂点群と代表法線を構築（投影後に凸包で塗りつぶし）
+      const pts3d = grp.pixels.map(p => [
+        (p.x - halfW) * scaleX,
+        p.v * pixelHeight,
+        (p.y - halfH) * scaleZ
+      ]);
+      grp.hullPts3d = pts3d;
+      grp.hullNormal = estimateGroupNormal(pts3d, grp.partType);
+      grp.quads3d = [];
     }
   }
 }
 
-function buildWingQuads(grp, imgW, imgH, halfW, halfH, scaleX, scaleZ, pixelHeight) {
-  const quads = [];
-  const vMap = new Map();
-  for (const p of grp.pixels) {
-    vMap.set(p.y * imgW + p.x, p.v);
+function estimateGroupNormal(pts3d, partType) {
+  if (partType === 'vertical_stabilizer') {
+    return [0, 0.25, 1.0];
   }
-  const thick = Math.max(0.8, pixelHeight * 0.06);
+  if (pts3d.length < 3) return [0, 1, 0];
 
-  for (const p of grp.pixels) {
-    const yC = p.v * pixelHeight;
-    const vR = vMap.get(p.y * imgW + (p.x + 1));
-    const vL = vMap.get(p.y * imgW + (p.x - 1));
-    const vD = vMap.get((p.y + 1) * imgW + p.x);
-    const vU = vMap.get((p.y - 1) * imgW + p.x);
+  let cx = 0, cy = 0, cz = 0;
+  for (const [x, y, z] of pts3d) { cx += x; cy += y; cz += z; }
+  cx /= pts3d.length; cy /= pts3d.length; cz /= pts3d.length;
 
-    const dYdX = ((vR !== undefined ? vR : p.v) - (vL !== undefined ? vL : p.v)) * pixelHeight / (2 * scaleX);
-    const dYdZ = ((vD !== undefined ? vD : p.v) - (vU !== undefined ? vU : p.v)) * pixelHeight / (2 * scaleZ);
-    const nTop = [-dYdX, 1.0, -dYdZ];
-
-    const x0 = (p.x - 0.5 - halfW) * scaleX;
-    const x1 = (p.x + 0.5 - halfW) * scaleX;
-    const z0 = (p.y - 0.5 - halfH) * scaleZ;
-    const z1 = (p.y + 0.5 - halfH) * scaleZ;
-
-    // 上水平面
-    quads.push({
-      verts: [[x0, yC, z0], [x1, yC, z0], [x1, yC, z1], [x0, yC, z1]],
-      normal: nTop
-    });
-
-    // 外周縁の薄い壁面
-    if (vL === undefined) {
-      quads.push({ verts: [[x0, yC, z0], [x0, yC, z1], [x0, yC - thick, z1], [x0, yC - thick, z0]], normal: [-1, 0, 0] });
-    }
-    if (vR === undefined) {
-      quads.push({ verts: [[x1, yC, z1], [x1, yC, z0], [x1, yC - thick, z0], [x1, yC - thick, z1]], normal: [1, 0, 0] });
-    }
-    if (vU === undefined) {
-      quads.push({ verts: [[x1, yC, z0], [x0, yC, z0], [x0, yC - thick, z0], [x1, yC - thick, z0]], normal: [0, 0, -1] });
-    }
-    if (vD === undefined) {
-      quads.push({ verts: [[x0, yC, z1], [x1, yC, z1], [x1, yC - thick, z1], [x0, yC - thick, z1]], normal: [0, 0, 1] });
-    }
+  let nx = 0, ny = 0, nz = 0;
+  for (let i = 0; i < pts3d.length; i++) {
+    const [x0, y0, z0] = pts3d[i];
+    const [x1, y1, z1] = pts3d[(i + 1) % pts3d.length];
+    const ax = x0 - cx, ay = y0 - cy, az = z0 - cz;
+    const bx = x1 - cx, by = y1 - cy, bz = z1 - cz;
+    nx += ay * bz - az * by;
+    ny += az * bx - ax * bz;
+    nz += ax * by - ay * bx;
   }
-  return quads;
+
+  const mag = Math.hypot(nx, ny, nz);
+  if (mag < 1e-5) return [0, 1, 0];
+  nx /= mag; ny /= mag; nz /= mag;
+  if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+  return [nx, ny, nz];
 }
 
-function buildVerticalFinQuads(grp, halfW, halfH, scaleX, scaleZ, pixelHeight) {
-  const quads = [];
-  const rowMap = new Map();
+// 横向き円筒（胴体・エンジン）の丸み自動補完メッシュ（X軸方向にスライス分割＋円筒断面補間）
+function buildHorizontalCylinderQuads(grp, halfW, halfH, scaleX, scaleZ, pixelHeight) {
+  const colMap = new Map();
   for (const p of grp.pixels) {
-    if (!rowMap.has(p.y)) rowMap.set(p.y, { minX: p.x, maxX: p.x, maxV: p.v });
-    const row = rowMap.get(p.y);
-    if (p.x < row.minX) row.minX = p.x;
-    if (p.x > row.maxX) row.maxX = p.x;
-    if (p.v > row.maxV) row.maxV = p.v;
+    if (!colMap.has(p.x)) colMap.set(p.x, { minZ: p.y, maxZ: p.y, maxV: p.v });
+    const col = colMap.get(p.x);
+    if (p.y < col.minZ) col.minZ = p.y;
+    if (p.y > col.maxZ) col.maxZ = p.y;
+    if (p.v > col.maxV) col.maxV = p.v;
   }
 
-  const ys = Array.from(rowMap.keys()).sort((a, b) => a - b);
-  const baseBotY = grp.minV * pixelHeight;
-
-  for (let i = 0; i < ys.length; i++) {
-    const y0 = ys[i];
-    const r0 = rowMap.get(y0);
-    const y1 = i + 1 < ys.length ? ys[i + 1] : y0 + 1;
-    const r1 = i + 1 < ys.length ? rowMap.get(y1) : r0;
-
-    const xc0 = ((r0.minX + r0.maxX) / 2 - halfW) * scaleX;
-    const xc1 = ((r1.minX + r1.maxX) / 2 - halfW) * scaleX;
-    const hw0 = Math.max(0.55, ((r0.maxX - r0.minX + 1) * scaleX) / 2);
-    const hw1 = Math.max(0.55, ((r1.maxX - r1.minX + 1) * scaleX) / 2);
-
-    const z0 = (y0 - 0.5 - halfH) * scaleZ;
-    const z1 = (y1 - 0.5 - halfH) * scaleZ;
-    const top0 = r0.maxV * pixelHeight;
-    const top1 = r1.maxV * pixelHeight;
-
-    // 左壁面
-    quads.push({
-      verts: [[xc0 - hw0, top0, z0], [xc1 - hw1, top1, z1], [xc1 - hw1, baseBotY, z1], [xc0 - hw0, baseBotY, z0]],
-      normal: [-1, 0, 0]
-    });
-    // 右壁面
-    quads.push({
-      verts: [[xc1 + hw1, top1, z1], [xc0 + hw0, top0, z0], [xc0 + hw0, baseBotY, z0], [xc1 + hw1, baseBotY, z1]],
-      normal: [1, 0, 0]
-    });
-    // 上端縁
-    const slopeZ = -(top1 - top0) / Math.max(0.1, z1 - z0);
-    quads.push({
-      verts: [[xc0 - hw0, top0, z0], [xc0 + hw0, top0, z0], [xc1 + hw1, top1, z1], [xc1 - hw1, top1, z1]],
-      normal: [0, 1, slopeZ]
-    });
-  }
-  return quads;
-}
-
-function buildCylinderQuads(grp, halfW, halfH, scaleX, scaleZ, pixelHeight) {
-  const quads = [];
-  const rowMap = new Map();
-  for (const p of grp.pixels) {
-    if (!rowMap.has(p.y)) rowMap.set(p.y, { minX: p.x, maxX: p.x, maxV: p.v });
-    const row = rowMap.get(p.y);
-    if (p.x < row.minX) row.minX = p.x;
-    if (p.x > row.maxX) row.maxX = p.x;
-    if (p.v > row.maxV) row.maxV = p.v;
-  }
-
-  const ys = Array.from(rowMap.keys()).sort((a, b) => a - b);
-  const slices = ys.map((y, idx) => {
-    const r = rowMap.get(y);
-    const xc = ((r.minX + r.maxX) / 2 - halfW) * scaleX;
-    const rad = Math.max(0.7, ((r.maxX - r.minX + 1) * scaleX) / 2);
-    const topY = r.maxV * pixelHeight;
-    const axisY = Math.max(rad * 0.4, topY - rad);
-    const z = (idx === 0 ? y - 0.5 : (idx === ys.length - 1 ? y + 0.5 : y)) - halfH;
-    return { xc, rad, axisY, z: z * scaleZ };
+  const xs = Array.from(colMap.keys()).sort((a, b) => a - b);
+  const rawSlices = xs.map(x => {
+    const c = colMap.get(x);
+    const zc = ((c.minZ + c.maxZ) / 2.0 - halfH) * scaleZ;
+    const rad = Math.max(0.65, ((c.maxZ - c.minZ + 1) * scaleZ) / 2.0);
+    const topY = c.maxV * pixelHeight;
+    const axisY = Math.max(rad * 0.35, topY - rad);
+    return { x: (x - halfW) * scaleX, zc, rad, axisY };
   });
 
-  // 円筒の断面角度 (-125° 左下側面 〜 0° 頂上 〜 +125° 右下側面) を8分割
-  const arcSteps = 8;
-  const angMin = (-125 * Math.PI) / 180;
-  const angMax = (125 * Math.PI) / 180;
+  // 離散点しかない場合は X 方向に細分補間して滑らかな円筒にする
+  const slices = [];
+  if (rawSlices.length === 1) {
+    const s = rawSlices[0];
+    slices.push({ ...s, x: s.x - 0.5 * scaleX });
+    slices.push({ ...s, x: s.x + 0.5 * scaleX });
+  } else {
+    for (let i = 0; i < rawSlices.length - 1; i++) {
+      const s0 = rawSlices[i];
+      const s1 = rawSlices[i + 1];
+      const subSteps = Math.max(1, Math.min(8, Math.round(Math.abs(s1.x - s0.x) / Math.max(0.5, scaleX))));
+      for (let st = 0; st < subSteps; st++) {
+        const t = st / subSteps;
+        slices.push({
+          x: s0.x + (s1.x - s0.x) * t,
+          zc: s0.zc + (s1.zc - s0.zc) * t,
+          rad: s0.rad + (s1.rad - s0.rad) * t,
+          axisY: s0.axisY + (s1.axisY - s0.axisY) * t
+        });
+      }
+    }
+    slices.push(rawSlices[rawSlices.length - 1]);
+  }
+
+  const quads = [];
+  const arcSteps = 10;
+  const angMin = (-135 * Math.PI) / 180;
+  const angMax = (135 * Math.PI) / 180;
 
   for (let i = 0; i < slices.length - 1; i++) {
     const s0 = slices[i];
     const s1 = slices[i + 1];
-    const dz = Math.max(0.1, s1.z - s0.z);
+    const dx = Math.max(0.1, s1.x - s0.x);
 
     for (let k = 0; k < arcSteps; k++) {
       const a0 = angMin + ((angMax - angMin) * k) / arcSteps;
@@ -292,21 +244,56 @@ function buildCylinderQuads(grp, halfW, halfH, scaleX, scaleZ, pixelHeight) {
       const sin1 = Math.sin(a1), cos1 = Math.cos(a1);
       const sinM = Math.sin(aMid), cosM = Math.cos(aMid);
 
-      const p00 = [s0.xc + s0.rad * sin0, s0.axisY + s0.rad * cos0, s0.z];
-      const p01 = [s0.xc + s0.rad * sin1, s0.axisY + s0.rad * cos1, s0.z];
-      const p11 = [s1.xc + s1.rad * sin1, s1.axisY + s1.rad * cos1, s1.z];
-      const p10 = [s1.xc + s1.rad * sin0, s1.axisY + s1.rad * cos0, s1.z];
+      const p00 = [s0.x, s0.axisY + s0.rad * cos0, s0.zc + s0.rad * sin0];
+      const p01 = [s0.x, s0.axisY + s0.rad * cos1, s0.zc + s0.rad * sin1];
+      const p11 = [s1.x, s1.axisY + s1.rad * cos1, s1.zc + s1.rad * sin1];
+      const p10 = [s1.x, s1.axisY + s1.rad * cos0, s1.zc + s1.rad * sin0];
 
-      const rDiff = (s1.rad - s0.rad) / dz;
-      const yDiff = (s1.axisY - s0.axisY) / dz;
-      const nzSlope = -(rDiff + cosM * yDiff);
+      const rDiff = (s1.rad - s0.rad) / dx;
+      const yDiff = (s1.axisY - s0.axisY) / dx;
+      const nxSlope = -(rDiff + cosM * yDiff);
 
       quads.push({
         verts: [p00, p01, p11, p10],
-        normal: [sinM, cosM, nzSlope]
+        normal: [nxSlope, cosM, sinM]
       });
     }
   }
+  return quads;
+}
 
+// プロペラ回転円盤メッシュ（Y-Z平面上の円盤＋厚み）
+function buildPropellerQuads(grp, halfW, halfH, scaleX, scaleZ, pixelHeight) {
+  const { minX, maxX, minZ, maxZ } = grp.bounds2d;
+  const xc = ((minX + maxX) / 2.0 - halfW) * scaleX;
+  const zc = ((minZ + maxZ) / 2.0 - halfH) * scaleZ;
+  const radZ = Math.max(1.2, ((maxZ - minZ + 1) * scaleZ) / 2.0);
+  const topY = grp.maxV * pixelHeight;
+  const yc = grp.spanY > 1.0 ? ((grp.minV + grp.maxV) / 2.0) * pixelHeight : Math.max(radZ * 0.6, topY - radZ * 0.4);
+  const radY = grp.spanY > 1.0 ? Math.max(radZ, grp.spanY / 2.0) : radZ;
+
+  const quads = [];
+  const segs = 12;
+  const halfThick = Math.max(0.25, scaleX * 0.25);
+
+  for (let k = 0; k < segs; k++) {
+    const a0 = (k * 2 * Math.PI) / segs;
+    const a1 = ((k + 1) * 2 * Math.PI) / segs;
+    const y0 = yc + radY * Math.cos(a0);
+    const z0 = zc + radZ * Math.sin(a0);
+    const y1 = yc + radY * Math.cos(a1);
+    const z1 = zc + radZ * Math.sin(a1);
+
+    // 前面（-X方向）
+    quads.push({
+      verts: [[xc - halfThick, yc, zc], [xc - halfThick, y0, z0], [xc - halfThick, y1, z1], [xc - halfThick, yc, zc]],
+      normal: [-1, 0.3, 0]
+    });
+    // 後面（+X方向）
+    quads.push({
+      verts: [[xc + halfThick, yc, zc], [xc + halfThick, y1, z1], [xc + halfThick, y0, z0], [xc + halfThick, yc, zc]],
+      normal: [1, 0.3, 0]
+    });
+  }
   return quads;
 }
