@@ -45,6 +45,7 @@ export function renderPaintModalUI() {
             <button id="btn-paint-copy" title="選択範囲をコピー (Ctrl+C)">📋 コピー</button>
             <button id="btn-paint-paste" title="貼り付け (Ctrl+V)">📌 貼付</button>
             <button id="btn-paint-import-img" title="外部画像を取り込んで貼り付け">🖼️ 画像貼付</button>
+            <button id="btn-paint-reimport-img" title="前回貼り付けた外部画像をもう一度貼り付け" disabled>🔁 再貼付</button>
             <button id="btn-paint-flip-h" title="左右反転 (貼付中/選択範囲/全体)">↔ 左右反転</button>
             <button id="btn-paint-flip-v" title="上下反転 (貼付中/選択範囲/全体)">↕ 上下反転</button>
           </div>
@@ -155,6 +156,11 @@ export function renderPaintModalUI() {
 
             <fieldset class="sub-panel">
               <legend>カラーパレット一覧</legend>
+              <div class="btn-group">
+                <button id="btn-export-palette" title="現在のパレットをJSONファイルに出力">💾 パレット出力</button>
+                <button id="btn-import-palette" title="パレットJSONファイルを読み込み（置換/追加）">📂 パレット入力</button>
+              </div>
+              <span class="info-text">※ダブルクリック/長タップで色編集</span>
               <div id="paint-palette-slots"></div>
               <div id="paint-palette-empty-msg" class="info-text" style="display:none; text-align:center; padding:10px 0;">
                 パレットは空です。<br>「＋ 任意色を追加」または「画像からスポイト」で色を追加してください。
