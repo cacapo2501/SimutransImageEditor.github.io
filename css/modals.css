@@ -1,4 +1,4 @@
-/* HSV + RGB カラーピッカーモーダル */
+/* カラーピッカーモーダル */
 #modal-color-picker {
   border: 1px solid #555;
   border-radius: 6px;
@@ -9,75 +9,74 @@
 }
 
 #modal-color-picker::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.65);
 }
 
 .picker-content {
-  width: 340px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .swatch-compare {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 10px 0;
+  gap: 8px;
+  font-size: 11px;
 }
 
 .swatch-compare i {
   display: inline-block;
-  width: 40px;
-  height: 24px;
+  width: 24px;
+  height: 16px;
   border: 1px solid #666;
   vertical-align: middle;
 }
 
-.hsv-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0;
-  font-size: 12px;
-}
-
+.hsv-sliders,
 .rgb-sliders {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin: 6px 0;
-  padding: 6px 0;
-  border-top: 1px solid #3d3d3d;
-  border-bottom: 1px solid #3d3d3d;
+  gap: 6px;
 }
 
+.hsv-row,
 .rgb-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 11px;
+}
+
+.hsv-row input[type="range"],
+.rgb-row input[type="range"] {
+  flex: 1;
 }
 
 .rgb-row input[type="number"] {
   width: 48px;
-  background: #1a1a1a;
+  background: #141414;
   border: 1px solid #444;
   color: #eee;
-  padding: 2px 4px;
+  font-family: Consolas, monospace;
   font-size: 11px;
-  text-align: right;
+  padding: 2px 4px;
   border-radius: 2px;
+  text-align: right;
 }
 
 .quick-palette {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(9, 1fr);
   gap: 4px;
-  margin: 10px 0;
+  margin-top: 4px;
 }
 
 .palette-btn {
-  height: 24px;
+  height: 22px;
+  padding: 0;
   border: 1px solid #555;
-  border-radius: 2px;
 }
 
 /* キーバインド設定ダイアログ */
@@ -91,35 +90,30 @@
 }
 
 #modal-keybindings::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.65);
+}
+
+#table-keybindings {
+  border-collapse: collapse;
 }
 
 #table-keybindings th,
 #table-keybindings td {
   padding: 4px 6px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #3c3c3c;
+  text-align: left;
 }
 
-.btn-bind {
-  background: #333;
-  border: 1px solid #555;
-  color: #55b5ff;
-  font-family: Consolas, monospace;
-  padding: 2px 6px;
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-/* 画像スポイトモーダル */
+/* 画像スポイト採取モーダル */
 #modal-image-sampler {
   width: 85vw;
   height: 85vh;
   height: 85dvh;
-  max-width: 960px;
-  max-height: 720px;
+  max-width: 1100px;
+  max-height: 750px;
   border: 1px solid #555;
   border-radius: 6px;
-  background: #222;
+  background: #1e1e1e;
   color: #eee;
   padding: 0;
   margin: auto;
@@ -139,15 +133,13 @@
 }
 
 .sampler-header {
-  min-height: 40px;
-  height: auto;
-  background: #2a2a2a;
-  border-bottom: 1px solid #383838;
+  height: 40px;
+  background: #282828;
+  border-bottom: 1px solid #3d3d3d;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  padding: 4px 10px;
-  gap: 8px 12px;
+  padding: 0 12px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -155,36 +147,35 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  background: #1c1c1c;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #383838;
 }
 
 .sampler-inputs {
+  min-height: 36px;
+  background: #242424;
+  border-bottom: 1px solid #333;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: #1c1c1c;
-  border-bottom: 1px solid #333;
+  padding: 4px 12px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .sampler-inputs input[type="text"] {
-  flex: 1 1 200px;
-  min-width: 150px;
+  width: 260px;
 }
 
 #sampler-viewport {
-  flex: 1 1 0%;
-  min-height: 0;
+  flex: 1;
   background: #121212;
   position: relative;
   overflow: hidden;
-  cursor: grab;
+  cursor: crosshair;
   touch-action: none;
-}
-
-#sampler-viewport:active {
-  cursor: grabbing;
 }
 
 #sampler-canvas {
@@ -196,15 +187,13 @@
 }
 
 .sampler-footer {
-  min-height: 52px;
-  height: auto;
+  min-height: 46px;
   background: #242424;
   border-top: 1px solid #383838;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  padding: 6px 10px;
-  gap: 8px 12px;
+  padding: 4px 12px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -213,26 +202,27 @@
   align-items: center;
   gap: 8px;
   flex: 1;
-  min-width: 180px;
   overflow-x: auto;
 }
 
 #sampler-picked-swatches {
   display: flex;
-  align-items: center;
   gap: 4px;
+  align-items: center;
 }
 
 /* 色置換・複数色置換モーダル */
 #modal-color-replace {
-  width: 480px;
-  max-width: 95vw;
+  width: 440px;
+  max-width: 92vw;
+  max-height: 85vh;
   border: 1px solid #555;
   border-radius: 6px;
-  background: #262626;
+  background: #252525;
   color: #eee;
   padding: 0;
   margin: auto;
+  overflow: hidden;
 }
 
 #modal-color-replace::backdrop {
@@ -242,74 +232,100 @@
 .replace-modal-content {
   display: flex;
   flex-direction: column;
+  max-height: 85vh;
 }
 
 .replace-header {
   height: 38px;
-  background: #303030;
-  border-bottom: 1px solid #404040;
+  background: #2c2c2c;
+  border-bottom: 1px solid #3d3d3d;
   display: flex;
   align-items: center;
   padding: 0 12px;
+  flex-shrink: 0;
 }
 
 .replace-body {
   padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
 }
 
 #replace-rules-container {
-  max-height: 240px;
-  overflow-y: auto;
-  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .replace-rule-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: #1e1e1e;
   padding: 6px 8px;
+  border: 1px solid #3a3a3a;
   border-radius: 4px;
-  border: 1px solid #383838;
+  font-size: 11px;
 }
 
-.replace-rule-row span.arrow {
-  color: #55b5ff;
-  font-weight: bold;
-}
-
-.replace-rule-row button.btn-color-pick {
-  display: flex;
+.btn-color-pick {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
+  gap: 6px;
+  background: #2d2d2d;
+  padding: 3px 8px;
 }
 
 .replace-footer {
-  height: 48px;
+  height: 44px;
   background: #2a2a2a;
-  border-top: 1px solid #383838;
+  border-top: 1px solid #3d3d3d;
   display: flex;
   align-items: center;
   padding: 0 12px;
   gap: 8px;
+  flex-shrink: 0;
 }
 
-/* 新規作成 & 画像サイズ変更モーダル */
+/* 新規作成 & 画像サイズ変更 & パレット入力 & 中間色生成モーダル */
 #modal-new-image,
-#modal-resize-image {
+#modal-resize-image,
+#modal-palette-import,
+#modal-palette-blend {
   border: 1px solid #555;
   border-radius: 6px;
   background: #2a2a2a;
   color: #eee;
   padding: 16px;
   margin: auto;
+  overflow: visible;
 }
 
 #modal-new-image::backdrop,
-#modal-resize-image::backdrop {
+#modal-resize-image::backdrop,
+#modal-palette-import::backdrop,
+#modal-palette-blend::backdrop {
   background: rgba(0, 0, 0, 0.65);
+}
+
+#modal-palette-blend .picker-content {
+  width: 400px;
+  max-width: 88vw;
+}
+
+#blend-preview-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  min-height: 46px;
+  padding: 6px 4px;
+  background: #1b1b1b;
+  border-radius: 4px;
+  border: 1px solid #383838;
 }
