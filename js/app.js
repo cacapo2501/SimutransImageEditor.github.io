@@ -11,6 +11,9 @@ import { ToneTintController } from './tone-tint-controller.js';
 import { DeftileBuilder } from './deftile-builder.js';
 import { ImageIOController, safePickFile } from './image-io-controller.js';
 import { VehicleLayoutController } from './vehicle-layout.js';
+import { AircraftMapperController } from './aircraft-mapper.js';
+import { GradientGeneratorController } from './gradient-generator.js';
+import { CityCarLayoutController } from './citycar-layout.js';
 import { drawSimutransIsoTiles } from './paint-algorithms.js';
 import { renderSidebarUI } from './ui-sidebar.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
@@ -98,12 +101,18 @@ class AdvancedMultiplyApp {
     this.deftileBuilder = new DeftileBuilder(this, safePickFile);
     this.imageIOCtrl = new ImageIOController(this, safePickFile);
     this.vehicleCtrl = new VehicleLayoutController(this);
+    this.aircraftCtrl = new AircraftMapperController(this);
+    this.gradientCtrl = new GradientGeneratorController(this);
+    this.citycarCtrl = new CityCarLayoutController(this);
 
     this._bindZoomAndGuideEvents();
     this.imageIOCtrl.bindAll();
     this.layerManager.bindEvents();
     this.toneTintCtrl.bindEvents();
     this.vehicleCtrl.bindEvents();
+    this.aircraftCtrl.bindEvents();
+    this.gradientCtrl.bindEvents();
+    this.citycarCtrl.bindEvents();
     this.imageIOCtrl.loadDefaultSpecialColors();
     this.render();
   }
@@ -152,6 +161,9 @@ class AdvancedMultiplyApp {
     }
     if (this.vehicleCtrl) {
       this.vehicleCtrl.syncLengthFromFilename(name);
+    }
+    if (this.aircraftCtrl) {
+      this.aircraftCtrl.syncParamsFromFilename(name);
     }
     MaskGenerator.analyzeBaseImage(this, img, name);
     if (!this.maskImage) {

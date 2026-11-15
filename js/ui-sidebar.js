@@ -255,7 +255,50 @@ export function renderSidebarUI() {
       </div>
     </details>
 
-    <!-- セクション6: 特殊色・外部連携設定 -->
+    <!-- セクション6: 飛行機平面図 8方向展開 (ベース画像ターゲット) -->
+    <details class="accordion-panel">
+      <summary>✈️ 飛行機平面図 8方向展開 (ベース画像)</summary>
+      <div class="panel-body">
+        <p class="desc-text">ベース画像の飛行機平面図を8方向アイソメトリック（768×96px）へ展開します。ファイル名(bpXXXhYYY)からも自動読取します。</p>
+        <div class="row mt-05">
+          <label style="min-width: 65px;">全長 (m):</label>
+          <input type="number" id="inp-aircraft-length" value="39.5" step="0.1" min="1" max="200" style="background:#1e1e1e; border:1px solid #444; color:#eee; padding:3px 6px;">
+        </div>
+        <div class="row mt-05">
+          <label style="min-width: 65px;">全高 (m):</label>
+          <input type="number" id="inp-aircraft-height" value="12.5" step="0.1" min="0.1" max="100" style="background:#1e1e1e; border:1px solid #444; color:#eee; padding:3px 6px;">
+        </div>
+        <div class="row mt-05">
+          <label style="min-width: 65px;">縮尺係数:</label>
+          <input type="number" id="inp-aircraft-coeff" value="0.8" step="0.05" min="0.1" max="2.0" style="background:#1e1e1e; border:1px solid #444; color:#eee; padding:3px 6px;">
+        </div>
+        <button id="btn-aircraft-map" class="btn-primary w-100 mt-05">✈️ ベース画像を8方向展開</button>
+        <div class="info-text" id="lbl-aircraft-status">展開状態: 待機中</div>
+      </div>
+    </details>
+
+    <!-- セクション7: 制御点グラデーション生成 (ベース画像ターゲット) -->
+    <details class="accordion-panel">
+      <summary>🌈 制御点グラデーション生成 (ベース画像)</summary>
+      <div class="panel-body">
+        <p class="desc-text">ベース画像内のHSV彩度制御点（S=100%制御点・S=50%塗り領域）からグレースケールグラデーションを生成します。</p>
+        <label class="mt-05"><input type="checkbox" id="chk-gradient-split8" checked> 横8分割（8方向別々）にグラデーションを計算する</label>
+        <button id="btn-gradient-generate" class="btn-primary w-100 mt-05">🌈 ベース画像にグラデーション生成</button>
+        <div class="info-text" id="lbl-gradient-status">生成状態: 待機中</div>
+      </div>
+    </details>
+
+    <!-- セクション8: CityCar圧縮画像 展開変換 (ベース・マスク両対応) -->
+    <details class="accordion-panel">
+      <summary>🚗 CityCar圧縮画像 展開変換</summary>
+      <div class="panel-body">
+        <p class="desc-text">RGB=(0,0,0)の縦区切り線で8分割されたCityCar圧縮画像を、512×64pxの標準配置へ展開します（ベース・マスク同時対応）。</p>
+        <button id="btn-citycar-expand" class="btn-primary w-100 mt-05">🚗 CityCar画像を512×64へ展開</button>
+        <div class="info-text" id="lbl-citycar-status">変換状態: 待機中</div>
+      </div>
+    </details>
+
+    <!-- セクション9: 特殊色・外部連携設定 -->
     <details class="accordion-panel">
       <summary>特殊色・外部連携設定</summary>
       <div class="panel-body">
