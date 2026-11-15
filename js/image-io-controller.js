@@ -3,8 +3,37 @@ import { ProjectIO } from './project-io.js';
 import { MaskGenerator } from './mask-generator.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 
+export function safePickFile(accept = '.png') {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+
+    input.onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (input.parentNode) document.body.removeChild(input);
+      resolve(file || null);
+    };
+
+    window.addEventListener('focus', () => {
+      setTimeout(() => {
+        if (input.parentNode) {
+          document.body.removeChild(input);
+          resolve(null);
+        }
+      }, 500);
+    }, { once: true });
+
+    input.click();
+  });
+}
+
 export class ImageIOController {
-  constructor(app, pickFileFn) {
+  constructor(app, pickFileFn = safePickFile) {
     this.app = app;
     this.pickFileFn = pickFileFn;
   }
@@ -13,6 +42,45 @@ export class ImageIOController {
     this._bindNewImageModalEvents();
     this._bindDragAndDrop();
     this._bindFileAndProjectEvents();
+  }
+
+  async loadDefaultSpecialColors() {
+    const app = this.app;
+    const candidateFiles = [
+      'special_colors.csv',
+      'SpecialColor.csv',
+      'SpecialColors.csv',
+      'special_color.csv',
+      'data/special_colors.csv',
+      'csv/special_colors.csv'
+    ];
+    const infoLabel = document.getElementById('lbl-csv-info');
+
+    for (const filename of candidateFiles) {
+      try {
+        const response = await fetch(`./${filename}`, { cache: 'no-cache' });
+        if (response.ok) {
+          const text = await response.text();
+          if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) continue;
+
+          const parsed = parseSpecialColorsCsv(text);
+          if (parsed.size > 0) {
+            app.specialColors = parsed;
+            if (infoLabel) {
+              infoLabel.textContent = `特殊色: ${app.specialColors.size}件登録済 (${filename} 1列目)`;
+            }
+            app.paletteManager.generateBasePalette();
+            MaskGenerator.recomputeBaseSpecialColors(app);
+            app.render();
+            return;
+          }
+        }
+      } catch (err) {}
+    }
+
+    if (infoLabel && app.specialColors.size === 0) {
+      infoLabel.textContent = '特殊色: 0件登録済 (ルートに special_colors.csv 未検出 / 手動選択可)';
+    }
   }
 
   openNewImageModal() {
@@ -86,6 +154,9 @@ export class ImageIOController {
       const f = await this.pickFileFn('.png');
       if (f) app.loadMaskFromFile(f);
     };
+    document.getElementById('btn-regen-mask').onclick = () => {
+      app.regenerateMaskFromBase();
+    };
     document.getElementById('btn-save-base').onclick = () => ProjectIO.exportBasePng(app);
     document.getElementById('btn-save-mask').onclick = () => ProjectIO.exportMaskPng(app);
 
@@ -136,7 +207,7 @@ export class ImageIOController {
         const r = new FileReader();
         r.onload = () => {
           app.specialColors = parseSpecialColorsCsv(r.result);
-          document.getElementById('lbl-csv-info').textContent = `特殊色: ${app.specialColors.size}件登録済 (手動選択)`;
+          document.getElementById('lbl-csv-info').textContent = `特殊色: ${app.specialColors.size}件登録済 (1列目読込)`;
           app.paletteManager.generateBasePalette();
           MaskGenerator.recomputeBaseSpecialColors(app);
           app.markDirty();

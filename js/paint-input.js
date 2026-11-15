@@ -61,6 +61,21 @@ export class PaintInputController {
     bindClick('btn-export-palette', () => exportPaletteToFile(ed));
     bindClick('btn-import-palette', () => importPaletteFromFile(ed));
 
+    bindClick('btn-paint-regen-mask', () => {
+      if (ed.targetType !== 'mask') return;
+      const regenerated = ed.app.regenerateMaskFromBase();
+      if (regenerated) {
+        ed._pushHistory();
+        ed.ctx.clearRect(0, 0, ed.width, ed.height);
+        ed.ctx.imageSmoothingEnabled = false;
+        ed.ctx.drawImage(regenerated, 0, 0, ed.width, ed.height);
+        ed.selectionMask = null;
+        ed.polyPoints = [];
+        ed._drawOverlay();
+        ed._showHint('🔄 ベース画像からマスク画像を再生成しました');
+      }
+    });
+
     this._bindGuideControls();
 
     bindClick('btn-paint-apply', () => ed.applyAndClose());

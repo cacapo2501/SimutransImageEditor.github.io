@@ -77,7 +77,28 @@ export function hsvToRgb(h, s, v) {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
-// special_colors.csv パース
+function splitCsvFirstField(line) {
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if ((ch === ',' || ch === ';' || ch === '\t') && !inQuotes) {
+      break;
+    } else {
+      cur += ch;
+    }
+  }
+  return cur.trim();
+}
+
+// special_color.csv パース（1列目のフィールドの値のみから取得）
 export function parseSpecialColorsCsv(csvText) {
   const specialColors = new Set();
   if (!csvText) return specialColors;
@@ -87,29 +108,15 @@ export function parseSpecialColorsCsv(csvText) {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed) continue;
+    if (!trimmed || trimmed.startsWith('//')) continue;
 
-    const hexMatches = trimmed.match(/#[0-9A-Fa-f]{6}\b/g);
-    if (hexMatches && hexMatches.length > 0) {
-      for (const h of hexMatches) {
-        specialColors.add(h.toUpperCase());
-      }
-      continue;
-    }
+    const firstField = splitCsvFirstField(trimmed).replace(/^["']|["']$/g, '').trim();
+    if (!firstField) continue;
 
-    if (trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
-
-    const parts = trimmed.split(/[,;\t]+/).map(s => s.trim());
-    for (let i = 0; i <= parts.length - 3; i++) {
-      if (/^\d{1,3}$/.test(parts[i]) && /^\d{1,3}$/.test(parts[i + 1]) && /^\d{1,3}$/.test(parts[i + 2])) {
-        const r = parseInt(parts[i], 10);
-        const g = parseInt(parts[i + 1], 10);
-        const b = parseInt(parts[i + 2], 10);
-        if (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255) {
-          specialColors.add(rgbToHex(r, g, b));
-          break;
-        }
-      }
+    // 1列目が #RRGGBB または RRGGBB の場合のみ取得（2列目以降のカラーは取得しない）
+    const hexMatch = firstField.match(/^#?([0-9A-Fa-f]{6})$/);
+    if (hexMatch) {
+      specialColors.add(`#${hexMatch[1].toUpperCase()}`);
     }
   }
   return specialColors;

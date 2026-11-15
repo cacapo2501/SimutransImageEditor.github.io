@@ -153,6 +153,7 @@ export function renderPaintModalUI() {
                 <button id="btn-add-mask-custom-color" class="btn-primary">＋ 任意色を追加</button>
                 <button id="btn-open-image-sampler">🖼️ 画像からスポイト</button>
               </div>
+              <button id="btn-paint-regen-mask" class="w-100 mt-05" title="現在のベース画像からマスク画像を再生成してキャンバスへ反映します">🔄 ベースからマスク再生成</button>
               <span class="info-text">※右クリックでパレットから色を削除</span>
             </fieldset>
 
@@ -187,4 +188,3 @@ export function renderPaintModalUI() {
     </dialog>
   `);
 }
-

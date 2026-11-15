@@ -1,4 +1,3 @@
-import { parseSpecialColorsCsv } from './color-utils.js';
 import { HSVColorPicker } from './color-picker.js';
 import { StorageAPI } from './storage-api.js';
 import { RenderEngine } from './render-engine.js';
@@ -10,43 +9,15 @@ import { MaskGenerator } from './mask-generator.js';
 import { LayerManager } from './layer-manager.js';
 import { ToneTintController } from './tone-tint-controller.js';
 import { DeftileBuilder } from './deftile-builder.js';
-import { ImageIOController } from './image-io-controller.js';
+import { ImageIOController, safePickFile } from './image-io-controller.js';
 import { drawSimutransIsoTiles } from './paint-algorithms.js';
 import { renderSidebarUI } from './ui-sidebar.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 import { renderDeftileModalUI } from './ui-deftile-modal.js';
 
-function safePickFile(accept = '.png') {
-  return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept;
-    input.style.display = 'none';
-    document.body.appendChild(input);
-
-    input.onchange = (e) => {
-      const file = e.target.files && e.target.files[0];
-      document.body.removeChild(input);
-      resolve(file || null);
-    };
-
-    window.addEventListener('focus', () => {
-      setTimeout(() => {
-        if (input.parentNode) {
-          document.body.removeChild(input);
-          resolve(null);
-        }
-      }, 500);
-    }, { once: true });
-
-    input.click();
-  });
-}
-
 class AdvancedMultiplyApp {
   constructor() {
-    // テキストボックス以外の文字選択を防止（タブレット長押し対応）
     document.addEventListener('selectstart', (e) => {
       const tag = e.target && e.target.tagName;
       if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
@@ -130,46 +101,8 @@ class AdvancedMultiplyApp {
     this.imageIOCtrl.bindAll();
     this.layerManager.bindEvents();
     this.toneTintCtrl.bindEvents();
-    this._loadDefaultSpecialColors();
+    this.imageIOCtrl.loadDefaultSpecialColors();
     this.render();
-  }
-
-  async _loadDefaultSpecialColors() {
-    const candidateFiles = [
-      'special_colors.csv',
-      'SpecialColor.csv',
-      'SpecialColors.csv',
-      'special_color.csv',
-      'data/special_colors.csv',
-      'csv/special_colors.csv'
-    ];
-    const infoLabel = document.getElementById('lbl-csv-info');
-
-    for (const filename of candidateFiles) {
-      try {
-        const response = await fetch(`./${filename}`, { cache: 'no-cache' });
-        if (response.ok) {
-          const text = await response.text();
-          if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) continue;
-
-          const parsed = parseSpecialColorsCsv(text);
-          if (parsed.size > 0) {
-            this.specialColors = parsed;
-            if (infoLabel) {
-              infoLabel.textContent = `特殊色: ${this.specialColors.size}件登録済 (${filename})`;
-            }
-            this.paletteManager.generateBasePalette();
-            MaskGenerator.recomputeBaseSpecialColors(this);
-            this.render();
-            return;
-          }
-        }
-      } catch (err) {}
-    }
-
-    if (infoLabel && this.specialColors.size === 0) {
-      infoLabel.textContent = '特殊色: 0件登録済 (ルートに special_colors.csv 未検出 / 手動選択可)';
-    }
   }
 
   markDirty() { this.isDirty = true; }
@@ -192,6 +125,23 @@ class AdvancedMultiplyApp {
 
     const info = document.getElementById('lbl-mask-info');
     if (info) info.textContent = 'マスク: 未読込';
+  }
+
+  // 任意のタイミングでベース画像からマスク画像を再生成
+  regenerateMaskFromBase() {
+    if (!this.baseImage) {
+      alert('先にベース画像を開くか、新規作成してください。');
+      return null;
+    }
+    if (!confirm('現在のマスク画像を破棄し、ベース画像からマスク画像を再生成しますか？')) {
+      return null;
+    }
+    this.resetMaskState();
+    MaskGenerator.analyzeBaseImage(this, this.baseImage, this.baseName);
+    const generated = MaskGenerator.generateFromBase(this);
+    this.markDirty();
+    this.render();
+    return generated;
   }
 
   applyBaseImage(img, name, { resetMask = true } = {}) {

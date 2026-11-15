@@ -16,6 +16,9 @@ export function renderSidebarUI() {
           <button id="btn-load-mask">マスク画像を開く</button>
         </div>
         <div class="btn-group mt-05">
+          <button id="btn-regen-mask" title="現在のベース画像からマスク画像を再生成します">🔄 ベースからマスク再生成</button>
+        </div>
+        <div class="btn-group mt-05">
           <button id="btn-save-base">💾 ベースPNG保存</button>
           <button id="btn-save-mask">💾 マスクPNG保存</button>
         </div>
