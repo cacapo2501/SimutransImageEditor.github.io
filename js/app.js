@@ -46,6 +46,14 @@ function safePickFile(accept = '.png') {
 
 class AdvancedMultiplyApp {
   constructor() {
+    // テキストボックス以外の文字選択を防止（タブレット長押し対応）
+    document.addEventListener('selectstart', (e) => {
+      const tag = e.target && e.target.tagName;
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+        e.preventDefault();
+      }
+    });
+
     renderSidebarUI();
     renderPaintModalUI();
     renderSubModalsUI();
