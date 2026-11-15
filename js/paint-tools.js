@@ -17,9 +17,11 @@ export class PaintToolHandler {
 
   handlePointerDown(px, py) {
     const ed = this.editor;
+    if (ed.currentTool === 'hand') return;
     if (ed.dialogs?.colorReplace?.handleCanvasPick(px, py)) return;
     if (ed.onionSkinMgr && ed.onionSkinMgr.handlePointerDown(px, py)) return;
     if (ed.clipMgr.handlePointerDown(px, py)) return;
+    if (ed.selMover && ed.selMover.handlePointerDown(px, py)) return;
     if (px < 0 || px >= ed.width || py < 0 || py >= ed.height) return;
 
     if (ed.currentTool === 'picker') {
@@ -85,6 +87,7 @@ export class PaintToolHandler {
     const ed = this.editor;
     if (ed.onionSkinMgr && ed.onionSkinMgr.handlePointerMove(px, py)) return;
     if (ed.clipMgr.handlePointerMove(px, py)) return;
+    if (ed.selMover && ed.selMover.handlePointerMove(px, py)) return;
 
     if (ed.isDrawing) {
       if (ed.currentTool === 'pencil') {
@@ -103,6 +106,7 @@ export class PaintToolHandler {
     const ed = this.editor;
     if (ed.onionSkinMgr && ed.onionSkinMgr.handlePointerUp()) return;
     if (ed.clipMgr.handlePointerUp()) return;
+    if (ed.selMover && ed.selMover.handlePointerUp()) return;
     if (!ed.isDrawing) return;
     ed.isDrawing = false;
 
@@ -152,7 +156,11 @@ export class PaintToolHandler {
     if (ed.onionSkinMgr) ed.onionSkinMgr.drawOverlay(oCtx, ed.zoomLevel);
     ed.clipMgr.drawFloatingOverlay(oCtx, ed.zoomLevel);
 
-    drawSelectionOverlay(oCtx, ed.width, ed.height, ed.selectionMask);
+    if (ed.selMover && ed.selMover.isMoving) {
+      ed.selMover.drawMovingOverlay(oCtx);
+    } else {
+      drawSelectionOverlay(oCtx, ed.width, ed.height, ed.selectionMask);
+    }
     if (ed.repeatMgr) ed.repeatMgr.drawOverlay(oCtx);
 
     if (ed.currentTool === 'line' && ed.lineStart && curPos) {
