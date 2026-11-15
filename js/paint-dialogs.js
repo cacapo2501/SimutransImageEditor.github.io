@@ -96,6 +96,12 @@ export class PaintDialogs {
   }
 
   _bindSamplerEvents() {
+    this.samplerViewport.addEventListener('contextmenu', (e) => e.preventDefault());
+    if (this.samplerCanvas) {
+      this.samplerCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+    this.samplerViewport.style.cursor = 'crosshair';
+
     document.getElementById('btn-close-sampler').onclick = () => this.samplerModal.close();
 
     document.getElementById('btn-sampler-zoom-in').onclick = () => {
