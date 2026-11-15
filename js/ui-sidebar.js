@@ -255,11 +255,11 @@ export function renderSidebarUI() {
       </div>
     </details>
 
-    <!-- セクション6: 飛行機平面図 8方向展開 (ベース画像ターゲット) -->
+    <!-- セクション6: 飛行機平面図 8方向展開 (ベース・マスク自動生成) -->
     <details class="accordion-panel">
-      <summary>✈️ 飛行機平面図 8方向展開 (ベース画像)</summary>
+      <summary>✈️ 飛行機平面図 8方向展開 (3D分類・マスク生成)</summary>
       <div class="panel-body">
-        <p class="desc-text">ベース画像の飛行機平面図を8方向アイソメトリック（768×96px）へ展開します。ファイル名(bpXXXhYYY)からも自動読取します。</p>
+        <p class="desc-text">有彩色(色相=部品グループ, 明度=高さ0m〜全高)を4部品に自動分類し、ベース画像とマスク画像(768×96px)を同時生成します。</p>
         <div class="row mt-05">
           <label style="min-width: 65px;">全長 (m):</label>
           <input type="number" id="inp-aircraft-length" value="39.5" step="0.1" min="1" max="200" style="background:#1e1e1e; border:1px solid #444; color:#eee; padding:3px 6px;">
@@ -272,7 +272,30 @@ export function renderSidebarUI() {
           <label style="min-width: 65px;">縮尺係数:</label>
           <input type="number" id="inp-aircraft-coeff" value="0.8" step="0.05" min="0.1" max="2.0" style="background:#1e1e1e; border:1px solid #444; color:#eee; padding:3px 6px;">
         </div>
-        <button id="btn-aircraft-map" class="btn-primary w-100 mt-05">✈️ ベース画像を8方向展開</button>
+        <fieldset class="sub-panel mt-05">
+          <legend>基準グレースケール色設定</legend>
+          <div class="row">
+            <label style="min-width: 110px;">上水平面:</label>
+            <input type="color" id="inp-aircraft-col-top" value="#CCCCCC" class="color-input-mini">
+            <span style="font-size:10px; color:#aaa;">#CCCCCC</span>
+          </div>
+          <div class="row mt-05">
+            <label style="min-width: 110px;">左斜め前垂直壁:</label>
+            <input type="color" id="inp-aircraft-col-left" value="#B2B2B2" class="color-input-mini">
+            <span style="font-size:10px; color:#aaa;">#B2B2B2</span>
+          </div>
+          <div class="row mt-05">
+            <label style="min-width: 110px;">右斜め前垂直壁:</label>
+            <input type="color" id="inp-aircraft-col-right" value="#808080" class="color-input-mini">
+            <span style="font-size:10px; color:#aaa;">#808080</span>
+          </div>
+          <div class="row mt-05">
+            <label style="min-width: 110px;">60°左斜め前光源:</label>
+            <input type="color" id="inp-aircraft-col-sun" value="#FFFFFF" class="color-input-mini">
+            <span style="font-size:10px; color:#aaa;">#FFFFFF</span>
+          </div>
+        </fieldset>
+        <button id="btn-aircraft-map" class="btn-primary w-100 mt-05">✈️ 8方向ベース＆マスクを生成</button>
         <div class="info-text" id="lbl-aircraft-status">展開状態: 待機中</div>
       </div>
     </details>

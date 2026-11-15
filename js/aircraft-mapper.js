@@ -1,43 +1,5 @@
-// 飛行機の平面図を8方向に展開するマクロ (Pak64AircraftMapper)
-
-function buildAircraftAffine(imgW, imgH, degree, length, sqrtCoeff = 0.8) {
-  const rad = (degree * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-
-  const pixelLength = Math.pow(length / 96, sqrtCoeff) * 96;
-  const sx = pixelLength / Math.max(1, imgW);
-  const sy = pixelLength / Math.max(1, imgH);
-
-  let deg = degree % 360;
-  if (deg < 0) deg += 360;
-
-  let slot = 0;
-  if (deg === 45) slot = 0;
-  else if (deg === 0) slot = 1;
-  else if (deg === 315) slot = 2;
-  else if (deg === 270) slot = 3;
-  else if (deg === 225) slot = 4;
-  else if (deg === 180) slot = 5;
-  else if (deg === 135) slot = 6;
-  else if (deg === 90) slot = 7;
-
-  const tx = slot * 96 + 48;
-  const ty = 71;
-
-  const ox = -imgW / 2;
-  const oy = -imgH / 2;
-
-  const a00 = cos * sx;
-  const a01 = sin * sy;
-  const a02 = cos * sx * ox + sin * sy * oy + tx;
-
-  const a10 = -0.5 * sin * sx;
-  const a11 = 0.5 * cos * sy;
-  const a12 = 0.5 * (-sin * sx * ox + cos * sy * oy) + ty;
-
-  return { a00, a01, a02, a10, a11, a12 };
-}
+import { computeAircraftShade, buildShadeColorConfig, assignPartMaskColors, fillQuad2D } from './aircraft-3d-shade.js';
+import { extractChromaticGroups, classifyAircraftGroups, buildGroup3DMeshes } from './aircraft-3d-groups.js';
 
 export function parseAircraftParamsFromName(filename) {
   if (!filename) return null;
@@ -49,12 +11,76 @@ export function parseAircraftParamsFromName(filename) {
   };
 }
 
-export function mapAircraftPlanTo8Dirs(srcImg, rawLength = 39.5, rawHeight = 12.5, rawSqrtCoeff = 0.8) {
+function getSlotForDegree(degree) {
+  let deg = degree % 360;
+  if (deg < 0) deg += 360;
+  if (deg === 45) return 0;
+  if (deg === 0) return 1;
+  if (deg === 315) return 2;
+  if (deg === 270) return 3;
+  if (deg === 225) return 4;
+  if (deg === 180) return 5;
+  if (deg === 135) return 6;
+  return 7; // 90 deg
+}
+
+// 従来のR/G/B単色高さプロット（無彩色入力時の互換フォールバック）
+function mapLegacyMonochromeFallback(srcData, imgW, imgH, length, height, sqrtCoeff, outBase, outMask, outW, outH) {
+  const pixelLen = Math.pow(length / 96, sqrtCoeff) * 96;
+  const pixelH = Math.pow(height / 96, sqrtCoeff) * 96;
+  const sx = pixelLen / Math.max(1, imgW);
+  const sy = pixelLen / Math.max(1, imgH);
+
+  for (let deg = 0; deg < 360; deg += 45) {
+    const rad = (deg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const tx = getSlotForDegree(deg) * 96 + 48;
+    const ty = 71;
+
+    for (let x = 0; x < imgW; x++) {
+      for (let y = 0; y < imgH; y++) {
+        const idx = (y * imgW + x) * 4;
+        const r = srcData[idx], g = srcData[idx + 1], b = srcData[idx + 2], a = srcData[idx + 3];
+        if (a === 0 || (r === 255 && g === 255 && b === 255)) continue;
+
+        let zVal = 0;
+        if (r !== 0) zVal = r;
+        if (g !== 0) zVal = g;
+        if (b !== 0) zVal = b;
+
+        const lx = (x - imgW / 2) * sx;
+        const lz = (y - imgH / 2) * sy;
+        const rx = cos * lx + sin * lz;
+        const rz = -sin * lx + cos * lz;
+        const px = Math.trunc(tx + rx);
+        const py = Math.trunc(ty + 0.5 * rz - (pixelH * zVal) / 255);
+
+        if (px >= 0 && px < outW && py >= 0 && py < outH) {
+          const oIdx = (py * outW + px) * 4;
+          outBase[oIdx] = r > 0 ? 255 : 0;
+          outBase[oIdx + 1] = g > 0 ? 255 : 0;
+          outBase[oIdx + 2] = b > 0 ? 255 : 0;
+          outBase[oIdx + 3] = 255;
+
+          outMask[oIdx] = 128;
+          outMask[oIdx + 1] = 128;
+          outMask[oIdx + 2] = 128;
+          outMask[oIdx + 3] = 255;
+        }
+      }
+    }
+  }
+}
+
+// 飛行機の平面図を8方向へ3D展開（ベース画像＋マスク画像を同時生成）
+export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
   const imgW = srcImg.naturalWidth || srcImg.width;
   const imgH = srcImg.naturalHeight || srcImg.height;
-  const length = Math.max(1, parseFloat(rawLength) || 39.5);
-  const height = Math.max(0.1, parseFloat(rawHeight) || 12.5);
-  const sqrtCoeff = Math.max(0.1, parseFloat(rawSqrtCoeff) || 0.8);
+  const length = Math.max(1, parseFloat(rawOpts.length) || 39.5);
+  const height = Math.max(0.1, parseFloat(rawOpts.height) || 12.5);
+  const sqrtCoeff = Math.max(0.1, parseFloat(rawOpts.sqrtCoeff) || 0.8);
+  const shadeCfg = buildShadeColorConfig(rawOpts);
 
   const sCanvas = document.createElement('canvas');
   sCanvas.width = imgW;
@@ -66,60 +92,112 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawLength = 39.5, rawHeight = 12.
 
   const outW = 96 * 8;
   const outH = 96;
-  const outCanvas = document.createElement('canvas');
-  outCanvas.width = outW;
-  outCanvas.height = outH;
-  const outCtx = outCanvas.getContext('2d');
-  const outImgData = outCtx.createImageData(outW, outH);
-  const outData = outImgData.data;
+  const baseCanvas = document.createElement('canvas');
+  baseCanvas.width = outW;
+  baseCanvas.height = outH;
+  const baseCtx = baseCanvas.getContext('2d');
+  const baseImgData = baseCtx.createImageData(outW, outH);
+  const baseData = baseImgData.data;
 
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = outW;
+  maskCanvas.height = outH;
+  const maskCtx = maskCanvas.getContext('2d');
+  const maskImgData = maskCtx.createImageData(outW, outH);
+  const maskData = maskImgData.data;
+
+  // 背景色 #E7FFFF で初期化
   for (let i = 0; i < outW * outH; i++) {
-    outData[i * 4] = 231;
-    outData[i * 4 + 1] = 255;
-    outData[i * 4 + 2] = 255;
-    outData[i * 4 + 3] = 255;
+    const idx = i * 4;
+    baseData[idx] = 231; baseData[idx + 1] = 255; baseData[idx + 2] = 255; baseData[idx + 3] = 255;
+    maskData[idx] = 231; maskData[idx + 1] = 255; maskData[idx + 2] = 255; maskData[idx + 3] = 255;
   }
 
+  const pixelLength = Math.pow(length / 96, sqrtCoeff) * 96;
   const pixelHeight = Math.pow(height / 96, sqrtCoeff) * 96;
 
+  // 1. 色相＆8近傍連結による部品グループ化
+  const groups = extractChromaticGroups(srcData, imgW, imgH);
+  if (groups.length === 0) {
+    mapLegacyMonochromeFallback(srcData, imgW, imgH, length, height, sqrtCoeff, baseData, maskData, outW, outH);
+    baseCtx.putImageData(baseImgData, 0, 0);
+    maskCtx.putImageData(maskImgData, 0, 0);
+    return { baseCanvas, maskCanvas, groupCount: 0, summary: '単色モード展開' };
+  }
+
+  // 2. 4分類（垂直尾翼 / 主翼・水平尾翼 / 胴体 / エンジン）＆ 3Dメッシュ構築 ＆ マスク着色
+  classifyAircraftGroups(groups, imgW, imgH, pixelLength, pixelHeight);
+  buildGroup3DMeshes(groups, imgW, imgH, pixelLength, pixelHeight);
+  assignPartMaskColors(groups);
+
+  // 3. 8方向ごとに上側（奥側）グループから手前側グループ順に塗りつぶし（上書き可）
   for (let deg = 0; deg < 360; deg += 45) {
-    const { a00, a01, a02, a10, a11, a12 } = buildAircraftAffine(imgW, imgH, deg, length, sqrtCoeff);
+    const rad = (deg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const tx = getSlotForDegree(deg) * 96 + 48;
+    const ty = 71;
 
-    for (let x = 0; x < imgW; x++) {
-      for (let y = 0; y < imgH; y++) {
-        const idx = (y * imgW + x) * 4;
-        const r = srcData[idx];
-        const g = srcData[idx + 1];
-        const b = srcData[idx + 2];
-        const a = srcData[idx + 3];
+    const projectedGroups = groups.map((grp) => {
+      let sumDepth = 0;
+      let minScreenY = Infinity;
+      let vCount = 0;
 
-        if (a === 0 || (r === 255 && g === 255 && b === 255 && a === 255)) continue;
+      const projQuads = grp.quads3d.map((q) => {
+        let qDepth = 0;
+        const pts2d = q.verts.map(([lx, ly, lz]) => {
+          const rx = cos * lx + sin * lz;
+          const rz = -sin * lx + cos * lz;
+          const sx = tx + rx;
+          const sy = ty + 0.5 * rz - ly;
+          const depth = rz + 0.02 * ly;
 
-        let zVal = 0;
-        if (r !== 0) zVal = r;
-        if (g !== 0) zVal = g;
-        if (b !== 0) zVal = b;
+          sumDepth += depth;
+          if (sy < minScreenY) minScreenY = sy;
+          vCount++;
+          qDepth += depth;
+          return [sx, sy];
+        });
 
-        const plotHeight = (pixelHeight * zVal) / 255;
-        const tx = a00 * x + a01 * y + a02;
-        const ty = a10 * x + a11 * y + a12;
+        const [nx0, ny0, nz0] = q.normal;
+        const wNx = cos * nx0 + sin * nz0;
+        const wNy = ny0;
+        const wNz = -sin * nx0 + cos * nz0;
+        const grayVal = computeAircraftShade(wNx, wNy, wNz, shadeCfg);
 
-        const px = Math.trunc(tx);
-        const py = Math.trunc(ty - plotHeight);
+        return { pts2d, grayVal, depth: qDepth / 4 };
+      });
 
-        if (px >= 0 && px < outW && py >= 0 && py < outH) {
-          const oIdx = (py * outW + px) * 4;
-          outData[oIdx] = r > 0 ? 255 : 0;
-          outData[oIdx + 1] = g > 0 ? 255 : 0;
-          outData[oIdx + 2] = b > 0 ? 255 : 0;
-          outData[oIdx + 3] = 255;
-        }
+      // 奥側にあるポリゴンから手前側ポリゴンの順にソート
+      projQuads.sort((a, b) => a.depth - b.depth);
+
+      return {
+        maskRgb: grp.maskRgb,
+        avgDepth: vCount > 0 ? sumDepth / vCount : 0,
+        minScreenY,
+        projQuads
+      };
+    });
+
+    // 画像の上側（奥側: avgDepth 小 / minScreenY 小）のグループから順に描画して手前で上書き
+    projectedGroups.sort((a, b) => (a.avgDepth - b.avgDepth) || (a.minScreenY - b.minScreenY));
+
+    for (const pg of projectedGroups) {
+      for (const pq of pg.projQuads) {
+        const [q0, q1, q2, q3] = pq.pts2d;
+        fillQuad2D(baseData, maskData, outW, outH, q0, q1, q2, q3, pq.grayVal, pg.maskRgb);
       }
     }
   }
 
-  outCtx.putImageData(outImgData, 0, 0);
-  return outCanvas;
+  baseCtx.putImageData(baseImgData, 0, 0);
+  maskCtx.putImageData(maskImgData, 0, 0);
+
+  const counts = { fuselage: 0, wing: 0, vertical_stabilizer: 0, engine: 0 };
+  groups.forEach(g => { counts[g.partType] = (counts[g.partType] || 0) + 1; });
+  const summary = `胴体:${counts.fuselage} / 翼:${counts.wing} / 垂直尾翼:${counts.vertical_stabilizer} / エンジン:${counts.engine}`;
+
+  return { baseCanvas, maskCanvas, groupCount: groups.length, summary };
 }
 
 export class AircraftMapperController {
@@ -148,23 +226,31 @@ export class AircraftMapperController {
       return;
     }
 
-    const length = parseFloat(document.getElementById('inp-aircraft-length')?.value) || 39.5;
-    const height = parseFloat(document.getElementById('inp-aircraft-height')?.value) || 12.5;
-    const coeff = parseFloat(document.getElementById('inp-aircraft-coeff')?.value) || 0.8;
+    const opts = {
+      length: parseFloat(document.getElementById('inp-aircraft-length')?.value) || 39.5,
+      height: parseFloat(document.getElementById('inp-aircraft-height')?.value) || 12.5,
+      sqrtCoeff: parseFloat(document.getElementById('inp-aircraft-coeff')?.value) || 0.8,
+      topColor: document.getElementById('inp-aircraft-col-top')?.value || '#CCCCCC',
+      leftWallColor: document.getElementById('inp-aircraft-col-left')?.value || '#B2B2B2',
+      rightWallColor: document.getElementById('inp-aircraft-col-right')?.value || '#808080',
+      sunColor: document.getElementById('inp-aircraft-col-sun')?.value || '#FFFFFF'
+    };
 
-    const outCanvas = mapAircraftPlanTo8Dirs(app.baseImage, length, height, coeff);
-    const nextName = app.baseName
+    const { baseCanvas, maskCanvas, summary } = mapAircraftPlanTo8Dirs(app.baseImage, opts);
+    const baseOutName = app.baseName
       .replace(/^bp\d{3}h\d{3}_/i, '')
-      .replace(/\.png$/i, '_prepredef.png');
+      .replace(/\.png$/i, '_def.png');
+    const maskOutName = baseOutName.replace(/_def\.png$/i, '_paint.png');
 
-    app.applyBaseImage(outCanvas, nextName, { resetMask: true });
+    app.applyBaseImage(baseCanvas, baseOutName, { resetMask: false });
+    app.applyMaskImage(maskCanvas, maskOutName);
     app.markDirty();
     app.zoomFit();
     app.render();
 
     const status = document.getElementById('lbl-aircraft-status');
     if (status) {
-      status.textContent = `展開完了: 768×96px (全長:${length}m / 全高:${height}m)`;
+      status.textContent = `完了 (768×96px) | ${summary}`;
     }
   }
 }
