@@ -1,4 +1,3 @@
-import { exportPaletteToFile, importPaletteFromFile } from './paint-palette-ui.js';
 import { exportPaletteToFile, importPaletteFromFile, generateAircraftHeightRamp } from './paint-palette-ui.js';
 
 export class PaintInputController {
@@ -63,6 +62,20 @@ export class PaintInputController {
     bindClick('btn-import-palette', () => importPaletteFromFile(ed));
     bindClick('btn-open-palette-blend', () => ed.dialogs.openPaletteBlendDialog());
 
+    // 平面定義図パレット専用ボタン
+    bindClick('btn-add-aircraft-custom-color', async () => {
+      const picked = await ed.app.colorPicker.open(ed.currentColor || '#FF0000');
+      if (picked && ed.app.aircraftCtrl) {
+        const up = picked.toUpperCase();
+        const ac = ed.app.aircraftCtrl;
+        if (!ac.planPalette) ac.planPalette = [];
+        if (!ac.planPalette.includes(up)) ac.planPalette.push(up);
+        ed.currentColor = up;
+        ed._renderPaletteUI();
+      }
+    });
+    bindClick('btn-gen-aircraft-height-ramp', () => generateAircraftHeightRamp(ed));
+
     bindClick('btn-paint-regen-mask', () => {
       if (ed.targetType !== 'mask') return;
       const regenerated = ed.app.regenerateMaskFromBase();
@@ -114,19 +127,6 @@ export class PaintInputController {
     bindClick('btn-open-image-sampler', () => ed.dialogs.openSamplerModal());
     bindClick('btn-open-color-replace', () => ed.dialogs.openColorReplaceDialog());
     bindClick('btn-paint-keybindings', () => ed.dialogs.openKeybindingDialog());
-
-    bindClick('btn-add-aircraft-custom-color', async () => {
-      const picked = await ed.app.colorPicker.open(ed.currentColor || '#FF0000');
-      if (picked && ed.app.aircraftCtrl) {
-        const up = picked.toUpperCase();
-        const ac = ed.app.aircraftCtrl;
-        if (!ac.planPalette) ac.planPalette = [];
-        if (!ac.planPalette.includes(up)) ac.planPalette.push(up);
-        ed.currentColor = up;
-        ed._renderPaletteUI();
-      }
-    });
-    bindClick('btn-gen-aircraft-height-ramp', () => generateAircraftHeightRamp(ed));
 
     this._bindViewportPointerAndTouch();
     this._bindKeyboardShortcuts();
