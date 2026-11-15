@@ -17,10 +17,10 @@ export class PaintToolHandler {
 
   handlePointerDown(px, py) {
     const ed = this.editor;
-    if (ed.currentTool === 'hand') return;
     if (ed.dialogs?.colorReplace?.handleCanvasPick(px, py)) return;
     if (ed.onionSkinMgr && ed.onionSkinMgr.handlePointerDown(px, py)) return;
     if (ed.clipMgr.handlePointerDown(px, py)) return;
+    if (ed.currentTool === 'hand') return;
     if (ed.selMover && ed.selMover.handlePointerDown(px, py)) return;
     if (px < 0 || px >= ed.width || py < 0 || py >= ed.height) return;
 
