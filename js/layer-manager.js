@@ -187,21 +187,17 @@ export class LayerManager {
         ? `適用先: ${hex} 以外 (この色を除外)`
         : `適用先: ${hex} (この色のみに適用)`;
 
-      const combo = document.getElementById('mask-color-combo');
-      if (Array.from(combo.options).some(opt => opt.value === hex)) {
-        combo.value = hex;
-      } else {
-        const opt = document.createElement('option');
-        opt.value = hex;
-        opt.textContent = `${hex} (スポイト指定色)`;
-        combo.appendChild(opt);
-        combo.value = hex;
+      if (this.app.toneTintCtrl) {
+        this.app.toneTintCtrl.setLayerMaskValue(hex);
       }
     } else {
       document.getElementById('layer-mask-swatch').style.backgroundColor = '#FFFFFF';
       document.getElementById('lbl-layer-mask').textContent = '適用先: 全体 (マスクなし)';
-      document.getElementById('mask-color-combo').value = '';
+      if (this.app.toneTintCtrl) {
+        this.app.toneTintCtrl.setLayerMaskValue('');
+      }
     }
+
   }
 
   async addLayer(layerType) {
