@@ -1,5 +1,6 @@
 import { hexToRgb, rgbToHex } from './color-utils.js';
 import { getCurrentPaletteColors } from './paint-palette-ui.js';
+import { ColorSwatchDropdown } from './color-dropdown.js';
 
 export class PaintColorReplaceController {
   constructor(editor) {
@@ -55,16 +56,16 @@ export class PaintColorReplaceController {
     container.innerHTML = '';
 
     const paletteColors = getCurrentPaletteColors(this.editor);
+    const paletteOptions = paletteColors.map(hex => ({
+      value: hex,
+      label: hex,
+      colorHex: hex
+    }));
 
     this.replaceRules.forEach((rule, idx) => {
       const row = document.createElement('div');
       row.className = 'replace-rule-row';
       row.style.flexWrap = 'wrap';
-
-      const paletteOpts = paletteColors.map(hex => {
-        const sel = hex.toUpperCase() === rule.to.toUpperCase() ? ' selected' : '';
-        return `<option value="${hex}"${sel}>${hex}</option>`;
-      }).join('');
 
       row.innerHTML = `
         <span>元:</span>
@@ -72,13 +73,10 @@ export class PaintColorReplaceController {
           <span class="color-swatch" style="background:${rule.from};"></span>
           <span>${rule.from}</span>
         </button>
-        <button type="button" class="btn-pick-canvas-from" title="編集中の画像からカラーピッカー(スポイト)で取得">🎯 画像採取</button>
+        <button type="button" class="btn-pick-canvas-from" title="編集中の画像からスポイトで取得">🎯 画像採取</button>
         <span class="arrow">➔</span>
         <span>先:</span>
-        <span class="color-swatch swatch-to-preview" style="background:${rule.to};"></span>
-        <select class="sel-to-palette" title="現在使用中のパレットから選択" style="background:#141414; border:1px solid #444; color:#eee; padding:3px; border-radius:3px; font-size:11px;">
-          ${paletteOpts || `<option value="${rule.to}">${rule.to}</option>`}
-        </select>
+        <div class="to-palette-dd-mount" style="min-width:125px; flex:1;"></div>
         <button type="button" class="btn-del-rule" style="margin-left:auto; color:#ff6b6b;">✕</button>
       `;
 
@@ -96,18 +94,23 @@ export class PaintColorReplaceController {
         this.editor._showHint('🎯【色置換】置換前の色にしたいピクセルを編集中の画像上でクリック/タップしてください (Escでキャンセル)');
       };
 
-      const selTo = row.querySelector('.sel-to-palette');
-      if (selTo) {
-        if (!paletteColors.some(c => c.toUpperCase() === rule.to.toUpperCase()) && paletteColors.length > 0) {
-          rule.to = paletteColors[0];
-          selTo.value = rule.to;
-          row.querySelector('.swatch-to-preview').style.backgroundColor = rule.to;
+      const ddMount = row.querySelector('.to-palette-dd-mount');
+      const dd = new ColorSwatchDropdown(ddMount);
+      if (paletteOptions.length > 0) {
+        dd.setOptions(paletteOptions);
+        if (paletteColors.some(c => c.toUpperCase() === rule.to.toUpperCase())) {
+          dd.setValue(rule.to.toUpperCase());
+        } else {
+          rule.to = paletteOptions[0].value;
+          dd.setValue(rule.to);
         }
-        selTo.onchange = (e) => {
-          rule.to = e.target.value;
-          row.querySelector('.swatch-to-preview').style.backgroundColor = rule.to;
-        };
+      } else {
+        dd.setOptions([{ value: rule.to, label: rule.to, colorHex: rule.to }]);
+        dd.setValue(rule.to);
       }
+      dd.onChange((val) => {
+        rule.to = val;
+      });
 
       row.querySelector('.btn-del-rule').onclick = () => {
         if (this.replaceRules.length > 1) {
