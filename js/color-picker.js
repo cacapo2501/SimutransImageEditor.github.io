@@ -1,174 +1,196 @@
-import { rgbToHex, hexToRgb, rgbToHsv, hsvToRgb } from './color-utils.js';
+import { hexToRgb, rgbToHex, rgbToHsv, hsvToRgb } from './color-utils.js';
+
+const QUICK_PALETTE = [
+  '#FFFFFF', '#CCCCCC', '#808080', '#404040', '#000018', '#000000',
+  '#FF4444', '#FF9900', '#FFDD00', '#44DD44', '#00CCFF', '#4466FF',
+  '#AA44FF', '#FF66CC', '#E7FFFF', '#57656F', '#4D4D4D', '#8B5A2B'
+];
 
 export class HSVColorPicker {
   constructor() {
+    this.modal = null;
+    this.resolveFn = null;
+    this.h = 0;
+    this.s = 0;
+    this.v = 100;
+    this.bound = false;
+  }
+
+  _ensureBound() {
     this.modal = document.getElementById('modal-color-picker');
-    this.oldSwatch = document.getElementById('picker-old-swatch');
-    this.newSwatch = document.getElementById('picker-new-swatch');
-    this.hexLabel = document.getElementById('picker-hex-label');
+    if (!this.modal || this.bound) return;
+    this.bound = true;
 
-    // HSVスライダー
-    this.inpH = document.getElementById('picker-h');
-    this.inpS = document.getElementById('picker-s');
-    this.inpV = document.getElementById('picker-v');
-    this.valH = document.getElementById('picker-h-val');
-    this.valS = document.getElementById('picker-s-val');
-    this.valV = document.getElementById('picker-v-val');
+    const pal = document.getElementById('picker-palette');
+    if (pal) {
+      pal.innerHTML = QUICK_PALETTE.map(hex =>
+        `<button type="button" class="palette-btn" data-hex="${hex}" style="background:${hex};" title="${hex}"></button>`
+      ).join('');
+      pal.querySelectorAll('.palette-btn').forEach(btn => {
+        btn.onclick = () => this._setFromHex(btn.dataset.hex);
+      });
+    }
 
-    // RGBスライダー & 数値入力
-    this.inpR = document.getElementById('picker-r');
-    this.inpG = document.getElementById('picker-g');
-    this.inpB = document.getElementById('picker-b');
-    this.valR = document.getElementById('picker-r-val');
-    this.valG = document.getElementById('picker-g-val');
-    this.valB = document.getElementById('picker-b-val');
-
-    this.paletteContainer = document.getElementById('picker-palette');
-    this.btnOk = document.getElementById('btn-picker-ok');
-    this.btnCancel = document.getElementById('btn-picker-cancel');
-    this.btnEyeDropper = document.getElementById('btn-picker-eyedropper');
-
-    this.resolvePromise = null;
-    this.currentColor = '#FFFFFF';
-    this.isUpdating = false;
-
-    this._bindEvents();
-    this._initPalette();
-  }
-
-  _bindEvents() {
-    const updateFromHSV = () => {
-      if (this.isUpdating || !this.inpH) return;
-      this.isUpdating = true;
-      const h = parseInt(this.inpH.value);
-      const s = parseInt(this.inpS.value);
-      const v = parseInt(this.inpV.value);
-      const [r, g, b] = hsvToRgb(h, s, v);
-
-      if (this.inpR) { this.inpR.value = r; this.valR.value = r; }
-      if (this.inpG) { this.inpG.value = g; this.valG.value = g; }
-      if (this.inpB) { this.inpB.value = b; this.valB.value = b; }
-
-      if (this.valH) this.valH.textContent = `${h}°`;
-      if (this.valS) this.valS.textContent = `${s}%`;
-      if (this.valV) this.valV.textContent = `${v}%`;
-
-      this.currentColor = rgbToHex(r, g, b);
-      this._updateUI();
-      this.isUpdating = false;
-    };
-
-    const updateFromRGB = () => {
-      if (this.isUpdating || !this.inpR) return;
-      this.isUpdating = true;
-      const r = Math.max(0, Math.min(255, parseInt(this.inpR.value) || 0));
-      const g = Math.max(0, Math.min(255, parseInt(this.inpG.value) || 0));
-      const b = Math.max(0, Math.min(255, parseInt(this.inpB.value) || 0));
-
-      if (this.valR) this.valR.value = r;
-      if (this.valG) this.valG.value = g;
-      if (this.valB) this.valB.value = b;
-
-      const [h, s, v] = rgbToHsv(r, g, b);
-      if (this.inpH) { this.inpH.value = h; this.valH.textContent = `${h}°`; }
-      if (this.inpS) { this.inpS.value = s; this.valS.textContent = `${s}%`; }
-      if (this.inpV) { this.inpV.value = v; this.valV.textContent = `${v}%`; }
-
-      this.currentColor = rgbToHex(r, g, b);
-      this._updateUI();
-      this.isUpdating = false;
-    };
-
-    [this.inpH, this.inpS, this.inpV].forEach(el => {
-      if (el) el.addEventListener('input', updateFromHSV);
-    });
-
-    [this.inpR, this.inpG, this.inpB].forEach(el => {
-      if (el) el.addEventListener('input', updateFromRGB);
-    });
-
-    if (this.valR) this.valR.addEventListener('change', (e) => { if (this.inpR) this.inpR.value = e.target.value; updateFromRGB(); });
-    if (this.valG) this.valG.addEventListener('change', (e) => { if (this.inpG) this.inpG.value = e.target.value; updateFromRGB(); });
-    if (this.valB) this.valB.addEventListener('change', (e) => { if (this.inpB) this.inpB.value = e.target.value; updateFromRGB(); });
-
-    if (this.btnEyeDropper) {
-      if (window.EyeDropper) {
-        this.btnEyeDropper.onclick = async () => {
-          try {
-            const eyeDropper = new window.EyeDropper();
-            const result = await eyeDropper.open();
-            if (result && result.sRGBHex) {
-              this.setColor(result.sRGBHex);
-            }
-          } catch (e) {}
+    ['h', 's', 'v'].forEach(axis => {
+      const el = document.getElementById(`picker-${axis}`);
+      if (el) {
+        el.oninput = () => {
+          this[axis] = parseInt(el.value, 10) || 0;
+          this._syncFromHsv();
         };
-      } else {
-        this.btnEyeDropper.style.display = 'none';
       }
-    }
-
-    if (this.btnOk) {
-      this.btnOk.onclick = () => {
-        if (this.modal) this.modal.close();
-        if (this.resolvePromise) this.resolvePromise(this.currentColor);
-      };
-    }
-
-    if (this.btnCancel) {
-      this.btnCancel.onclick = () => {
-        if (this.modal) this.modal.close();
-        if (this.resolvePromise) this.resolvePromise(null);
-      };
-    }
-  }
-
-  _initPalette() {
-    if (!this.paletteContainer) return;
-    const defaultColors = [
-      '#FFFFFF', '#C0C0C0', '#808080', '#000000',
-      '#FF0000', '#800000', '#FFFF00', '#808000',
-      '#00FF00', '#008000', '#00FFFF', '#008080',
-      '#0000FF', '#000080', '#FF00FF', '#800080'
-    ];
-    this.paletteContainer.innerHTML = '';
-    defaultColors.forEach(c => {
-      const btn = document.createElement('button');
-      btn.className = 'palette-btn';
-      btn.style.backgroundColor = c;
-      btn.onclick = () => this.setColor(c);
-      this.paletteContainer.appendChild(btn);
     });
-  }
 
-  setColor(hex) {
-    this.currentColor = hex.toUpperCase();
-    const [r, g, b] = hexToRgb(this.currentColor);
-    const [h, s, v] = rgbToHsv(r, g, b);
+    ['r', 'g', 'b'].forEach(ch => {
+      const slider = document.getElementById(`picker-${ch}`);
+      const num = document.getElementById(`picker-${ch}-val`);
+      if (slider) {
+        slider.oninput = () => {
+          if (num) num.value = slider.value;
+          this._syncFromRgb();
+        };
+      }
+      if (num) {
+        num.oninput = () => {
+          const val = Math.max(0, Math.min(255, parseInt(num.value, 10) || 0));
+          if (slider) slider.value = val;
+          this._syncFromRgb();
+        };
+      }
+    });
 
-    this.isUpdating = true;
-    if (this.inpH) { this.inpH.value = h; this.valH.textContent = `${h}°`; }
-    if (this.inpS) { this.inpS.value = s; this.valS.textContent = `${s}%`; }
-    if (this.inpV) { this.inpV.value = v; this.valV.textContent = `${v}%`; }
+    const btnEye = document.getElementById('btn-picker-eyedropper');
+    if (btnEye) {
+      btnEye.onclick = () => this._pickFromScreen();
+    }
 
-    if (this.inpR) { this.inpR.value = r; this.valR.value = r; }
-    if (this.inpG) { this.inpG.value = g; this.valG.value = g; }
-    if (this.inpB) { this.inpB.value = b; this.valB.value = b; }
+    document.getElementById('btn-picker-ok').onclick = () => {
+      const hex = document.getElementById('picker-hex-label').textContent;
+      this.modal.close();
+      if (this.resolveFn) { this.resolveFn(hex); this.resolveFn = null; }
+    };
 
-    this._updateUI();
-    this.isUpdating = false;
-  }
-
-  _updateUI() {
-    if (this.newSwatch) this.newSwatch.style.backgroundColor = this.currentColor;
-    if (this.hexLabel) this.hexLabel.textContent = this.currentColor;
+    document.getElementById('btn-picker-cancel').onclick = () => {
+      this.modal.close();
+      if (this.resolveFn) { this.resolveFn(null); this.resolveFn = null; }
+    };
   }
 
   open(initialHex = '#FFFFFF') {
-    this.setColor(initialHex);
-    if (this.oldSwatch) this.oldSwatch.style.backgroundColor = initialHex;
-    if (this.modal) this.modal.showModal();
-    return new Promise(resolve => {
-      this.resolvePromise = resolve;
+    this._ensureBound();
+    if (!this.modal) return Promise.resolve(null);
+
+    const oldSw = document.getElementById('picker-old-swatch');
+    if (oldSw) oldSw.style.backgroundColor = initialHex;
+    this._setFromHex(initialHex);
+
+    return new Promise((resolve) => {
+      this.resolveFn = resolve;
+      if (typeof this.modal.showModal === 'function') {
+        this.modal.showModal();
+      } else {
+        this.modal.setAttribute('open', '');
+      }
     });
+  }
+
+  _setFromHex(hex) {
+    const [r, g, b] = hexToRgb(hex);
+    const [h, s, v] = rgbToHsv(r, g, b);
+    this.h = h; this.s = s; this.v = v;
+    this._syncFromHsv();
+  }
+
+  _syncFromHsv() {
+    const [r, g, b] = hsvToRgb(this.h, this.s, this.v);
+    const hex = rgbToHex(r, g, b);
+    this._updateDOM(this.h, this.s, this.v, r, g, b, hex);
+  }
+
+  _syncFromRgb() {
+    const r = parseInt(document.getElementById('picker-r').value, 10) || 0;
+    const g = parseInt(document.getElementById('picker-g').value, 10) || 0;
+    const b = parseInt(document.getElementById('picker-b').value, 10) || 0;
+    const [h, s, v] = rgbToHsv(r, g, b);
+    this.h = h; this.s = s; this.v = v;
+    const hex = rgbToHex(r, g, b);
+    this._updateDOM(h, s, v, r, g, b, hex);
+  }
+
+  _updateDOM(h, s, v, r, g, b, hex) {
+    document.getElementById('picker-h').value = h;
+    document.getElementById('picker-h-val').textContent = `${h}°`;
+    document.getElementById('picker-s').value = s;
+    document.getElementById('picker-s-val').textContent = `${s}%`;
+    document.getElementById('picker-v').value = v;
+    document.getElementById('picker-v-val').textContent = `${v}%`;
+
+    document.getElementById('picker-r').value = r;
+    document.getElementById('picker-r-val').value = r;
+    document.getElementById('picker-g').value = g;
+    document.getElementById('picker-g-val').value = g;
+    document.getElementById('picker-b').value = b;
+    document.getElementById('picker-b-val').value = b;
+
+    document.getElementById('picker-new-swatch').style.backgroundColor = hex;
+    document.getElementById('picker-hex-label').textContent = hex;
+  }
+
+  async _pickFromScreen() {
+    if (window.EyeDropper) {
+      try {
+        const eyeDropper = new window.EyeDropper();
+        const result = await eyeDropper.open();
+        if (result && result.sRGBHex) {
+          this._setFromHex(result.sRGBHex.toUpperCase());
+        }
+        return;
+      } catch (e) {
+        return;
+      }
+    }
+
+    this.modal.close();
+    const prevBodyCursor = document.body.style.cursor;
+    document.body.style.cursor = 'crosshair';
+    const canvases = Array.from(document.querySelectorAll('canvas'));
+    const prevCursors = canvases.map(c => c.style.cursor);
+    canvases.forEach(c => { c.style.cursor = 'crosshair'; });
+
+    const cleanup = () => {
+      document.body.style.cursor = prevBodyCursor;
+      canvases.forEach((c, idx) => { c.style.cursor = prevCursors[idx]; });
+      window.removeEventListener('pointerdown', onPick, true);
+      window.removeEventListener('keydown', onCancel, true);
+      this.modal.showModal();
+    };
+
+    const onCancel = (e) => {
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        cleanup();
+      }
+    };
+
+    const onPick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      if (target && target.tagName === 'CANVAS') {
+        const rect = target.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) * (target.width / Math.max(1, rect.width)));
+        const y = Math.floor((e.clientY - rect.top) * (target.height / Math.max(1, rect.height)));
+        if (x >= 0 && x < target.width && y >= 0 && y < target.height) {
+          const ctx = target.getContext('2d');
+          const p = ctx.getImageData(x, y, 1, 1).data;
+          if (p[3] > 0) this._setFromHex(rgbToHex(p[0], p[1], p[2]));
+        }
+      }
+      cleanup();
+    };
+
+    window.addEventListener('pointerdown', onPick, true);
+    window.addEventListener('keydown', onCancel, true);
   }
 }
