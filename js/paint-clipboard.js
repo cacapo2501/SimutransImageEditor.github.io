@@ -7,18 +7,33 @@ export class PaintClipboardManager {
     this.floatingLayer = null;
     this.isDraggingFloating = false;
     this.floatingDragOffset = [0, 0];
+
+    this.lastImportedCanvas = null;
+    this.lastImportedName = '';
+    this.lastImportedPos = null;
   }
 
   reset() {
     this.floatingLayer = null;
     this.isDraggingFloating = false;
     this._updateFloatingBarUI();
+    this._updateReimportBtnUI();
   }
 
   _updateFloatingBarUI() {
     const bar = document.getElementById('floating-action-bar');
     if (bar) {
       bar.style.display = this.floatingLayer ? 'flex' : 'none';
+    }
+  }
+
+  _updateReimportBtnUI() {
+    const btn = document.getElementById('btn-paint-reimport-img');
+    if (btn) {
+      btn.disabled = !this.lastImportedCanvas;
+      btn.title = this.lastImportedCanvas
+        ? `前回貼り付けた画像 (${this.lastImportedName}) をもう一度貼り付け`
+        : '前回貼り付けた外部画像をもう一度貼り付け';
     }
   }
 
@@ -138,12 +153,48 @@ export class PaintClipboardManager {
       width: c.width,
       height: c.height,
       x: Math.max(0, Math.min(ed.width - c.width, this.clipboard.srcX)),
-      y: Math.max(0, Math.min(ed.height - c.height, this.clipboard.srcY))
+      y: Math.max(0, Math.min(ed.height - c.height, this.clipboard.srcY)),
+      isImported: false
     };
 
     this._updateFloatingBarUI();
     ed._drawOverlay();
     ed._showHint('ドラッグまたは矢印キーで位置調整し、Enterまたは「✓ 確定」で貼り付けます');
+  }
+
+  _placeImportedCanvas(srcCanvas, name, pos = null) {
+    const ed = this.editor;
+    if (this.floatingLayer) this.commitFloatingLayer();
+
+    const w = srcCanvas.width;
+    const h = srcCanvas.height;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const cCtx = c.getContext('2d');
+    cCtx.imageSmoothingEnabled = false;
+    cCtx.drawImage(srcCanvas, 0, 0);
+
+    if (!ed.repeatMgr || !ed.repeatMgr.isActive()) {
+      ed.selectionMask = null;
+    }
+
+    const initX = pos ? Math.max(0, Math.min(ed.width - w, pos[0])) : Math.max(0, Math.floor((ed.width - w) / 2));
+    const initY = pos ? Math.max(0, Math.min(ed.height - h, pos[1])) : Math.max(0, Math.floor((ed.height - h) / 2));
+
+    this.floatingLayer = {
+      canvas: c,
+      width: w,
+      height: h,
+      x: initX,
+      y: initY,
+      isImported: true
+    };
+
+    this._updateFloatingBarUI();
+    this._updateReimportBtnUI();
+    ed._drawOverlay();
+    ed._showHint(`外部画像 (${name}: ${w}×${h}px) を配置しました。ドラッグで位置調整し「✓ 確定」で焼き込みます`);
   }
 
   importExternalImage() {
@@ -153,10 +204,9 @@ export class PaintClipboardManager {
     inp.accept = 'image/*';
     inp.onchange = async () => {
       if (!inp.files || !inp.files[0]) return;
+      const file = inp.files[0];
       try {
-        const img = await ed.app.paletteManager.loadImageSafely(inp.files[0]);
-        if (this.floatingLayer) this.commitFloatingLayer();
-
+        const img = await ed.app.paletteManager.loadImageSafely(file);
         const w = img.naturalWidth || img.width;
         const h = img.naturalHeight || img.height;
         const c = document.createElement('canvas');
@@ -175,20 +225,11 @@ export class PaintClipboardManager {
         }
         cCtx.putImageData(imgData, 0, 0);
 
-        if (!ed.repeatMgr || !ed.repeatMgr.isActive()) {
-          ed.selectionMask = null;
-        }
-        this.floatingLayer = {
-          canvas: c,
-          width: w,
-          height: h,
-          x: Math.max(0, Math.floor((ed.width - w) / 2)),
-          y: Math.max(0, Math.floor((ed.height - h) / 2))
-        };
+        this.lastImportedCanvas = c;
+        this.lastImportedName = file.name;
+        this.lastImportedPos = null;
 
-        this._updateFloatingBarUI();
-        ed._drawOverlay();
-        ed._showHint(`外部画像 (${w}×${h}px) を配置しました。ドラッグで位置調整し「✓ 確定」で焼き込みます`);
+        this._placeImportedCanvas(c, file.name, null);
       } catch (err) {
         alert('画像の読み込みに失敗しました: ' + err);
       }
@@ -196,9 +237,20 @@ export class PaintClipboardManager {
     inp.click();
   }
 
+  reapplyLastImportedImage() {
+    if (!this.lastImportedCanvas) {
+      alert('前回貼り付けた外部画像がありません。先に「🖼️ 画像貼付」から画像を取り込んでください。');
+      return;
+    }
+    this._placeImportedCanvas(this.lastImportedCanvas, this.lastImportedName, this.lastImportedPos);
+  }
+
   commitFloatingLayer() {
     if (!this.floatingLayer) return;
     const ed = this.editor;
+    if (this.floatingLayer.isImported) {
+      this.lastImportedPos = [this.floatingLayer.x, this.floatingLayer.y];
+    }
     ed._pushHistory();
     const before = ed.repeatMgr ? ed.repeatMgr.snapshotBefore() : null;
 
