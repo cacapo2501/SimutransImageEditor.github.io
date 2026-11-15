@@ -128,6 +128,11 @@ export class PaintInputController {
     const ed = this.editor;
     const vp = ed.viewport;
 
+    // キャンバス上での右クリックメニュー表示を禁止
+    vp.addEventListener('contextmenu', (e) => e.preventDefault());
+    if (ed.canvas) ed.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    if (ed.overlayCanvas) ed.overlayCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
     vp.onwheel = (e) => {
       e.preventDefault();
       const delta = e.deltaY < 0 ? 1.25 : 0.8;
@@ -154,6 +159,7 @@ export class PaintInputController {
       if (e.button === 1 || e.button === 2 || e.spaceKey) {
         this.isPanning = true;
         this.panStart = [e.clientX - ed.panX, e.clientY - ed.panY];
+        ed.updateCursor();
         return;
       }
       const { px, py } = getPixelCoords(e.clientX, e.clientY);
@@ -182,7 +188,10 @@ export class PaintInputController {
     });
 
     window.addEventListener('mouseup', (e) => {
-      if (this.isPanning) this.isPanning = false;
+      if (this.isPanning) {
+        this.isPanning = false;
+        ed.updateCursor();
+      }
       const { px, py } = getPixelCoords(e.clientX, e.clientY);
       ed._handlePointerUp(px, py);
     });
