@@ -1,10 +1,12 @@
 import { rgbToHex } from './color-utils.js';
 import { PaintColorReplaceController } from './paint-color-replace.js';
+import { PaintPaletteBlendController } from './paint-palette-blend.js';
 
 export class PaintDialogs {
   constructor(editor) {
     this.editor = editor;
     this.colorReplace = new PaintColorReplaceController(editor);
+    this.paletteBlend = new PaintPaletteBlendController(editor);
 
     this.samplerModal = document.getElementById('modal-image-sampler');
     this.samplerCanvas = document.getElementById('sampler-canvas');
@@ -49,6 +51,10 @@ export class PaintDialogs {
 
   openColorReplaceDialog() {
     this.colorReplace.openDialog();
+  }
+
+  openPaletteBlendDialog() {
+    this.paletteBlend.openDialog();
   }
 
   openSamplerModal() {

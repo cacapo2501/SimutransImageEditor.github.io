@@ -224,7 +224,38 @@ export function renderSidebarUI() {
       </div>
     </details>
 
-    <!-- セクション5: 特殊色・外部連携設定 -->
+    <!-- セクション5: pak64車両画像 圧縮・標準配置変換 -->
+    <details class="accordion-panel">
+      <summary>🚃 pak64車両画像 圧縮・標準配置変換</summary>
+      <div class="panel-body">
+        <p class="desc-text">ベース画像とマスク画像を同時にpak64車両用の圧縮配置（_c）または標準配置（_s / 512×64倍数）へ相互変換します。</p>
+        <div class="row mt-05">
+          <label style="min-width: 85px;">車体長 (Length):</label>
+          <select id="inp-vehicle-length">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8" selected>8 (標準)</option>
+            <option value="9">9</option>
+            <option value="10">A (10)</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+          </select>
+        </div>
+        <label class="mt-05"><input type="checkbox" id="chk-vehicle-compress-bg"> 圧縮時の1px区切り余白を背景色(#E7FFFF/#FFFFFF)で埋める</label>
+        <div class="btn-group mt-05">
+          <button id="btn-vehicle-compress" class="btn-primary">🗜️ 圧縮配置に変換 (_c)</button>
+          <button id="btn-vehicle-expand" class="btn-primary">📐 標準配置に展開 (_s)</button>
+        </div>
+        <div class="info-text" id="lbl-vehicle-status">変換状態: 待機中</div>
+      </div>
+    </details>
+
+    <!-- セクション6: 特殊色・外部連携設定 -->
     <details class="accordion-panel">
       <summary>特殊色・外部連携設定</summary>
       <div class="panel-body">
@@ -242,7 +273,7 @@ export function renderSidebarUI() {
         </fieldset>
 
         <fieldset class="sub-panel mt-05">
-          <legend>特殊色CSV (編集除外・衝突回避)</legend>
+          <legend>特殊色CSV (1列目読込・編集除外・衝突回避)</legend>
           <div class="row">
             <input type="file" id="file-csv" accept=".csv">
           </div>

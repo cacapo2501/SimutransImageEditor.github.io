@@ -60,6 +60,7 @@ export class PaintInputController {
 
     bindClick('btn-export-palette', () => exportPaletteToFile(ed));
     bindClick('btn-import-palette', () => importPaletteFromFile(ed));
+    bindClick('btn-open-palette-blend', () => ed.dialogs.openPaletteBlendDialog());
 
     bindClick('btn-paint-regen-mask', () => {
       if (ed.targetType !== 'mask') return;

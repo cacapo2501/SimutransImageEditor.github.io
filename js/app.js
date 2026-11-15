@@ -10,6 +10,7 @@ import { LayerManager } from './layer-manager.js';
 import { ToneTintController } from './tone-tint-controller.js';
 import { DeftileBuilder } from './deftile-builder.js';
 import { ImageIOController, safePickFile } from './image-io-controller.js';
+import { VehicleLayoutController } from './vehicle-layout.js';
 import { drawSimutransIsoTiles } from './paint-algorithms.js';
 import { renderSidebarUI } from './ui-sidebar.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
@@ -96,11 +97,13 @@ class AdvancedMultiplyApp {
     this.toneTintCtrl = new ToneTintController(this);
     this.deftileBuilder = new DeftileBuilder(this, safePickFile);
     this.imageIOCtrl = new ImageIOController(this, safePickFile);
+    this.vehicleCtrl = new VehicleLayoutController(this);
 
     this._bindZoomAndGuideEvents();
     this.imageIOCtrl.bindAll();
     this.layerManager.bindEvents();
     this.toneTintCtrl.bindEvents();
+    this.vehicleCtrl.bindEvents();
     this.imageIOCtrl.loadDefaultSpecialColors();
     this.render();
   }
@@ -127,7 +130,6 @@ class AdvancedMultiplyApp {
     if (info) info.textContent = 'マスク: 未読込';
   }
 
-  // 任意のタイミングでベース画像からマスク画像を再生成
   regenerateMaskFromBase() {
     if (!this.baseImage) {
       alert('先にベース画像を開くか、新規作成してください。');
@@ -147,6 +149,9 @@ class AdvancedMultiplyApp {
   applyBaseImage(img, name, { resetMask = true } = {}) {
     if (resetMask) {
       this.resetMaskState();
+    }
+    if (this.vehicleCtrl) {
+      this.vehicleCtrl.syncLengthFromFilename(name);
     }
     MaskGenerator.analyzeBaseImage(this, img, name);
     if (!this.maskImage) {

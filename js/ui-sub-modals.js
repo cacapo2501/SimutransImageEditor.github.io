@@ -1,6 +1,44 @@
 export function renderSubModalsUI() {
   const container = document.getElementById('modal-container') || document.body;
 
+  if (!document.getElementById('modal-palette-blend')) {
+    container.insertAdjacentHTML('beforeend', `
+      <dialog id="modal-palette-blend">
+        <div class="picker-content" style="width:410px;">
+          <h3 style="font-size:13px; margin-bottom:8px;">🎨 パレット2色から中間色を作成</h3>
+          <div class="row">
+            <label style="width:75px;">開始色 (色1):</label>
+            <div id="blend-color1-mount" style="flex:1; min-width:0;"></div>
+          </div>
+          <div class="row mt-05">
+            <label style="width:75px;">終了色 (色2):</label>
+            <div id="blend-color2-mount" style="flex:1; min-width:0;"></div>
+          </div>
+          <div class="row mt-05">
+            <label style="width:75px;">中間色数:</label>
+            <input type="number" id="inp-blend-steps" value="3" min="1" max="16" style="width:65px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:4px; border-radius:3px;">
+            <span style="font-size:11px; color:#aaa;">色</span>
+            <select id="sel-blend-space" style="margin-left:auto;">
+              <option value="rgb" selected>RGB線形補間</option>
+              <option value="hsv">HSV色相補間</option>
+            </select>
+          </div>
+          <label class="mt-05" style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
+            <input type="checkbox" id="chk-blend-avoid-special" checked> SpecialColor と #E7FFFF の重複を自動回避
+          </label>
+          <fieldset class="sub-panel mt-05">
+            <legend>生成プレビュー (両端が選択色・中央が生成される中間色)</legend>
+            <div id="blend-preview-swatches" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center; padding:4px 0;"></div>
+          </fieldset>
+          <div class="btn-group mt-1">
+            <button type="button" id="btn-blend-apply" class="btn-primary">✓ パレットに追加する</button>
+            <button type="button" id="btn-blend-cancel">キャンセル</button>
+          </div>
+        </div>
+      </dialog>
+    `);
+  }
+
   if (!document.getElementById('modal-palette-import')) {
     container.insertAdjacentHTML('beforeend', `
       <dialog id="modal-palette-import">

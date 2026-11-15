@@ -160,6 +160,9 @@ export function renderPaintModalUI() {
             <fieldset class="sub-panel">
               <legend>カラーパレット一覧</legend>
               <div class="btn-group">
+                <button id="btn-open-palette-blend" class="btn-primary" title="パレットの2色から中間色を作成して追加">🎨 中間色作成</button>
+              </div>
+              <div class="btn-group mt-05">
                 <button id="btn-export-palette" title="現在のパレットをJSONファイルに出力">💾 パレット出力</button>
                 <button id="btn-import-palette" title="パレットJSONファイルを読み込み（置換/追加）">📂 パレット入力</button>
               </div>
