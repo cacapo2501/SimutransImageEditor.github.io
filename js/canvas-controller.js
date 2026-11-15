@@ -1,21 +1,10 @@
-function pointInPolygon(point, vs) {
-  const [x, y] = point;
-  let inside = false;
-  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-    const xi = vs[i][0], yi = vs[i][1];
-    const xj = vs[j][0], yj = vs[j][1];
-    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
 export class CanvasController {
   constructor(app) {
     this.app = app;
-    this.viewport = app.viewport;
-    this.canvas = app.canvas;
-
+    this.panStart = [0, 0];
+    this.dragCornerIdx = -1;
+    this.dragStartPos = [0, 0];
+    this.origCorners = null;
     this.touchStartDist = null;
     this.touchStartZoom = 1.0;
     this.touchStartPan = [0, 0];
@@ -24,248 +13,259 @@ export class CanvasController {
     this._bindEvents();
   }
 
+  _getCanvasPixel(clientX, clientY) {
+    const rect = this.app.viewport.getBoundingClientRect();
+    const ix = (clientX - rect.left - this.app.panX) / this.app.zoomLevel;
+    const iy = (clientY - rect.top - this.app.panY) / this.app.zoomLevel;
+    return [ix, iy];
+  }
+
+  _hitTestHandle(clientX, clientY) {
+    const app = this.app;
+    if (app.activeIdx < 0 || app.activeIdx >= app.layers.length) return -1;
+    const layer = app.layers[app.activeIdx];
+    const rect = app.viewport.getBoundingClientRect();
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+
+    for (let i = 0; i < 4; i++) {
+      const hx = layer.corners[i][0] * app.zoomLevel + app.panX;
+      const hy = layer.corners[i][1] * app.zoomLevel + app.panY;
+      if (Math.hypot(mx - hx, my - hy) <= 12) return i;
+    }
+    return -1;
+  }
+
+  _isInsideLayer(ix, iy) {
+    const app = this.app;
+    if (app.activeIdx < 0 || app.activeIdx >= app.layers.length) return false;
+    const pts = app.layers[app.activeIdx].corners;
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i][0], yi = pts[i][1];
+      const xj = pts[j][0], yj = pts[j][1];
+      const intersect = ((yi > iy) !== (yj > iy)) && (ix < (xj - xi) * (iy - yi) / (yj - yi + 1e-9) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
   _bindEvents() {
-    this.viewport.onwheel = (e) => {
+    const app = this.app;
+    const vp = app.viewport;
+    if (!vp) return;
+
+    // キャンバス上での右クリックメニュー表示を禁止
+    vp.addEventListener('contextmenu', (e) => e.preventDefault());
+    if (app.canvas) {
+      app.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+
+    vp.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const delta = e.deltaY < 0 ? 1.25 : 0.8;
-      this.app.setZoom(this.app.zoomLevel * delta, [
-        e.clientX - this.viewport.offsetLeft,
-        e.clientY - this.viewport.offsetTop
-      ]);
-    };
+      if (!app.baseW) return;
+      const rect = vp.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const factor = e.deltaY < 0 ? 1.25 : 0.8;
+      app.setZoom(app.zoomLevel * factor, [cx, cy]);
+    }, { passive: false });
 
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'Space') {
-        this.app.spacePressed = true;
-        this.viewport.style.cursor = 'grab';
-      }
-      if (e.key === 'Escape' && this.app.isEyedropper) {
-        this.app.toggleEyedropper();
-      }
-    });
-
-    window.addEventListener('keyup', (e) => {
-      if (e.code === 'Space') {
-        this.app.spacePressed = false;
-        this.viewport.style.cursor = 'default';
-      }
-    });
-
-    this.viewport.onmousedown = (e) => {
-      if (this.app.spacePressed || e.button === 1 || e.button === 2) {
-        this.app.isPanning = true;
-        this.app.panStart = [e.clientX - this.app.panX, e.clientY - this.app.panY];
-        this.viewport.style.cursor = 'grabbing';
+    vp.addEventListener('mousedown', (e) => {
+      if (app.isEyedropper) {
+        if (e.button === 0) {
+          app.pickColorFromCoords(e.clientX, e.clientY);
+        } else if (e.button === 2) {
+          app.toggleEyedropper();
+        }
         return;
       }
-      if (this.app.isEyedropper) {
-        this.app.pickColorFromCoords(e.clientX, e.clientY);
+
+      if (e.button === 1 || e.button === 2 || app.spacePressed) {
+        app.isPanning = true;
+        this.panStart = [e.clientX - app.panX, e.clientY - app.panY];
+        vp.style.cursor = 'grabbing';
         return;
       }
-      this.handleInteractionStart(e.clientX, e.clientY, 8);
-    };
+
+      if (e.button !== 0 || !app.baseW) return;
+      const [ix, iy] = this._getCanvasPixel(e.clientX, e.clientY);
+      const hIdx = this._hitTestHandle(e.clientX, e.clientY);
+
+      if (hIdx >= 0) {
+        app.dragMode = 'corner';
+        this.dragCornerIdx = hIdx;
+        this.origCorners = app.layers[app.activeIdx].corners.map(p => [...p]);
+        this.dragStartPos = [ix, iy];
+      } else if (this._isInsideLayer(ix, iy)) {
+        app.dragMode = 'move';
+        this.origCorners = app.layers[app.activeIdx].corners.map(p => [...p]);
+        this.dragStartPos = [ix, iy];
+      }
+    });
 
     window.addEventListener('mousemove', (e) => {
-      if (this.app.isPanning) {
-        this.app.panX = e.clientX - this.app.panStart[0];
-        this.app.panY = e.clientY - this.app.panStart[1];
-        this.app.render();
+      if (app.isEyedropper) {
+        vp.style.cursor = 'crosshair';
+        if (app.canvas) app.canvas.style.cursor = 'crosshair';
         return;
       }
-      if (this.app.dragMode && this.app.activeIdx >= 0) {
-        this.handleInteractionMove(e.clientX, e.clientY);
+
+      if (app.isPanning) {
+        app.panX = e.clientX - this.panStart[0];
+        app.panY = e.clientY - this.panStart[1];
+        app.render();
         return;
       }
-      this.updateCursor(e);
+
+      if (!app.dragMode) {
+        const hIdx = this._hitTestHandle(e.clientX, e.clientY);
+        const [ix, iy] = this._getCanvasPixel(e.clientX, e.clientY);
+        if (hIdx >= 0) vp.style.cursor = 'pointer';
+        else if (this._isInsideLayer(ix, iy)) vp.style.cursor = 'move';
+        else vp.style.cursor = app.spacePressed ? 'grab' : 'default';
+        return;
+      }
+
+      const layer = app.layers[app.activeIdx];
+      if (!layer || !this.origCorners) return;
+      const [ix, iy] = this._getCanvasPixel(e.clientX, e.clientY);
+      let dx = ix - this.dragStartPos[0];
+      let dy = iy - this.dragStartPos[1];
+      if (app.pixelSnap) {
+        dx = Math.round(dx);
+        dy = Math.round(dy);
+      }
+
+      if (app.dragMode === 'move') {
+        layer.corners = this.origCorners.map(([ox, oy]) => [ox + dx, oy + dy]);
+      } else if (app.dragMode === 'corner') {
+        this._applyCornerDrag(layer, this.dragCornerIdx, dx, dy);
+      }
+      app.markDirty();
+      app.render();
     });
 
     window.addEventListener('mouseup', () => {
-      if (this.app.isPanning) {
-        this.app.isPanning = false;
-        this.viewport.style.cursor = this.app.spacePressed ? 'grab' : 'default';
+      if (app.isPanning) {
+        app.isPanning = false;
+        vp.style.cursor = app.isEyedropper ? 'crosshair' : 'default';
       }
-      if (this.app.dragMode) {
-        this.app.dragMode = null;
-        this.app.markDirty();
-        this.app.render();
+      if (app.dragMode) {
+        app.dragMode = null;
+        this.dragCornerIdx = -1;
+        this.origCorners = null;
       }
     });
 
-    this.viewport.addEventListener('touchstart', (e) => this._onTouchStart(e), { passive: false });
-    window.addEventListener('touchmove', (e) => this._onTouchMove(e), { passive: false });
-    window.addEventListener('touchend', (e) => this._onTouchEnd(e), { passive: false });
-    window.addEventListener('touchcancel', (e) => this._onTouchEnd(e), { passive: false });
-  }
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.code === 'Space') app.spacePressed = true;
+      if (e.code === 'Escape' && app.isEyedropper) app.toggleEyedropper();
+    });
 
-  _onTouchStart(e) {
-    if (e.target !== this.canvas && !this.viewport.contains(e.target)) return;
-    e.preventDefault();
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') app.spacePressed = false;
+    });
 
-    if (e.touches.length === 1) {
-      const t = e.touches[0];
-      if (this.app.isEyedropper) {
-        this.app.pickColorFromCoords(t.clientX, t.clientY);
+    vp.addEventListener('touchstart', (e) => {
+      if (app.isEyedropper && e.touches.length === 1) {
+        e.preventDefault();
+        app.pickColorFromCoords(e.touches[0].clientX, e.touches[0].clientY);
         return;
       }
-      this.handleInteractionStart(t.clientX, t.clientY, 16);
-    } else if (e.touches.length === 2) {
-      this.app.dragMode = null;
-      this.app.isPanning = false;
-
-      const t1 = e.touches[0], t2 = e.touches[1];
-      this.touchStartDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      this.touchStartZoom = this.app.zoomLevel;
-
-      const rect = this.viewport.getBoundingClientRect();
-      this.touchStartCenter = [((t1.clientX + t2.clientX) / 2) - rect.left, ((t1.clientY + t2.clientY) / 2) - rect.top];
-      this.touchStartPan = [this.app.panX, this.app.panY];
-    }
-  }
-
-  _onTouchMove(e) {
-    if (e.touches.length === 1) {
-      const t = e.touches[0];
-      if (this.app.isPanning) {
-        this.app.panX = t.clientX - this.app.panStart[0];
-        this.app.panY = t.clientY - this.app.panStart[1];
-        this.app.render();
-        return;
-      }
-      if (this.app.dragMode && this.app.activeIdx >= 0) {
-        this.handleInteractionMove(t.clientX, t.clientY);
-      }
-    } else if (e.touches.length === 2 && this.touchStartDist) {
-      e.preventDefault();
-      const t1 = e.touches[0], t2 = e.touches[1];
-      const curDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      const newZoom = Math.max(0.1, Math.min(32.0, this.touchStartZoom * (curDist / this.touchStartDist)));
-
-      const rect = this.viewport.getBoundingClientRect();
-      const curCenterX = ((t1.clientX + t2.clientX) / 2) - rect.left;
-      const curCenterY = ((t1.clientY + t2.clientY) / 2) - rect.top;
-
-      const imgX = (this.touchStartCenter[0] - this.touchStartPan[0]) / this.touchStartZoom;
-      const imgY = (this.touchStartCenter[1] - this.touchStartPan[1]) / this.touchStartZoom;
-
-      this.app.zoomLevel = newZoom;
-      this.app.panX = curCenterX - imgX * newZoom;
-      this.app.panY = curCenterY - imgY * newZoom;
-
-      document.getElementById('lbl-zoom').textContent = `${Math.round(this.app.zoomLevel * 100)}%`;
-      this.app.render();
-    }
-  }
-
-  _onTouchEnd(e) {
-    if (e.touches.length === 0) {
-      if (this.app.isPanning) this.app.isPanning = false;
-      if (this.app.dragMode) {
-        this.app.dragMode = null;
-        this.app.markDirty();
-        this.app.render();
-      }
-      this.touchStartDist = null;
-    } else if (e.touches.length === 1) {
-      this.touchStartDist = null;
-      this.app.dragMode = null;
-      this.app.isPanning = false;
-    }
-  }
-
-  handleInteractionStart(clientX, clientY, hitRadiusPx) {
-    const rect = this.viewport.getBoundingClientRect();
-    const mx = (clientX - rect.left - this.app.panX) / this.app.zoomLevel;
-    const my = (clientY - rect.top - this.app.panY) / this.app.zoomLevel;
-
-    if (this.app.activeIdx >= 0 && this.app.layers[this.app.activeIdx]) {
-      const layer = this.app.layers[this.app.activeIdx];
-      this.app.dragStartPos = [mx, my];
-      this.app.dragStartCorners = layer.corners.map(([x, y]) => [x, y]);
-
-      for (let i = 0; i < 4; i++) {
-        if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= hitRadiusPx / this.app.zoomLevel) {
-          this.app.dragMode = `corner_${i}`;
-          return;
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        const [ix, iy] = this._getCanvasPixel(t.clientX, t.clientY);
+        const hIdx = this._hitTestHandle(t.clientX, t.clientY);
+        if (hIdx >= 0) {
+          e.preventDefault();
+          app.dragMode = 'corner';
+          this.dragCornerIdx = hIdx;
+          this.origCorners = app.layers[app.activeIdx].corners.map(p => [...p]);
+          this.dragStartPos = [ix, iy];
+        } else if (this._isInsideLayer(ix, iy)) {
+          e.preventDefault();
+          app.dragMode = 'move';
+          this.origCorners = app.layers[app.activeIdx].corners.map(p => [...p]);
+          this.dragStartPos = [ix, iy];
         }
+      } else if (e.touches.length === 2) {
+        e.preventDefault();
+        app.dragMode = null;
+        const t1 = e.touches[0], t2 = e.touches[1];
+        this.touchStartDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        this.touchStartZoom = app.zoomLevel;
+        const rect = vp.getBoundingClientRect();
+        this.touchStartCenter = [((t1.clientX + t2.clientX) / 2) - rect.left, ((t1.clientY + t2.clientY) / 2) - rect.top];
+        this.touchStartPan = [app.panX, app.panY];
       }
+    }, { passive: false });
 
-      if (pointInPolygon([mx, my], layer.corners)) {
-        this.app.dragMode = 'move';
-        return;
+    vp.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && app.dragMode) {
+        e.preventDefault();
+        const t = e.touches[0];
+        const layer = app.layers[app.activeIdx];
+        if (!layer || !this.origCorners) return;
+        const [ix, iy] = this._getCanvasPixel(t.clientX, t.clientY);
+        let dx = ix - this.dragStartPos[0];
+        let dy = iy - this.dragStartPos[1];
+        if (app.pixelSnap) { dx = Math.round(dx); dy = Math.round(dy); }
+        if (app.dragMode === 'move') {
+          layer.corners = this.origCorners.map(([ox, oy]) => [ox + dx, oy + dy]);
+        } else if (app.dragMode === 'corner') {
+          this._applyCornerDrag(layer, this.dragCornerIdx, dx, dy);
+        }
+        app.markDirty();
+        app.render();
+      } else if (e.touches.length === 2 && this.touchStartDist) {
+        e.preventDefault();
+        const t1 = e.touches[0], t2 = e.touches[1];
+        const curDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        const newZoom = Math.max(0.1, Math.min(32.0, this.touchStartZoom * (curDist / this.touchStartDist)));
+        const rect = vp.getBoundingClientRect();
+        const cx = ((t1.clientX + t2.clientX) / 2) - rect.left;
+        const cy = ((t1.clientY + t2.clientY) / 2) - rect.top;
+        const ix = (this.touchStartCenter[0] - this.touchStartPan[0]) / this.touchStartZoom;
+        const iy = (this.touchStartCenter[1] - this.touchStartPan[1]) / this.touchStartZoom;
+        app.zoomLevel = newZoom;
+        app.panX = cx - ix * newZoom;
+        app.panY = cy - iy * newZoom;
+        document.getElementById('lbl-zoom').textContent = `${Math.round(newZoom * 100)}%`;
+        app.render();
       }
-    }
+    }, { passive: false });
 
-    this.app.isPanning = true;
-    this.app.panStart = [clientX - this.app.panX, clientY - this.app.panY];
-    this.viewport.style.cursor = 'grabbing';
+    vp.addEventListener('touchend', () => {
+      app.dragMode = null;
+      this.dragCornerIdx = -1;
+      this.origCorners = null;
+      this.touchStartDist = null;
+    });
   }
 
-  handleInteractionMove(clientX, clientY) {
-    const rect = this.viewport.getBoundingClientRect();
-    const mx = (clientX - rect.left - this.app.panX) / this.app.zoomLevel;
-    const my = (clientY - rect.top - this.app.panY) / this.app.zoomLevel;
-    const dx = mx - this.app.dragStartPos[0], dy = my - this.app.dragStartPos[1];
-    const layer = this.app.layers[this.app.activeIdx];
+  _applyCornerDrag(layer, idx, dx, dy) {
+    const o = this.origCorners;
+    const nx = o[idx][0] + dx;
+    const ny = o[idx][1] + dy;
 
-    if (this.app.dragMode === 'move') {
-      let newCorners = this.app.dragStartCorners.map(([x, y]) => [x + dx, y + dy]);
-      if (this.app.pixelSnap) newCorners = newCorners.map(([x, y]) => [Math.round(x), Math.round(y)]);
-      layer.corners = newCorners;
-      this.app.render();
-      return;
-    }
-
-    const idx = parseInt(this.app.dragMode.split('_')[1]);
-    if (layer.transformMode === 'free') {
-      let nx = this.app.dragStartCorners[idx][0] + dx, ny = this.app.dragStartCorners[idx][1] + dy;
-      if (this.app.pixelSnap) { nx = Math.round(nx); ny = Math.round(ny); }
-      layer.corners[idx] = [nx, ny];
+    if (layer.transformMode === 'box') {
+      const opp = (idx + 2) % 4;
+      const ox = o[opp][0], oy = o[opp][1];
+      const minX = Math.min(nx, ox), maxX = Math.max(nx, ox);
+      const minY = Math.min(ny, oy), maxY = Math.max(ny, oy);
+      layer.corners = [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]];
     } else if (layer.transformMode === 'affine') {
-      let nx = this.app.dragStartCorners[idx][0] + dx, ny = this.app.dragStartCorners[idx][1] + dy;
-      if (this.app.pixelSnap) { nx = Math.round(nx); ny = Math.round(ny); }
-      const p = this.app.dragStartCorners.map(([x, y]) => [x, y]);
-      if (idx === 0) { p[0] = [nx, ny]; p[2] = [p[1][0] + p[3][0] - nx, p[1][1] + p[3][1] - ny]; }
-      else if (idx === 1) { p[1] = [nx, ny]; p[2] = [nx + p[3][0] - p[0][0], ny + p[3][1] - p[0][1]]; }
-      else if (idx === 3) { p[3] = [nx, ny]; p[2] = [p[1][0] + nx - p[0][0], p[1][1] + ny - p[0][1]]; }
-      else if (idx === 2) { p[2] = [nx, ny]; p[0] = [p[1][0] + p[3][0] - nx, p[1][1] + p[3][1] - ny]; }
-      layer.corners = this.app.pixelSnap ? p.map(([x, y]) => [Math.round(x), Math.round(y)]) : p;
+      const c = o.map(p => [...p]);
+      c[idx] = [nx, ny];
+      if (idx === 0) c[2] = [c[1][0] + c[3][0] - nx, c[1][1] + c[3][1] - ny];
+      else if (idx === 1) c[3] = [c[0][0] + c[2][0] - nx, c[0][1] + c[2][1] - ny];
+      else if (idx === 2) c[0] = [c[1][0] + c[3][0] - nx, c[1][1] + c[3][1] - ny];
+      else if (idx === 3) c[1] = [c[0][0] + c[2][0] - nx, c[0][1] + c[2][1] - ny];
+      layer.corners = c;
     } else {
-      let curX = this.app.dragStartCorners[idx][0] + dx, curY = this.app.dragStartCorners[idx][1] + dy;
-      const [oppX, oppY] = this.app.dragStartCorners[(idx + 2) % 4];
-      let xMin = Math.min(oppX, curX), xMax = Math.max(oppX, curX);
-      let yMin = Math.min(oppY, curY), yMax = Math.max(oppY, curY);
-      if (this.app.pixelSnap) {
-        xMin = Math.round(xMin); xMax = Math.round(xMax);
-        yMin = Math.round(yMin); yMax = Math.round(yMax);
-      }
-      layer.corners = [[xMin, yMin], [xMax, yMin], [xMax, yMax], [xMin, yMax]];
+      layer.corners[idx] = [nx, ny];
     }
-    this.app.render();
-  }
-
-  updateCursor(e) {
-    if (this.app.spacePressed) { this.viewport.style.cursor = 'grab'; return; }
-    if (this.app.isEyedropper) { this.viewport.style.cursor = 'crosshair'; return; }
-    if (this.app.activeIdx < 0 || !this.app.layers[this.app.activeIdx]) {
-      this.viewport.style.cursor = 'default';
-      return;
-    }
-
-    const rect = this.viewport.getBoundingClientRect();
-    const mx = (e.clientX - rect.left - this.app.panX) / this.app.zoomLevel;
-    const my = (e.clientY - rect.top - this.app.panY) / this.app.zoomLevel;
-    const layer = this.app.layers[this.app.activeIdx];
-
-    for (let i = 0; i < 4; i++) {
-      if (Math.hypot(mx - layer.corners[i][0], my - layer.corners[i][1]) <= 8 / this.app.zoomLevel) {
-        this.viewport.style.cursor = 'crosshair';
-        return;
-      }
-    }
-    if (pointInPolygon([mx, my], layer.corners)) {
-      this.viewport.style.cursor = 'move';
-      return;
-    }
-    this.viewport.style.cursor = 'default';
   }
 }
