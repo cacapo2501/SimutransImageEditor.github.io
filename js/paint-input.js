@@ -1,3 +1,5 @@
+import { exportPaletteToFile, importPaletteFromFile } from './paint-palette-ui.js';
+
 export class PaintInputController {
   constructor(editor) {
     this.editor = editor;
@@ -44,10 +46,14 @@ export class PaintInputController {
     bindClick('btn-paint-copy', () => ed.clipMgr.copySelection());
     bindClick('btn-paint-paste', () => ed.clipMgr.pasteClipboard());
     bindClick('btn-paint-import-img', () => ed.clipMgr.importExternalImage());
+    bindClick('btn-paint-reimport-img', () => ed.clipMgr.reapplyLastImportedImage());
     bindClick('btn-paint-flip-h', () => ed.clipMgr.flipHorizontal());
     bindClick('btn-paint-flip-v', () => ed.clipMgr.flipVertical());
     bindClick('btn-commit-floating', () => ed.clipMgr.commitFloatingLayer());
     bindClick('btn-cancel-floating', () => ed.clipMgr.cancelFloatingLayer());
+
+    bindClick('btn-export-palette', () => exportPaletteToFile(ed));
+    bindClick('btn-import-palette', () => importPaletteFromFile(ed));
 
     this._bindGuideControls();
 
@@ -59,6 +65,7 @@ export class PaintInputController {
       ed.selectionMask = null;
       ed.polyPoints = [];
       ed._drawOverlay();
+      ed._updateStatus();
     });
 
     bindClick('btn-gen-base-palette', () => {
@@ -67,6 +74,7 @@ export class PaintInputController {
       pm.basePaletteConfig.darkestHex = document.getElementById('inp-gray-min').value.trim() || '#404040';
       pm.basePaletteConfig.steps = parseInt(document.getElementById('inp-gray-steps').value, 10) || 16;
       pm.generateBasePalette();
+      ed.customDeftilePalette = null;
       ed._renderPaletteUI();
     });
 
@@ -241,6 +249,10 @@ export class PaintInputController {
       if (!ed.modal || !ed.modal.open) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+      if (e.code === 'Escape' && ed.dialogs?.colorReplace?.cancelCanvasPick()) {
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') { e.preventDefault(); ed.clipMgr.copySelection(); return; }
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') { e.preventDefault(); ed.clipMgr.pasteClipboard(); return; }
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) ed.redo(); else ed.undo(); return; }
@@ -260,6 +272,7 @@ export class PaintInputController {
         } else {
           ed.selectionMask = null;
           ed._drawOverlay();
+          ed._updateStatus();
         }
         return;
       }
