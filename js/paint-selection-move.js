@@ -51,7 +51,9 @@ export class PaintSelectionMover {
     const prevData = pCtx.createImageData(w, h);
 
     const baseData = ed.ctx.getImageData(0, 0, w, h);
-    const fillRgb = ed.targetType === 'deftile' ? [0, 0, 0] : [231, 255, 255];
+    const fillRgb = ed.targetType === 'deftile'
+      ? [0, 0, 0]
+      : (ed.targetType === 'aircraftPlan' ? [255, 255, 255] : [231, 255, 255]);
 
     for (let i = 0; i < w * h; i++) {
       if (this.origMask[i]) {

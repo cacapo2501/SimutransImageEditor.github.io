@@ -131,6 +131,9 @@ export class ImageIOController {
       for (const file of files) {
         if (file.name.endsWith('.proj.json') || file.name.endsWith('.json')) {
           ProjectIO.load(app, file);
+        } else if (/bp\d{3}h\d{3}/i.test(file.name) && app.aircraftCtrl) {
+          // ★追加1: ドラッグ＆ドロップ時に bpXXXhYYY なら平面定義画像として読込
+          await app.aircraftCtrl.loadPlanFromFile(file);
         } else if (file.name.includes('mask') || file.name.includes('paint')) {
           await app.loadMaskFromFile(file);
         } else if (file.type.startsWith('image/')) {
@@ -196,6 +199,8 @@ export class ImageIOController {
       if (res) {
         const file = new File([res.blob], res.name, { type: res.blob.type });
         if (res.name.endsWith('.proj.json') || res.name.endsWith('.json')) ProjectIO.load(app, file);
+        // ★追加2: Google Drive 読込時も bpXXXhYYY なら平面定義画像として読込
+        else if (/bp\d{3}h\d{3}/i.test(res.name) && app.aircraftCtrl) await app.aircraftCtrl.loadPlanFromFile(file);
         else if (res.name.includes('mask') || res.name.includes('paint')) app.loadMaskFromFile(file);
         else app.loadBaseFromFile(file);
       }

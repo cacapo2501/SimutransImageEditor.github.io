@@ -1,4 +1,5 @@
 import { exportPaletteToFile, importPaletteFromFile } from './paint-palette-ui.js';
+import { exportPaletteToFile, importPaletteFromFile, generateAircraftHeightRamp } from './paint-palette-ui.js';
 
 export class PaintInputController {
   constructor(editor) {
@@ -113,6 +114,19 @@ export class PaintInputController {
     bindClick('btn-open-image-sampler', () => ed.dialogs.openSamplerModal());
     bindClick('btn-open-color-replace', () => ed.dialogs.openColorReplaceDialog());
     bindClick('btn-paint-keybindings', () => ed.dialogs.openKeybindingDialog());
+
+    bindClick('btn-add-aircraft-custom-color', async () => {
+      const picked = await ed.app.colorPicker.open(ed.currentColor || '#FF0000');
+      if (picked && ed.app.aircraftCtrl) {
+        const up = picked.toUpperCase();
+        const ac = ed.app.aircraftCtrl;
+        if (!ac.planPalette) ac.planPalette = [];
+        if (!ac.planPalette.includes(up)) ac.planPalette.push(up);
+        ed.currentColor = up;
+        ed._renderPaletteUI();
+      }
+    });
+    bindClick('btn-gen-aircraft-height-ramp', () => generateAircraftHeightRamp(ed));
 
     this._bindViewportPointerAndTouch();
     this._bindKeyboardShortcuts();

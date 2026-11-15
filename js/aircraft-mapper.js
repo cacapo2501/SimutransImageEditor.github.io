@@ -1,5 +1,6 @@
 import { computeAircraftShade, buildShadeColorConfig, assignPartMaskColors, fillQuad2D } from './aircraft-3d-shade.js';
 import { extractChromaticGroups, classifyAircraftGroups, buildGroup3DMeshes } from './aircraft-3d-groups.js';
+import { loadImageAsync } from './project-io.js';
 
 export function parseAircraftParamsFromName(filename) {
   if (!filename) return null;
@@ -24,7 +25,6 @@ function getSlotForDegree(degree) {
   return 7; // 90 deg
 }
 
-// 従来のR/G/B単色高さプロット（無彩色入力時の互換フォールバック）
 function mapLegacyMonochromeFallback(srcData, imgW, imgH, length, height, sqrtCoeff, outBase, outMask, outW, outH) {
   const pixelLen = Math.pow(length / 96, sqrtCoeff) * 96;
   const pixelH = Math.pow(height / 96, sqrtCoeff) * 96;
@@ -73,7 +73,6 @@ function mapLegacyMonochromeFallback(srcData, imgW, imgH, length, height, sqrtCo
   }
 }
 
-// 飛行機の平面図を8方向へ3D展開（ベース画像＋マスク画像を同時生成）
 export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
   const imgW = srcImg.naturalWidth || srcImg.width;
   const imgH = srcImg.naturalHeight || srcImg.height;
@@ -106,7 +105,6 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
   const maskImgData = maskCtx.createImageData(outW, outH);
   const maskData = maskImgData.data;
 
-  // 背景色 #E7FFFF で初期化
   for (let i = 0; i < outW * outH; i++) {
     const idx = i * 4;
     baseData[idx] = 231; baseData[idx + 1] = 255; baseData[idx + 2] = 255; baseData[idx + 3] = 255;
@@ -116,7 +114,6 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
   const pixelLength = Math.pow(length / 96, sqrtCoeff) * 96;
   const pixelHeight = Math.pow(height / 96, sqrtCoeff) * 96;
 
-  // 1. 色相＆8近傍連結による部品グループ化
   const groups = extractChromaticGroups(srcData, imgW, imgH);
   if (groups.length === 0) {
     mapLegacyMonochromeFallback(srcData, imgW, imgH, length, height, sqrtCoeff, baseData, maskData, outW, outH);
@@ -125,12 +122,10 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
     return { baseCanvas, maskCanvas, groupCount: 0, summary: '単色モード展開' };
   }
 
-  // 2. 4分類（垂直尾翼 / 主翼・水平尾翼 / 胴体 / エンジン）＆ 3Dメッシュ構築 ＆ マスク着色
   classifyAircraftGroups(groups, imgW, imgH, pixelLength, pixelHeight);
   buildGroup3DMeshes(groups, imgW, imgH, pixelLength, pixelHeight);
   assignPartMaskColors(groups);
 
-  // 3. 8方向ごとに上側（奥側）グループから手前側グループ順に塗りつぶし（上書き可）
   for (let deg = 0; deg < 360; deg += 45) {
     const rad = (deg * Math.PI) / 180;
     const cos = Math.cos(rad);
@@ -168,7 +163,6 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
         return { pts2d, grayVal, depth: qDepth / 4 };
       });
 
-      // 奥側にあるポリゴンから手前側ポリゴンの順にソート
       projQuads.sort((a, b) => a.depth - b.depth);
 
       return {
@@ -179,7 +173,6 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
       };
     });
 
-    // 画像の上側（奥側: avgDepth 小 / minScreenY 小）のグループから順に描画して手前で上書き
     projectedGroups.sort((a, b) => (a.avgDepth - b.avgDepth) || (a.minScreenY - b.minScreenY));
 
     for (const pg of projectedGroups) {
@@ -201,13 +194,30 @@ export function mapAircraftPlanTo8Dirs(srcImg, rawOpts = {}) {
 }
 
 export class AircraftMapperController {
-  constructor(app) {
+  constructor(app, pickFileFn) {
     this.app = app;
+    this.pickFileFn = pickFileFn;
+    this.planCanvas = null;
+    this.planName = 'bp395h125_aircraft.png';
   }
 
   bindEvents() {
-    const btnRun = document.getElementById('btn-aircraft-map');
-    if (btnRun) btnRun.onclick = () => this.applyToBase();
+    document.getElementById('btn-aircraft-load-plan')?.addEventListener('click', async () => {
+      const f = await this.pickFileFn('.png');
+      if (f) await this.loadPlanFromFile(f);
+    });
+    document.getElementById('btn-aircraft-new-plan')?.addEventListener('click', () => {
+      this.createNewPlan(64, 64, true);
+    });
+    document.getElementById('btn-aircraft-edit-plan')?.addEventListener('click', () => {
+      this.openPlanInPaintEditor();
+    });
+    document.getElementById('btn-aircraft-save-plan')?.addEventListener('click', () => {
+      this.savePlanPng();
+    });
+    document.getElementById('btn-aircraft-map')?.addEventListener('click', () => {
+      this.generate8Dirs();
+    });
   }
 
   syncParamsFromFilename(filename) {
@@ -219,10 +229,69 @@ export class AircraftMapperController {
     if (inpH) inpH.value = parsed.height.toFixed(1);
   }
 
-  applyToBase() {
+  setPlanCanvas(canvas, name = null) {
+    this.planCanvas = canvas;
+    if (name) {
+      this.planName = name;
+      this.syncParamsFromFilename(name);
+    }
+    const info = document.getElementById('lbl-aircraft-plan-info');
+    if (info && this.planCanvas) {
+      info.textContent = `平面定義画像: ${this.planName} (${this.planCanvas.width}×${this.planCanvas.height}px)`;
+    }
+  }
+
+  async loadPlanFromFile(file) {
+    if (!file) return;
+    const img = await loadImageAsync(URL.createObjectURL(file));
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0);
+    this.setPlanCanvas(c, file.name);
+  }
+
+  createNewPlan(w = 64, h = 64, openPaint = true) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, w, h);
+    this.setPlanCanvas(c, 'bp395h125_new_plan.png');
+    if (openPaint) {
+      this.openPlanInPaintEditor();
+    }
+  }
+
+  openPlanInPaintEditor() {
+    if (!this.planCanvas) {
+      this.createNewPlan(64, 64, false);
+    }
+    this.app.paintEditor.open('aircraftPlan');
+  }
+
+  savePlanPng() {
+    if (!this.planCanvas) {
+      alert('保存する平面定義画像が読み込まれていません。');
+      return;
+    }
+    this.planCanvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = this.planName.toLowerCase().endsWith('.png') ? this.planName : `${this.planName}.png`;
+      a.click();
+    }, 'image/png');
+  }
+
+  generate8Dirs() {
     const app = this.app;
-    if (!app.baseImage) {
-      alert('先にベース画像（飛行機平面図PNG）を読み込んでください。');
+    if (!this.planCanvas) {
+      alert('先に「📂 平面定義画像を開く」または「🆕 新規平面図」から平面定義画像を用意してください。');
       return;
     }
 
@@ -236,8 +305,8 @@ export class AircraftMapperController {
       sunColor: document.getElementById('inp-aircraft-col-sun')?.value || '#FFFFFF'
     };
 
-    const { baseCanvas, maskCanvas, summary } = mapAircraftPlanTo8Dirs(app.baseImage, opts);
-    const baseOutName = app.baseName
+    const { baseCanvas, maskCanvas, summary } = mapAircraftPlanTo8Dirs(this.planCanvas, opts);
+    const baseOutName = this.planName
       .replace(/^bp\d{3}h\d{3}_/i, '')
       .replace(/\.png$/i, '_def.png');
     const maskOutName = baseOutName.replace(/_def\.png$/i, '_paint.png');

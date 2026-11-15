@@ -101,7 +101,7 @@ class AdvancedMultiplyApp {
     this.deftileBuilder = new DeftileBuilder(this, safePickFile);
     this.imageIOCtrl = new ImageIOController(this, safePickFile);
     this.vehicleCtrl = new VehicleLayoutController(this);
-    this.aircraftCtrl = new AircraftMapperController(this);
+    this.aircraftCtrl = new AircraftMapperController(this, safePickFile);
     this.gradientCtrl = new GradientGeneratorController(this);
     this.citycarCtrl = new CityCarLayoutController(this);
 
@@ -161,9 +161,6 @@ class AdvancedMultiplyApp {
     }
     if (this.vehicleCtrl) {
       this.vehicleCtrl.syncLengthFromFilename(name);
-    }
-    if (this.aircraftCtrl) {
-      this.aircraftCtrl.syncParamsFromFilename(name);
     }
     MaskGenerator.analyzeBaseImage(this, img, name);
     if (!this.maskImage) {

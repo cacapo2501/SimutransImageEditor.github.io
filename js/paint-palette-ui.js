@@ -1,5 +1,26 @@
+import { rgbToHsv, hsvToHex } from './color-utils.js';
+
+const DEFAULT_AIRCRAFT_PALETTE = [
+  '#FF0000', // 胴体用 (Hue 0)
+  '#00E600', // 主翼用 (Hue 120)
+  '#0044FF', // 垂直尾翼用 (Hue 224)
+  '#E6E600', // 水平尾翼用 (Hue 60)
+  '#E600E6', // エンジン用 (Hue 300)
+  '#00D4E6'  // その他部品用 (Hue 185)
+];
+
 export function getCurrentPaletteColors(editor) {
   const pm = editor.app.paletteManager;
+  if (editor.targetType === 'aircraftPlan') {
+    const ac = editor.app.aircraftCtrl;
+    if (ac) {
+      if (!ac.planPalette || ac.planPalette.length === 0) {
+        ac.planPalette = [...DEFAULT_AIRCRAFT_PALETTE];
+      }
+      return [...ac.planPalette];
+    }
+    return [...DEFAULT_AIRCRAFT_PALETTE];
+  }
   if (editor.targetType === 'deftile') {
     if (editor.customDeftilePalette && editor.customDeftilePalette.length > 0) {
       return [...editor.customDeftilePalette];
@@ -24,6 +45,33 @@ export function getCurrentPaletteColors(editor) {
   return [...pm.maskPalette];
 }
 
+export function generateAircraftHeightRamp(editor) {
+  if (editor.targetType !== 'aircraftPlan') return;
+  const ac = editor.app.aircraftCtrl;
+  if (!ac) return;
+
+  const cur = editor.currentColor || '#FF0000';
+  const r = parseInt(cur.slice(1, 3), 16) || 0;
+  const g = parseInt(cur.slice(3, 5), 16) || 0;
+  const b = parseInt(cur.slice(5, 7), 16) || 0;
+  const [h, s] = rgbToHsv(r, g, b);
+  const useS = s >= 15 ? s : 90;
+
+  const ramp = [];
+  for (let v = 100; v >= 10; v -= 10) {
+    const hex = hsvToHex(h, useS, v);
+    if (!ramp.includes(hex)) ramp.push(hex);
+  }
+
+  const merged = [...ramp];
+  (ac.planPalette || []).forEach(c => {
+    if (!merged.includes(c)) merged.push(c);
+  });
+  ac.planPalette = merged;
+  renderEditorPaletteUI(editor);
+  editor._showHint(`🌈 色相 H=${h}° の高さ(明度 100%〜10%)段階パレットを生成しました`);
+}
+
 export function renderEditorPaletteUI(editor) {
   const container = document.getElementById('paint-palette-slots');
   const emptyMsg = document.getElementById('paint-palette-empty-msg');
@@ -33,14 +81,11 @@ export function renderEditorPaletteUI(editor) {
   const pm = editor.app.paletteManager;
   const baseTools = document.getElementById('base-palette-tools');
   const maskTools = document.getElementById('mask-palette-tools');
+  const aircraftTools = document.getElementById('aircraft-palette-tools');
 
-  if (editor.targetType === 'mask') {
-    if (baseTools) baseTools.style.display = 'none';
-    if (maskTools) maskTools.style.display = 'block';
-  } else {
-    if (baseTools) baseTools.style.display = 'block';
-    if (maskTools) maskTools.style.display = 'none';
-  }
+  if (baseTools) baseTools.style.display = (editor.targetType === 'base' || editor.targetType === 'deftile') ? 'block' : 'none';
+  if (maskTools) maskTools.style.display = editor.targetType === 'mask' ? 'block' : 'none';
+  if (aircraftTools) aircraftTools.style.display = editor.targetType === 'aircraftPlan' ? 'block' : 'none';
 
   const colors = getCurrentPaletteColors(editor);
   if (emptyMsg) emptyMsg.style.display = colors.length === 0 ? 'block' : 'none';
@@ -55,7 +100,13 @@ export function renderEditorPaletteUI(editor) {
     btn.style.backgroundColor = hex;
 
     const isEditable = idx < editableLimit;
-    if (editor.targetType === 'deftile') {
+    if (editor.targetType === 'aircraftPlan') {
+      const r = parseInt(hex.slice(1, 3), 16) || 0;
+      const g = parseInt(hex.slice(3, 5), 16) || 0;
+      const b = parseInt(hex.slice(5, 7), 16) || 0;
+      const [h, , v] = rgbToHsv(r, g, b);
+      btn.title = `${hex} (色相H=${h}° / 高さV=${v}% | ダブルクリック・長タップで編集 / 右クリックで削除)`;
+    } else if (editor.targetType === 'deftile') {
       const val = parseInt(hex.slice(1, 3), 16);
       const fl = ((val / 255) * maxFloors).toFixed(1);
       btn.title = `${hex} (${fl}階相当 / ダブルクリック・長タップで編集)`;
@@ -69,14 +120,18 @@ export function renderEditorPaletteUI(editor) {
       if (!isEditable) return;
       const picked = await editor.app.colorPicker.open(hex);
       if (!picked) return;
-      if (editor.targetType === 'deftile') {
+      const up = picked.toUpperCase();
+      if (editor.targetType === 'aircraftPlan') {
+        const ac = editor.app.aircraftCtrl;
+        if (ac && ac.planPalette) ac.planPalette[idx] = up;
+      } else if (editor.targetType === 'deftile') {
         const list = getCurrentPaletteColors(editor);
-        list[idx] = picked.toUpperCase();
+        list[idx] = up;
         editor.customDeftilePalette = list;
       } else {
-        pm.updatePaletteColorAt(editor.targetType, idx, picked);
+        pm.updatePaletteColorAt(editor.targetType, idx, up);
       }
-      editor.currentColor = picked.toUpperCase();
+      editor.currentColor = up;
       renderEditorPaletteUI(editor);
     };
 
@@ -88,12 +143,8 @@ export function renderEditorPaletteUI(editor) {
     let pressTimer = null;
     let longPressed = false;
     let startPos = [0, 0];
-
     const cancelPress = () => {
-      if (pressTimer) {
-        clearTimeout(pressTimer);
-        pressTimer = null;
-      }
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
     };
 
     btn.addEventListener('pointerdown', (e) => {
@@ -101,38 +152,30 @@ export function renderEditorPaletteUI(editor) {
       longPressed = false;
       startPos = [e.clientX, e.clientY];
       cancelPress();
-      pressTimer = setTimeout(() => {
-        longPressed = true;
-        openColorEdit();
-      }, 500);
+      pressTimer = setTimeout(() => { longPressed = true; openColorEdit(); }, 500);
     });
-
     btn.addEventListener('pointermove', (e) => {
-      if (!pressTimer) return;
-      if (Math.hypot(e.clientX - startPos[0], e.clientY - startPos[1]) > 8) {
-        cancelPress();
-      }
+      if (pressTimer && Math.hypot(e.clientX - startPos[0], e.clientY - startPos[1]) > 8) cancelPress();
     });
-
     btn.addEventListener('pointerup', cancelPress);
     btn.addEventListener('pointercancel', cancelPress);
     btn.addEventListener('pointerleave', cancelPress);
 
     btn.onclick = (e) => {
-      if (longPressed) {
-        longPressed = false;
-        e.preventDefault();
-        return;
-      }
+      if (longPressed) { longPressed = false; e.preventDefault(); return; }
       editor.currentColor = hex;
       updateEditorCurrentColorUI(editor);
     };
 
-    if (editor.targetType === 'mask') {
+    if (editor.targetType === 'mask' || editor.targetType === 'aircraftPlan') {
       btn.oncontextmenu = (e) => {
         e.preventDefault();
-        if (confirm(`マスクパレットから色 ${hex} を削除しますか？`)) {
-          pm.removeColorFromMaskPalette(hex);
+        if (confirm(`パレットから色 ${hex} を削除しますか？`)) {
+          if (editor.targetType === 'mask') {
+            pm.removeColorFromMaskPalette(hex);
+          } else if (editor.app.aircraftCtrl) {
+            editor.app.aircraftCtrl.planPalette = editor.app.aircraftCtrl.planPalette.filter(c => c !== hex);
+          }
           renderEditorPaletteUI(editor);
         }
       };
@@ -200,12 +243,20 @@ export function importPaletteFromFile(editor) {
 
         const applyImport = (mode) => {
           const pm = editor.app.paletteManager;
-          if (editor.targetType === 'deftile') {
-            if (mode === 'replace') {
-              editor.customDeftilePalette = [...validColors];
-            } else {
-              const cur = getCurrentPaletteColors(editor);
-              const merged = [...cur];
+          if (editor.targetType === 'aircraftPlan') {
+            const ac = editor.app.aircraftCtrl;
+            if (ac) {
+              if (mode === 'replace') ac.planPalette = [...validColors];
+              else {
+                const merged = [...(ac.planPalette || [])];
+                validColors.forEach(c => { if (!merged.includes(c)) merged.push(c); });
+                ac.planPalette = merged;
+              }
+            }
+          } else if (editor.targetType === 'deftile') {
+            if (mode === 'replace') editor.customDeftilePalette = [...validColors];
+            else {
+              const merged = [...getCurrentPaletteColors(editor)];
               validColors.forEach(c => { if (!merged.includes(c)) merged.push(c); });
               editor.customDeftilePalette = merged;
             }

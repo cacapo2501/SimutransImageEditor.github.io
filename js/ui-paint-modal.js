@@ -147,14 +147,14 @@ export function renderPaintModalUI() {
               <button id="btn-gen-base-palette" class="w-100 mt-05">パレット再生成 (SpecialColor回避)</button>
             </fieldset>
 
-            <fieldset class="sub-panel" id="mask-palette-tools" style="display:none;">
-              <legend>マスクパレット設定</legend>
-              <div class="btn-group">
-                <button id="btn-add-mask-custom-color" class="btn-primary">＋ 任意色を追加</button>
-                <button id="btn-open-image-sampler">🖼️ 画像からスポイト</button>
+            <fieldset class="sub-panel" id="aircraft-palette-tools" style="display:none;">
+              <legend>✈️ 平面定義図パレット設定</legend>
+              <p class="desc-text">色相(H)＝部品グループ、明度(V)＝高さ(100%=全高, 0%=0m)</p>
+              <div class="btn-group mt-05">
+                <button id="btn-add-aircraft-custom-color" class="btn-primary">＋ 任意色追加</button>
+                <button id="btn-gen-aircraft-height-ramp" class="btn-primary" title="現在選択中の色の色相で高さ(明度)段階パレットを生成">🌈 高さ段階生成</button>
               </div>
-              <button id="btn-paint-regen-mask" class="w-100 mt-05" title="現在のベース画像からマスク画像を再生成してキャンバスへ反映します">🔄 ベースからマスク再生成</button>
-              <span class="info-text">※右クリックでパレットから色を削除</span>
+              <span class="info-text">※白(#FFFFFF)は余白扱い / 右クリックで削除</span>
             </fieldset>
 
             <fieldset class="sub-panel">

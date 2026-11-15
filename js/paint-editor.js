@@ -14,7 +14,7 @@ import { renderDeftileModalUI } from './ui-deftile-modal.js';
 export class PaintEditor {
   constructor(app) {
     this.app = app;
-    this.targetType = 'base';
+    this.targetType = 'base'; // 'base' | 'mask' | 'deftile' | 'aircraftPlan'
     this.width = 0;
     this.height = 0;
     this.initialized = false;
@@ -141,6 +141,7 @@ export class PaintEditor {
     if (targetType === 'base') srcImg = this.app.baseImage;
     else if (targetType === 'mask') srcImg = this.app.maskImage;
     else if (targetType === 'deftile') srcImg = this.app.deftileBuilder?.deftileCanvas;
+    else if (targetType === 'aircraftPlan') srcImg = this.app.aircraftCtrl?.planCanvas;
 
     if (!srcImg) {
       alert('編集対象の画像が読み込まれていません。');
@@ -221,6 +222,12 @@ export class PaintEditor {
 
     if (this.targetType === 'deftile') {
       this.app.deftileBuilder.setDeftileCanvas(outCanvas);
+      this.modal.close();
+      return;
+    }
+
+    if (this.targetType === 'aircraftPlan') {
+      this.app.aircraftCtrl.setPlanCanvas(outCanvas);
       this.modal.close();
       return;
     }

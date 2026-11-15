@@ -255,11 +255,21 @@ export function renderSidebarUI() {
       </div>
     </details>
 
-    <!-- セクション6: 飛行機平面図 8方向展開 (ベース・マスク自動生成) -->
+    <!-- セクション6: 飛行機平面図 8方向展開 (平面定義画像の直接読込・事前編集対応) -->
     <details class="accordion-panel">
       <summary>✈️ 飛行機平面図 8方向展開 (3D分類・マスク生成)</summary>
       <div class="panel-body">
-        <p class="desc-text">有彩色(色相=部品グループ, 明度=高さ0m〜全高)を4部品に自動分類し、ベース画像とマスク画像(768×96px)を同時生成します。</p>
+        <p class="desc-text">平面定義画像を直接読み込み・編集してから、8方向(768×96px)のベース画像＆マスク画像を生成します。</p>
+        <div class="btn-group">
+          <button id="btn-aircraft-load-plan" class="btn-primary">📂 平面定義画像を開く</button>
+          <button id="btn-aircraft-new-plan">🆕 新規平面図</button>
+        </div>
+        <div class="btn-group mt-05">
+          <button id="btn-aircraft-edit-plan" class="btn-primary">✏️ 平面定義画像を編集</button>
+          <button id="btn-aircraft-save-plan">💾 平面図保存</button>
+        </div>
+        <div class="info-text" id="lbl-aircraft-plan-info">平面定義画像: 未読込</div>
+
         <div class="row mt-05">
           <label style="min-width: 65px;">全長 (m):</label>
           <input type="number" id="inp-aircraft-length" value="39.5" step="0.1" min="1" max="200" style="background:#1e1e1e; border:1px solid #444; color:#eee; padding:3px 6px;">
