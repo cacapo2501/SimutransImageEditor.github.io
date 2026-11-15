@@ -1,5 +1,19 @@
 import { getSelectionBounds, flipEditorTransform } from './paint-flip.js';
 
+function loadImageFromFileReliable(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('画像データのデコードに失敗しました。'));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error('ファイルの読み込みに失敗しました。'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export class PaintClipboardManager {
   constructor(editor) {
     this.editor = editor;
@@ -198,15 +212,27 @@ export class PaintClipboardManager {
   }
 
   importExternalImage() {
-    const ed = this.editor;
     const inp = document.createElement('input');
     inp.type = 'file';
-    inp.accept = 'image/*';
-    inp.onchange = async () => {
-      if (!inp.files || !inp.files[0]) return;
-      const file = inp.files[0];
+    inp.accept = 'image/png,image/jpeg,image/gif,image/webp,image/*';
+    inp.style.position = 'fixed';
+    inp.style.left = '-9999px';
+    inp.style.opacity = '0';
+
+    const host = this.editor.modal || document.body;
+    host.appendChild(inp);
+
+    const cleanup = () => {
+      if (inp.parentNode) inp.parentNode.removeChild(inp);
+    };
+
+    inp.addEventListener('change', async () => {
+      const file = inp.files && inp.files[0];
+      cleanup();
+      if (!file) return;
+
       try {
-        const img = await ed.app.paletteManager.loadImageSafely(file);
+        const img = await loadImageFromFileReliable(file);
         const w = img.naturalWidth || img.width;
         const h = img.naturalHeight || img.height;
         const c = document.createElement('canvas');
@@ -231,9 +257,10 @@ export class PaintClipboardManager {
 
         this._placeImportedCanvas(c, file.name, null);
       } catch (err) {
-        alert('画像の読み込みに失敗しました: ' + err);
+        alert('画像の読み込みに失敗しました: ' + (err.message || err));
       }
-    };
+    });
+
     inp.click();
   }
 
