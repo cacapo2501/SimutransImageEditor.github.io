@@ -347,6 +347,9 @@ class AdvancedMultiplyApp {
 
   toggleEyedropper() {
     this.isEyedropper = !this.isEyedropper;
+    const cur = this.isEyedropper ? 'crosshair' : 'default';
+    if (this.viewport) this.viewport.style.cursor = cur;
+    if (this.canvas) this.canvas.style.cursor = cur;
     document.getElementById('btn-eyedropper').textContent = this.isEyedropper ? '❌ スポイト中止 (プレビューに戻る)' : '🎯 スポイトで選択 (マスク画像を表示)';
     document.getElementById('status-bar').textContent = this.isEyedropper ? '【マスク画像表示中】適用したい色をクリックまたはタップしてください (Escでキャンセル)' : '準備完了 | スポイト: OFF';
     this.render();
