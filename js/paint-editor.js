@@ -13,7 +13,7 @@ import { renderDeftileModalUI } from './ui-deftile-modal.js';
 export class PaintEditor {
   constructor(app) {
     this.app = app;
-    this.targetType = 'base'; // 'base' | 'mask' | 'deftile'
+    this.targetType = 'base';
     this.width = 0;
     this.height = 0;
     this.initialized = false;
@@ -113,6 +113,21 @@ export class PaintEditor {
     if (this.dialogs) this.dialogs.saveKeybindings();
   }
 
+  updateCursor() {
+    if (!this.viewport) return;
+    let cur = 'crosshair';
+    if (this.inputCtrl && this.inputCtrl.isPanning) {
+      cur = 'grabbing';
+    } else if (this.dialogs?.colorReplace?.pickingRuleIdx !== null) {
+      cur = 'crosshair';
+    } else {
+      cur = 'crosshair';
+    }
+    this.viewport.style.cursor = cur;
+    if (this.canvas) this.canvas.style.cursor = cur;
+    if (this.overlayCanvas) this.overlayCanvas.style.cursor = cur;
+  }
+
   open(targetType = 'base') {
     if (!this._ensureInitialized()) return;
 
@@ -161,6 +176,7 @@ export class PaintEditor {
     this._pushHistory();
 
     this._renderPaletteUI();
+    this.updateCursor();
     if (typeof this.modal.showModal === 'function') {
       this.modal.showModal();
     } else {
@@ -320,6 +336,7 @@ export class PaintEditor {
   }
 
   _updateStatus() {
+    this.updateCursor();
     const modeNames = {
       replace: '新規',
       add: '＋追加',
