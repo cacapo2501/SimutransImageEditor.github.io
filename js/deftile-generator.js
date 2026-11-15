@@ -3,15 +3,13 @@ import { hexToRgb } from './color-utils.js';
 export function getBuildingOutputSize(w, h, maxFloors, pixelHeight, layoutMode = '4dir') {
   const minSide = Math.max(1, Math.min(w, h));
   const unit = minSide * 4;
-  const rawSingleW = w * 2 + h * 2;
+  // 幅は元の計算式 (w * 2 + h * 2) のまま維持し、高さのみ短い辺の4倍の倍数にする
+  const singleW = w * 2 + h * 2;
   const rawSingleH = Math.max(1, maxFloors * pixelHeight + w + h - 1);
-
-  const singleW = Math.ceil(rawSingleW / unit) * unit;
   const singleH = Math.ceil(rawSingleH / unit) * unit;
 
   return {
     unit,
-    rawSingleW,
     rawSingleH,
     singleW,
     singleH,
