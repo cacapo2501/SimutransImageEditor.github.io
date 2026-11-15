@@ -28,6 +28,12 @@ export class PaintInputController {
         ed.rectFillStart = null;
         ed.selStart = null;
         ed.polyPoints = [];
+
+        if (ed.currentTool === 'hand') {
+          ed.selectionMask = null;
+          if (ed.selMover) ed.selMover.reset();
+        }
+
         ed._drawOverlay();
         ed._updateStatus();
       };
@@ -64,6 +70,7 @@ export class PaintInputController {
     bindClick('btn-paint-clear-sel', () => {
       ed.selectionMask = null;
       ed.polyPoints = [];
+      if (ed.selMover) ed.selMover.reset();
       ed._drawOverlay();
       ed._updateStatus();
     });
@@ -128,7 +135,6 @@ export class PaintInputController {
     const ed = this.editor;
     const vp = ed.viewport;
 
-    // キャンバス上での右クリックメニュー表示を禁止
     vp.addEventListener('contextmenu', (e) => e.preventDefault());
     if (ed.canvas) ed.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     if (ed.overlayCanvas) ed.overlayCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -156,7 +162,7 @@ export class PaintInputController {
     };
 
     vp.onmousedown = (e) => {
-      if (e.button === 1 || e.button === 2 || e.spaceKey) {
+      if (e.button === 1 || e.button === 2 || e.spaceKey || (ed.currentTool === 'hand' && e.button === 0)) {
         this.isPanning = true;
         this.panStart = [e.clientX - ed.panX, e.clientY - ed.panY];
         ed.updateCursor();
@@ -191,6 +197,7 @@ export class PaintInputController {
       if (this.isPanning) {
         this.isPanning = false;
         ed.updateCursor();
+        return;
       }
       const { px, py } = getPixelCoords(e.clientX, e.clientY);
       ed._handlePointerUp(px, py);
@@ -201,9 +208,15 @@ export class PaintInputController {
       e.preventDefault();
       if (e.touches.length === 1) {
         const t = e.touches[0];
+        if (ed.currentTool === 'hand') {
+          this.isPanning = true;
+          this.panStart = [t.clientX - ed.panX, t.clientY - ed.panY];
+          return;
+        }
         const { px, py } = getPixelCoords(t.clientX, t.clientY);
         ed._handlePointerDown(px, py);
       } else if (e.touches.length === 2) {
+        this.isPanning = false;
         ed.isDrawing = false;
         ed.clipMgr.isDraggingFloating = false;
         if (ed.onionSkinMgr) ed.onionSkinMgr.isDragging = false;
@@ -221,6 +234,12 @@ export class PaintInputController {
       e.preventDefault();
       if (e.touches.length === 1) {
         const t = e.touches[0];
+        if (this.isPanning) {
+          ed.panX = t.clientX - this.panStart[0];
+          ed.panY = t.clientY - this.panStart[1];
+          ed._updateTransform();
+          return;
+        }
         const { px, py } = getPixelCoords(t.clientX, t.clientY);
         const coordLbl = document.getElementById('paint-lbl-coord');
         if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py} (${ed.width}×${ed.height})`;
@@ -244,6 +263,11 @@ export class PaintInputController {
     vp.addEventListener('touchend', (e) => {
       if (!ed.modal || !ed.modal.open) return;
       if (e.touches.length === 0) {
+        if (this.isPanning) {
+          this.isPanning = false;
+          this.touchStartDist = null;
+          return;
+        }
         const t = e.changedTouches[0];
         const { px, py } = getPixelCoords(t.clientX, t.clientY);
         ed._handlePointerUp(px, py);
@@ -269,6 +293,13 @@ export class PaintInputController {
 
       if (ed.clipMgr.handleKeyDown(e)) return;
 
+      if (ed.currentTool === 'moveSel' && ed.selectionMask && ed.selMover) {
+        if (e.code === 'ArrowUp') { e.preventDefault(); ed.selMover.nudge(0, -1); return; }
+        if (e.code === 'ArrowDown') { e.preventDefault(); ed.selMover.nudge(0, 1); return; }
+        if (e.code === 'ArrowLeft') { e.preventDefault(); ed.selMover.nudge(-1, 0); return; }
+        if (e.code === 'ArrowRight') { e.preventDefault(); ed.selMover.nudge(1, 0); return; }
+      }
+
       if (e.code === 'Enter' && ed.currentTool === 'polySelect' && ed.polyPoints.length >= 3) {
         e.preventDefault();
         ed._finalizePolySelect();
@@ -280,6 +311,7 @@ export class PaintInputController {
           ed._drawOverlay();
         } else {
           ed.selectionMask = null;
+          if (ed.selMover) ed.selMover.reset();
           ed._drawOverlay();
           ed._updateStatus();
         }
