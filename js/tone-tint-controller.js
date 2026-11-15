@@ -1,12 +1,31 @@
+import { ColorSwatchDropdown } from './color-dropdown.js';
+
 const MAX_UI_MASK_COLORS = 200;
 
 export class ToneTintController {
   constructor(app) {
     this.app = app;
     this.selectedMaskTint = null;
+    this.layerMaskDropdown = null;
+    this.toneTargetDropdown = null;
   }
 
   bindEvents() {
+    const layerMount = document.getElementById('mask-color-combo-wrap');
+    const layerHidden = document.getElementById('mask-color-combo');
+    if (layerMount) {
+      this.layerMaskDropdown = new ColorSwatchDropdown(layerMount, layerHidden);
+      this.layerMaskDropdown.setOptions([{ value: '', label: '(全体 / マスクなし)', colorHex: null }]);
+    }
+
+    const toneMount = document.getElementById('combo-tone-target-wrap');
+    const toneHidden = document.getElementById('combo-tone-target');
+    if (toneMount) {
+      this.toneTargetDropdown = new ColorSwatchDropdown(toneMount, toneHidden);
+      this.toneTargetDropdown.setOptions([{ value: '__ALL__', label: '全体 (デフォルト)', colorHex: null }]);
+      this.toneTargetDropdown.onChange((val) => this.onToneTargetChanged(val));
+    }
+
     document.getElementById('chk-enable-blur').onchange = (e) => {
       this.app.enableBlur = e.target.checked;
       this.app.markDirty();
@@ -29,8 +48,6 @@ export class ToneTintController {
         this.app.render();
       };
     });
-
-    document.getElementById('combo-tone-target').onchange = (e) => this.onToneTargetChanged(e.target.value);
 
     document.getElementById('chk-tone-override').onchange = (e) => {
       const sel = document.getElementById('combo-tone-target').value;
@@ -143,7 +160,6 @@ export class ToneTintController {
       this.app.render();
     };
 
-    // 窓色ランダム暗転（SpecialColor一部解除）イベント
     const chkWin = document.getElementById('chk-window-darken');
     const sliderWin = document.getElementById('slider-window-darken-ratio');
     const btnReroll = document.getElementById('btn-window-darken-reroll');
@@ -181,32 +197,46 @@ export class ToneTintController {
     }
   }
 
-  updateMaskCombos() {
-    const comboLayer = document.getElementById('mask-color-combo');
-    const comboTone = document.getElementById('combo-tone-target');
-    if (!comboLayer || !comboTone) return;
+  setLayerMaskValue(hex) {
+    if (!this.layerMaskDropdown) return;
+    if (!hex) {
+      this.layerMaskDropdown.setValue('');
+    } else {
+      this.layerMaskDropdown.addOptionIfMissing({
+        value: hex,
+        label: `${hex} (スポイト指定色)`,
+        colorHex: hex
+      });
+    }
+  }
 
+  updateMaskCombos() {
     const totalColors = this.app.maskColors.length;
     const displayColors = this.app.maskColors.slice(0, MAX_UI_MASK_COLORS);
 
-    const layerOpts = ['<option value="">(全体 / マスクなし)</option>'];
-    const toneOpts = ['<option value="__ALL__">全体 (デフォルト)</option>'];
+    const layerOpts = [{ value: '', label: '(全体 / マスクなし)', colorHex: null }];
+    const toneOpts = [{ value: '__ALL__', label: '全体 (デフォルト)', colorHex: null }];
 
     for (let i = 0; i < displayColors.length; i++) {
       const { hex, count } = displayColors[i];
-      const opt = `<option value="${hex}">${hex} (${count}px)</option>`;
-      layerOpts.push(opt);
-      toneOpts.push(opt);
+      const item = { value: hex, label: `${hex} (${count}px)`, colorHex: hex };
+      layerOpts.push(item);
+      toneOpts.push({ ...item });
     }
 
     if (totalColors > MAX_UI_MASK_COLORS) {
-      const note = `<option value="" disabled>--- 他 ${totalColors - MAX_UI_MASK_COLORS} 色はスポイトで選択可 ---</option>`;
+      const note = {
+        value: '__MORE__',
+        label: `--- 他 ${totalColors - MAX_UI_MASK_COLORS} 色はスポイトで選択可 ---`,
+        colorHex: null,
+        disabled: true
+      };
       layerOpts.push(note);
-      toneOpts.push(note);
+      toneOpts.push({ ...note });
     }
 
-    comboLayer.innerHTML = layerOpts.join('');
-    comboTone.innerHTML = toneOpts.join('');
+    if (this.layerMaskDropdown) this.layerMaskDropdown.setOptions(layerOpts);
+    if (this.toneTargetDropdown) this.toneTargetDropdown.setOptions(toneOpts);
   }
 
   updateTintTable() {
@@ -255,6 +285,9 @@ export class ToneTintController {
   }
 
   onToneTargetChanged(sel) {
+    if (this.toneTargetDropdown && this.toneTargetDropdown.getValue() !== sel) {
+      this.toneTargetDropdown.setValue(sel);
+    }
     const chk = document.getElementById('chk-tone-override');
     if (sel === '__ALL__') {
       chk.disabled = true;
