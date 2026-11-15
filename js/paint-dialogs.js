@@ -1,10 +1,11 @@
-import { hexToRgb, rgbToHex } from './color-utils.js';
+import { rgbToHex } from './color-utils.js';
+import { PaintColorReplaceController } from './paint-color-replace.js';
 
 export class PaintDialogs {
   constructor(editor) {
     this.editor = editor;
+    this.colorReplace = new PaintColorReplaceController(editor);
 
-    // 画像スポイトモーダル要素
     this.samplerModal = document.getElementById('modal-image-sampler');
     this.samplerCanvas = document.getElementById('sampler-canvas');
     this.samplerCtx = this.samplerCanvas.getContext('2d', { willReadFrequently: true });
@@ -18,11 +19,6 @@ export class PaintDialogs {
     this.samplerPanStart = [0, 0];
     this.samplerMouseDownPos = [0, 0];
 
-    // 色置換モーダル要素
-    this.replaceModal = document.getElementById('modal-color-replace');
-    this.replaceRules = [];
-
-    // キーバインド設定
     this.keybindings = {
       pencil: 'KeyB',
       line: 'KeyL',
@@ -38,7 +34,6 @@ export class PaintDialogs {
 
     this._loadKeybindings();
     this._bindSamplerEvents();
-    this._bindReplaceEvents();
   }
 
   _loadKeybindings() {
@@ -52,7 +47,10 @@ export class PaintDialogs {
     localStorage.setItem('paint_keybindings', JSON.stringify(this.keybindings));
   }
 
-  // --- 1. 画像スポイトモーダル ---
+  openColorReplaceDialog() {
+    this.colorReplace.openDialog();
+  }
+
   openSamplerModal() {
     this.samplerPickedColors.clear();
     this._renderSamplerPickedUI();
@@ -216,7 +214,7 @@ export class PaintDialogs {
       const b = document.createElement('span');
       b.className = 'color-swatch';
       b.style.backgroundColor = hex;
-      b.title = `${hex} (クリックで削除)`;
+      b.title = `${hex} (クリックで解除)`;
       b.style.cursor = 'pointer';
       b.onclick = () => {
         this.samplerPickedColors.delete(hex);
@@ -226,117 +224,27 @@ export class PaintDialogs {
     });
   }
 
-  // --- 2. 色置換・複数色置換モーダル ---
-  openColorReplaceDialog() {
-    this.replaceRules = [{ from: this.editor.currentColor, to: '#FFFFFF' }];
-    this._renderReplaceRulesUI();
-    this.replaceModal.showModal();
-  }
-
-  _renderReplaceRulesUI() {
-    const container = document.getElementById('replace-rules-container');
-    container.innerHTML = '';
-
-    this.replaceRules.forEach((rule, idx) => {
-      const row = document.createElement('div');
-      row.className = 'replace-rule-row';
-      row.innerHTML = `
-        <span>元:</span>
-        <button class="btn-color-pick btn-from">
-          <span class="color-swatch" style="background:${rule.from};"></span>
-          <span>${rule.from}</span>
-        </button>
-        <span class="arrow">➔</span>
-        <span>先:</span>
-        <button class="btn-color-pick btn-to">
-          <span class="color-swatch" style="background:${rule.to};"></span>
-          <span>${rule.to}</span>
-        </button>
-        <button class="btn-del-rule" style="margin-left:auto; color:#ff6b6b;">✕</button>
-      `;
-
-      row.querySelector('.btn-from').onclick = async () => {
-        const picked = await this.editor.app.colorPicker.open(rule.from);
-        if (picked) { rule.from = picked; this._renderReplaceRulesUI(); }
-      };
-
-      row.querySelector('.btn-to').onclick = async () => {
-        const picked = await this.editor.app.colorPicker.open(rule.to);
-        if (picked) { rule.to = picked; this._renderReplaceRulesUI(); }
-      };
-
-      row.querySelector('.btn-del-rule').onclick = () => {
-        if (this.replaceRules.length > 1) {
-          this.replaceRules.splice(idx, 1);
-          this._renderReplaceRulesUI();
-        }
-      };
-
-      container.appendChild(row);
-    });
-  }
-
-  _bindReplaceEvents() {
-    document.getElementById('btn-close-replace').onclick = () => this.replaceModal.close();
-    document.getElementById('btn-cancel-replace').onclick = () => this.replaceModal.close();
-
-    document.getElementById('btn-add-replace-rule').onclick = () => {
-      this.replaceRules.push({ from: '#000000', to: '#FFFFFF' });
-      this._renderReplaceRulesUI();
-    };
-
-    document.getElementById('btn-execute-replace').onclick = () => this._executeColorReplace();
-  }
-
-  _executeColorReplace() {
-    if (this.replaceRules.length === 0) return;
-
-    const ed = this.editor;
-    const selectionOnly = document.getElementById('chk-replace-selection-only').checked;
-    const mask = selectionOnly ? ed.selectionMask : null;
-
-    const preparedRules = this.replaceRules.map(r => ({
-      fromRgb: hexToRgb(r.from),
-      toRgb: hexToRgb(r.to)
-    }));
-
-    ed._pushHistory();
-    const imgData = ed.ctx.getImageData(0, 0, ed.width, ed.height);
-    const d = imgData.data;
-    let replacedCount = 0;
-
-    for (let y = 0; y < ed.height; y++) {
-      for (let x = 0; x < ed.width; x++) {
-        const pIdx = y * ed.width + x;
-        if (mask && !mask[pIdx]) continue;
-
-        const idx = pIdx * 4;
-        if (d[idx + 3] === 0) continue;
-
-        const r = d[idx], g = d[idx + 1], b = d[idx + 2];
-
-        for (const rule of preparedRules) {
-          if (r === rule.fromRgb[0] && g === rule.fromRgb[1] && b === rule.fromRgb[2]) {
-            d[idx] = rule.toRgb[0];
-            d[idx + 1] = rule.toRgb[1];
-            d[idx + 2] = rule.toRgb[2];
-            replacedCount++;
-            break;
-          }
-        }
-      }
-    }
-
-    ed.ctx.putImageData(imgData, 0, 0);
-    ed._drawOverlay();
-    this.replaceModal.close();
-    alert(`色置換が完了しました。（${replacedCount} ピクセルを置換）`);
-  }
-
-  // --- 3. キーバインド設定ダイアログ ---
   openKeybindingDialog() {
     const d = document.getElementById('modal-keybindings');
+    this._renderKeybindingTable();
+
+    const btnExport = document.getElementById('btn-export-keybindings');
+    if (btnExport) {
+      btnExport.onclick = () => this.exportKeybindingsToFile();
+    }
+
+    const btnImport = document.getElementById('btn-import-keybindings');
+    if (btnImport) {
+      btnImport.onclick = () => this.importKeybindingsFromFile();
+    }
+
+    d.showModal();
+    document.getElementById('btn-close-keybindings').onclick = () => d.close();
+  }
+
+  _renderKeybindingTable() {
     const tbody = document.querySelector('#table-keybindings tbody');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
     const labels = {
@@ -371,8 +279,57 @@ export class PaintDialogs {
         window.addEventListener('keydown', onKey, { once: true });
       };
     });
+  }
 
-    d.showModal();
-    document.getElementById('btn-close-keybindings').onclick = () => d.close();
+  exportKeybindingsToFile() {
+    const payload = {
+      type: 'simutrans_paint_keybindings',
+      version: '1.0',
+      keybindings: { ...this.keybindings }
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'paint_keybindings.json';
+    a.click();
+  }
+
+  importKeybindingsFromFile() {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.json,application/json';
+    inp.onchange = () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result);
+          const src = parsed.keybindings || parsed;
+          if (!src || typeof src !== 'object') {
+            alert('無効なキー設定ファイルです。');
+            return;
+          }
+          let updated = 0;
+          for (const key of Object.keys(this.keybindings)) {
+            if (typeof src[key] === 'string' && src[key].length > 0) {
+              this.keybindings[key] = src[key];
+              updated++;
+            }
+          }
+          if (updated === 0) {
+            alert('適用可能なキー設定項目が見つかりませんでした。');
+            return;
+          }
+          this.saveKeybindings();
+          this._renderKeybindingTable();
+          alert(`キーボード設定を読み込みました（${updated} 項目更新）。`);
+        } catch (err) {
+          alert('キー設定JSONの読み込みに失敗しました: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+    inp.click();
   }
 }
