@@ -73,7 +73,8 @@ export function renderSidebarUI() {
           <button id="btn-eyedropper" class="w-100 mt-05">🎯 スポイトで選択 (マスク画像を表示)</button>
           <div class="row mt-05">
             <label style="min-width: 75px;">一覧から選ぶ:</label>
-            <select id="mask-color-combo"><option value="">(全体 / マスクなし)</option></select>
+            <div id="mask-color-combo-wrap" style="flex:1; min-width:0;"></div>
+            <input type="hidden" id="mask-color-combo" value="">
           </div>
           <button id="btn-clear-mask" class="w-100 mt-05">マスク解除 (全体適用に戻す)</button>
         </fieldset>
@@ -141,7 +142,8 @@ export function renderSidebarUI() {
           <legend>トーン設定対象の選択</legend>
           <div class="row">
             <label style="min-width: 60px;">設定対象:</label>
-            <select id="combo-tone-target"><option value="__ALL__">全体 (デフォルト)</option></select>
+            <div id="combo-tone-target-wrap" style="flex:1; min-width:0;"></div>
+            <input type="hidden" id="combo-tone-target" value="__ALL__">
           </div>
           <label class="mt-05"><input type="checkbox" id="chk-tone-override" disabled> このマスク色の個別トーン設定を有効化</label>
         </fieldset>
