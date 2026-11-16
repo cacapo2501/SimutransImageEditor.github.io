@@ -16,6 +16,7 @@ import { VehicleLayoutController } from './vehicle-layout.js';
 import { AircraftMapperController } from './aircraft-mapper.js';
 import { GradientGeneratorController } from './gradient-generator.js';
 import { CityCarLayoutController } from './citycar-layout.js';
+import { DatGeneratorController } from './dat-generator.js';
 import { drawSimutransIsoTiles } from './paint-algorithms.js';
 import { renderSidebarUI } from './ui-sidebar.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
@@ -100,6 +101,7 @@ class AdvancedMultiplyApp {
     this.aircraftCtrl = new AircraftMapperController(this, safePickFile);
     this.gradientCtrl = new GradientGeneratorController(this);
     this.citycarCtrl = new CityCarLayoutController(this);
+    this.datGenerator = new DatGeneratorController(this, safePickFile);
 
     this._bindBaseNameEvents();
     this._bindZoomAndGuideEvents();
@@ -112,6 +114,7 @@ class AdvancedMultiplyApp {
     this.aircraftCtrl.bindEvents();
     this.gradientCtrl.bindEvents();
     this.citycarCtrl.bindEvents();
+    this.datGenerator.bindEvents();
     this.imageIOCtrl.loadDefaultSpecialColors();
     this.render();
   }
@@ -248,19 +251,6 @@ class AdvancedMultiplyApp {
   onToneTargetChanged(sel) { this.toneTintCtrl.onToneTargetChanged(sel); }
   computeFinalImage() { return RenderEngine.compute(this); }
 
-  _drawCheckerboard(x, y, w, h) {
-    const step = 8;
-    this.ctx.fillStyle = '#2A2A2A';
-    this.ctx.fillRect(x, y, w, h);
-    this.ctx.fillStyle = '#383838';
-    for (let py = y; py < y + h; py += step) {
-      const rowEven = Math.floor((py - y) / step) % 2 === 0;
-      for (let px = x + (rowEven ? 0 : step); px < x + w; px += step * 2) {
-        this.ctx.fillRect(px, py, Math.min(step, x + w - px), Math.min(step, y + h - py));
-      }
-    }
-  }
-
   render() {
     if (!this.baseW || !this.baseH) {
       this.canvas.width = this.viewport.clientWidth;
@@ -281,7 +271,7 @@ class AdvancedMultiplyApp {
     this.ctx.fillStyle = '#181818';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    this._drawCheckerboard(this.panX, this.panY, vw, vh);
+    RenderEngine.drawCheckerboard(this.ctx, this.panX, this.panY, vw, vh);
 
     let imgData;
     if (this.isEyedropper && this.maskImage) {

@@ -245,4 +245,17 @@ export class RenderEngine {
       ctx.stroke();
     });
   }
+
+  static drawCheckerboard(ctx, x, y, w, h) {
+    const step = 8;
+    ctx.fillStyle = '#2A2A2A';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#383838';
+    for (let py = y; py < y + h; py += step) {
+      const rowEven = Math.floor((py - y) / step) % 2 === 0;
+      for (let px = x + (rowEven ? 0 : step); px < x + w; px += step * 2) {
+        ctx.fillRect(px, py, Math.min(step, x + w - px), Math.min(step, y + h - py));
+      }
+    }
+  }
 }

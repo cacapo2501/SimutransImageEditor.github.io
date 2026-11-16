@@ -146,7 +146,35 @@ export function renderSidebarToolAccordions() {
       </div>
     </details>
 
-    <!-- セクション11: 特殊色・外部連携設定 -->
+    <!-- セクション11: Simutrans datファイル生成 -->
+    <details class="accordion-panel">
+      <summary>📄 datファイル生成 (makeobj用)</summary>
+      <div class="panel-body">
+        <p class="desc-text">建物・車両・CityCar・インフラ・自然物・工場等のテンプレートから pak 生成用の .dat ファイルを作成・編集します。</p>
+        <div class="row mt-05">
+          <label style="min-width: 70px;">種別:</label>
+          <select id="sel-dat-quick-obj" style="flex:1;">
+            <option value="building">建物・駅・車庫 (building)</option>
+            <option value="vehicle">車両・航空機・船舶 (vehicle)</option>
+            <option value="citycar">都市自動車 (citycar)</option>
+            <option value="way">軌道・道路 (way)</option>
+            <option value="way-object">架線・軌道設備 (way-object)</option>
+            <option value="bridge">橋梁 (bridge)</option>
+            <option value="tunnel">トンネル (tunnel)</option>
+            <option value="crossing">踏切 (crossing)</option>
+            <option value="roadsign">信号機・標識 (roadsign)</option>
+            <option value="tree">樹木 (tree)</option>
+            <option value="groundobj">地上オブジェクト (groundobj)</option>
+            <option value="factory">工場・産業 (factory)</option>
+            <option value="good">貨物定義 (good)</option>
+          </select>
+        </div>
+        <button id="btn-open-dat-generator" class="btn-primary w-100 mt-05">📝 dat生成・編集エディタを開く</button>
+        <div class="info-text" id="lbl-dat-sidebar-status">選択中: 未起動</div>
+      </div>
+    </details>
+
+    <!-- セクション12: 特殊色・外部連携設定 -->
     <details class="accordion-panel">
       <summary>特殊色・外部連携設定</summary>
       <div class="panel-body">
