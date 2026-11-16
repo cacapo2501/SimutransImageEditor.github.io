@@ -4,6 +4,7 @@ export class PaintInputController {
   constructor(editor) {
     this.editor = editor;
     this.isPanning = false;
+    this.isRightPicking = false;
     this.panStart = [0, 0];
     this.touchStartDist = null;
     this.touchStartZoom = 1.0;
@@ -18,25 +19,8 @@ export class PaintInputController {
       if (el) el.onclick = fn;
     };
 
-    document.querySelectorAll('.paint-tool-btn').forEach(btn => {
-      btn.onclick = () => {
-        if (ed.clipMgr.floatingLayer) ed.clipMgr.commitFloatingLayer();
-        document.querySelectorAll('.paint-tool-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        ed.currentTool = btn.dataset.tool;
-        ed.lineStart = null;
-        ed.rectFillStart = null;
-        ed.selStart = null;
-        ed.polyPoints = [];
-
-        if (ed.currentTool === 'hand') {
-          ed.selectionMask = null;
-          if (ed.selMover) ed.selMover.reset();
-        }
-
-        ed._drawOverlay();
-        ed._updateStatus();
-      };
+    document.querySelectorAll('#paint-toolbar .paint-tool-btn[data-tool]').forEach(btn => {
+      btn.onclick = () => ed.selectTool(btn.dataset.tool);
     });
 
     document.querySelectorAll('.sel-mode-btn').forEach(btn => {
@@ -62,7 +46,6 @@ export class PaintInputController {
     bindClick('btn-import-palette', () => importPaletteFromFile(ed));
     bindClick('btn-open-palette-blend', () => ed.dialogs.openPaletteBlendDialog());
 
-    // 平面定義図パレット専用ボタン
     bindClick('btn-add-aircraft-custom-color', async () => {
       const picked = await ed.app.colorPicker.open(ed.currentColor || '#FF0000');
       if (picked && ed.app.aircraftCtrl) {
@@ -192,13 +175,22 @@ export class PaintInputController {
     };
 
     vp.onmousedown = (e) => {
-      if (e.button === 1 || e.button === 2 || e.spaceKey || (ed.currentTool === 'hand' && e.button === 0)) {
+      const { px, py } = getPixelCoords(e.clientX, e.clientY);
+
+      // 描画系ツール使用時は右クリックをスポイトにする
+      if (e.button === 2 && ed.isDrawingTool() && !ed.dialogs?.colorReplace?.isPicking()) {
+        this.isRightPicking = true;
+        ed.toolHandler.pickColorAt(px, py);
+        return;
+      }
+
+      const isReplaceHand = ed.dialogs?.colorReplace?.isHandMode();
+      if (e.button === 1 || e.button === 2 || e.spaceKey || ((ed.currentTool === 'hand' || isReplaceHand) && e.button === 0)) {
         this.isPanning = true;
         this.panStart = [e.clientX - ed.panX, e.clientY - ed.panY];
         ed.updateCursor();
         return;
       }
-      const { px, py } = getPixelCoords(e.clientX, e.clientY);
       ed._handlePointerDown(px, py);
     };
 
@@ -220,10 +212,15 @@ export class PaintInputController {
       const { px, py } = getPixelCoords(e.clientX, e.clientY);
       const coordLbl = document.getElementById('paint-lbl-coord');
       if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py} (${ed.width}×${ed.height})`;
+      if (this.isRightPicking) return;
       ed._handlePointerMove(px, py);
     });
 
     window.addEventListener('mouseup', (e) => {
+      if (this.isRightPicking) {
+        this.isRightPicking = false;
+        return;
+      }
       if (this.isPanning) {
         this.isPanning = false;
         ed.updateCursor();
@@ -238,7 +235,8 @@ export class PaintInputController {
       e.preventDefault();
       if (e.touches.length === 1) {
         const t = e.touches[0];
-        if (ed.currentTool === 'hand') {
+        const isReplaceHand = ed.dialogs?.colorReplace?.isHandMode();
+        if (ed.currentTool === 'hand' || isReplaceHand) {
           this.isPanning = true;
           this.panStart = [t.clientX - ed.panX, t.clientY - ed.panY];
           return;
@@ -312,8 +310,9 @@ export class PaintInputController {
       if (!ed.modal || !ed.modal.open) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-      if (e.code === 'Escape' && ed.dialogs?.colorReplace?.cancelCanvasPick()) {
-        return;
+      if (ed.dialogs?.colorReplace?.isPicking()) {
+        if (e.code === 'Escape') { e.preventDefault(); ed.dialogs.colorReplace.cancelCanvasPick(); return; }
+        if (e.code === 'Enter') { e.preventDefault(); ed.dialogs.colorReplace.confirmCanvasPick(); return; }
       }
 
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') { e.preventDefault(); ed.clipMgr.copySelection(); return; }
@@ -350,8 +349,7 @@ export class PaintInputController {
 
       for (const [tool, code] of Object.entries(ed.dialogs.keybindings)) {
         if (e.code === code) {
-          const btn = document.querySelector(`.paint-tool-btn[data-tool="${tool}"]`);
-          if (btn) btn.click();
+          ed.selectTool(tool);
           break;
         }
       }
