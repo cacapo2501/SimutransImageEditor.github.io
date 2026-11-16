@@ -8,7 +8,17 @@ export class PaintColorReplaceController {
     this.replaceModal = document.getElementById('modal-color-replace');
     this.replaceRules = [];
     this.pickingRuleIdx = null;
+    this.pickSubMode = 'hand'; // 'hand' (デフォルト) | 'pick'
+    this.candidateHex = null;
     this._bindEvents();
+  }
+
+  isPicking() {
+    return this.pickingRuleIdx !== null;
+  }
+
+  isHandMode() {
+    return this.pickingRuleIdx !== null && this.pickSubMode === 'hand';
   }
 
   openDialog() {
@@ -17,6 +27,7 @@ export class PaintColorReplaceController {
       this._bindEvents();
     }
     this.pickingRuleIdx = null;
+    this._updatePickBarUI();
     const paletteColors = getCurrentPaletteColors(this.editor);
     const defaultTo = paletteColors.length > 0 ? paletteColors[0] : '#FFFFFF';
     this.replaceRules = [{ from: this.editor.currentColor || '#000000', to: defaultTo }];
@@ -24,18 +35,70 @@ export class PaintColorReplaceController {
     this.replaceModal.showModal();
   }
 
+  _startCanvasPick(ruleIdx) {
+    this.pickingRuleIdx = ruleIdx;
+    this.pickSubMode = 'hand'; // 明示的なハンドスクロールをデフォルトに設定
+    this.candidateHex = this.replaceRules[ruleIdx]?.from || '#000000';
+    this.replaceModal.close();
+    this._updatePickBarUI();
+    this.editor.updateCursor();
+    this.editor._showHint('✋ ハンドスクロールで位置を調整し、「🎯 色取得」に切り替えて色を選択後「✓ OK」を押してください');
+  }
+
+  _setPickSubMode(mode) {
+    this.pickSubMode = mode;
+    this._updatePickBarUI();
+    this.editor.updateCursor();
+    if (mode === 'hand') {
+      this.editor._showHint('✋ ハンドスクロール中: ドラッグで画像を移動できます');
+    } else {
+      this.editor._showHint('🎯 色取得中: 画像をクリック/タップして色をプレビューし、「✓ OK」で確定します');
+    }
+  }
+
+  _updatePickBarUI() {
+    const bar = document.getElementById('color-replace-pick-bar');
+    if (!bar) return;
+    if (this.pickingRuleIdx === null) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'flex';
+
+    const btnHand = document.getElementById('btn-replace-pick-hand');
+    const btnEye = document.getElementById('btn-replace-pick-eyedropper');
+    if (btnHand) btnHand.classList.toggle('active', this.pickSubMode === 'hand');
+    if (btnEye) btnEye.classList.toggle('active', this.pickSubMode === 'pick');
+
+    const sw = document.getElementById('replace-pick-preview-swatch');
+    const lbl = document.getElementById('replace-pick-preview-hex');
+    if (sw) sw.style.backgroundColor = this.candidateHex || '#000000';
+    if (lbl) lbl.textContent = this.candidateHex || '#000000';
+  }
+
+  // 編集中キャンバスから色を取得してプレビュー更新（すぐには閉じない）
   handleCanvasPick(px, py) {
     if (this.pickingRuleIdx === null) return false;
+    if (this.pickSubMode !== 'pick') return false;
+
     const ed = this.editor;
     if (px >= 0 && px < ed.width && py >= 0 && py < ed.height) {
       const p = ed.ctx.getImageData(px, py, 1, 1).data;
-      const hex = rgbToHex(p[0], p[1], p[2]);
-      if (this.replaceRules[this.pickingRuleIdx]) {
-        this.replaceRules[this.pickingRuleIdx].from = hex;
-      }
+      this.candidateHex = rgbToHex(p[0], p[1], p[2]);
+      this._updatePickBarUI();
+      ed._showHint(`🎯 プレビュー中: ${this.candidateHex} （「✓ OK」で取り込み）`);
+    }
+    return true;
+  }
+
+  confirmCanvasPick() {
+    if (this.pickingRuleIdx === null) return false;
+    if (this.candidateHex && this.replaceRules[this.pickingRuleIdx]) {
+      this.replaceRules[this.pickingRuleIdx].from = this.candidateHex;
     }
     this.pickingRuleIdx = null;
-    ed._updateStatus();
+    this._updatePickBarUI();
+    this.editor._updateStatus();
     this._renderRulesUI();
     this.replaceModal.showModal();
     return true;
@@ -44,6 +107,7 @@ export class PaintColorReplaceController {
   cancelCanvasPick() {
     if (this.pickingRuleIdx === null) return false;
     this.pickingRuleIdx = null;
+    this._updatePickBarUI();
     this.editor._updateStatus();
     this._renderRulesUI();
     this.replaceModal.showModal();
@@ -73,7 +137,7 @@ export class PaintColorReplaceController {
           <span class="color-swatch" style="background:${rule.from};"></span>
           <span>${rule.from}</span>
         </button>
-        <button type="button" class="btn-pick-canvas-from" title="編集中の画像からスポイトで取得">🎯 画像採取</button>
+        <button type="button" class="btn-pick-canvas-from" title="編集中の画像からスクロール・プレビュー付きで色を取得">🎯 画像から取得</button>
         <span class="arrow">➔</span>
         <span>先:</span>
         <div class="to-palette-dd-mount" style="min-width:125px; flex:1;"></div>
@@ -89,9 +153,7 @@ export class PaintColorReplaceController {
       };
 
       row.querySelector('.btn-pick-canvas-from').onclick = () => {
-        this.pickingRuleIdx = idx;
-        this.replaceModal.close();
-        this.editor._showHint('🎯【色置換】置換前の色にしたいピクセルを編集中の画像上でクリック/タップしてください (Escでキャンセル)');
+        this._startCanvasPick(idx);
       };
 
       const ddMount = row.querySelector('.to-palette-dd-mount');
@@ -138,6 +200,12 @@ export class PaintColorReplaceController {
     };
 
     document.getElementById('btn-execute-replace').onclick = () => this.execute();
+
+    // 色取得フローティングバーのイベント
+    document.getElementById('btn-replace-pick-hand')?.addEventListener('click', () => this._setPickSubMode('hand'));
+    document.getElementById('btn-replace-pick-eyedropper')?.addEventListener('click', () => this._setPickSubMode('pick'));
+    document.getElementById('btn-replace-pick-ok')?.addEventListener('click', () => this.confirmCanvasPick());
+    document.getElementById('btn-replace-pick-cancel')?.addEventListener('click', () => this.cancelCanvasPick());
   }
 
   execute() {
