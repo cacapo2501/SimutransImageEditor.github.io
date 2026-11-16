@@ -8,17 +8,17 @@ export function renderPaintModalUI() {
         <header id="paint-toolbar">
           <div class="paint-tool-group">
             <button class="paint-tool-btn" data-tool="hand" title="描画・選択を解除してハンドスクロール (手のひら移動)">✋ スクロール</button>
-            <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ">✏️ ドット</button>
-            <button class="paint-tool-btn" data-tool="line" title="直線 (連続)">📏 直線</button>
-            <button class="paint-tool-btn" data-tool="rectFill" title="矩形塗りつぶし">⬛ 矩形塗潰</button>
-            <button class="paint-tool-btn" data-tool="bucket" title="塗りつぶし">🪣 塗潰</button>
-            <button class="paint-tool-btn" data-tool="picker" title="スポイト (色取得)">🎯 スポイト</button>
-            <button class="paint-tool-btn" data-tool="rectSelect" title="矩形選択">🔲 矩形選択</button>
+            <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ (右クリック: スポイト)">✏️ ドット</button>
+            <button class="paint-tool-btn" data-tool="line" title="直線 (右クリック: スポイト)">📏 直線</button>
+            <button class="paint-tool-btn" data-tool="rectFill" title="矩形塗りつぶし (右クリック: スポイト)">⬛ 矩形塗潰</button>
+            <button class="paint-tool-btn" data-tool="bucket" title="塗りつぶし (右クリック: スポイト)">🪣 塗潰</button>
+            <button class="paint-tool-btn" data-tool="picker" title="スポイト (色取得後、前のツールに自動で戻ります)">🎯 スポイト</button>
+            <button class="paint-tool-btn" data-tool="rectSelect" title="矩形選択 (新規時は範囲内ドラッグで移動・範囲外クリックで解除)">🔲 矩形選択</button>
             <button class="paint-tool-btn" data-tool="polySelect" title="多角形選択 (ダブルクリック/始点クリック/Enterで確定)">📐 多角形選択</button>
             <button class="paint-tool-btn" data-tool="wand" title="自動選択 (Magic Wand)">🪄 自動選択</button>
             <button class="paint-tool-btn" data-tool="colorSelect" title="同色選択">🎯 同色選択</button>
             <button class="paint-tool-btn" data-tool="moveSel" title="選択範囲の移動（中のピクセルを移動）">↔️ 選択移動</button>
-            <button class="paint-tool-btn" data-tool="text" title="テキスト挿入">🔤 文字</button>
+            <button class="paint-tool-btn" data-tool="text" title="テキスト挿入 (右クリック: スポイト)">🔤 文字</button>
             <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
             <button id="btn-paint-resize" title="ベース画像の大きさ変更（マスク画像も連動）">📐 画像サイズ変更</button>
           </div>
@@ -56,6 +56,18 @@ export function renderPaintModalUI() {
             <span style="font-size:10px; color:#00ff88; font-weight:bold;">貼付調整中:</span>
             <button id="btn-commit-floating" class="btn-primary">✓ 確定 (Enter)</button>
             <button id="btn-cancel-floating">✕ 破棄 (Esc)</button>
+          </div>
+
+          <!-- 色置換用：画像からの色取得フローティングバー -->
+          <div class="paint-tool-group floating-bar" id="color-replace-pick-bar" style="display:none; border-color:#ffaa00;">
+            <span style="font-size:10px; color:#ffcc44; font-weight:bold;">🔄 置換元色の取得:</span>
+            <button type="button" id="btn-replace-pick-hand" class="paint-tool-btn active" title="ドラッグで画像をスクロール移動">✋ ハンドスクロール</button>
+            <button type="button" id="btn-replace-pick-eyedropper" class="paint-tool-btn" title="クリック/タップで画像から色を取得">🎯 色取得</button>
+            <span style="font-size:10px; color:#ccc; margin-left:4px;">プレビュー:</span>
+            <span id="replace-pick-preview-swatch" class="color-swatch" style="background:#000000;"></span>
+            <strong id="replace-pick-preview-hex" style="font-family:Consolas,monospace; font-size:11px; color:#fff;">#000000</strong>
+            <button type="button" id="btn-replace-pick-ok" class="btn-primary">✓ OK (取り込む)</button>
+            <button type="button" id="btn-replace-pick-cancel">✕ キャンセル</button>
           </div>
 
           <div class="paint-tool-group guide-control-group">
@@ -145,6 +157,16 @@ export function renderPaintModalUI() {
                 <input type="number" id="inp-gray-steps" value="16" min="2" max="64" style="width:50px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px;">
               </div>
               <button id="btn-gen-base-palette" class="w-100 mt-05">パレット再生成 (SpecialColor回避)</button>
+            </fieldset>
+
+            <fieldset class="sub-panel" id="mask-palette-tools" style="display:none;">
+              <legend>マスクパレット設定</legend>
+              <div class="btn-group">
+                <button id="btn-add-mask-custom-color" class="btn-primary">＋ 任意色を追加</button>
+                <button id="btn-open-image-sampler">🖼️ 画像からスポイト</button>
+              </div>
+              <button id="btn-paint-regen-mask" class="w-100 mt-05" title="現在のベース画像からマスク画像を再生成してキャンバスへ反映します">🔄 ベースからマスク再生成</button>
+              <span class="info-text">※右クリックでパレットから色を削除</span>
             </fieldset>
 
             <fieldset class="sub-panel" id="aircraft-palette-tools" style="display:none;">

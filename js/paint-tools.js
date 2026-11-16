@@ -10,31 +10,69 @@ import {
   drawGuidesOverlay
 } from './paint-algorithms.js';
 
+const SELECT_TOOLS = new Set(['rectSelect', 'polySelect', 'wand', 'colorSelect']);
+
 export class PaintToolHandler {
   constructor(editor) {
     this.editor = editor;
   }
 
+  // 指定ピクセルの色をスポイト採取する共通メソッド
+  pickColorAt(px, py) {
+    const ed = this.editor;
+    if (px < 0 || px >= ed.width || py < 0 || py >= ed.height) return false;
+    const p = ed.ctx.getImageData(px, py, 1, 1).data;
+    if (p[3] > 0) {
+      const hex = rgbToHex(p[0], p[1], p[2]);
+      ed.currentColor = hex;
+      ed._updateCurrentColorUI();
+      if (ed.targetType === 'mask') {
+        ed.app.paletteManager.addColorToMaskPalette(hex);
+        ed._renderPaletteUI();
+      }
+      ed._showHint(`🎯 色を取得しました: ${hex}`);
+      return true;
+    }
+    return false;
+  }
+
   handlePointerDown(px, py) {
     const ed = this.editor;
     if (ed.dialogs?.colorReplace?.handleCanvasPick(px, py)) return;
+    if (ed.dialogs?.colorReplace?.isPicking()) return;
     if (ed.onionSkinMgr && ed.onionSkinMgr.handlePointerDown(px, py)) return;
     if (ed.clipMgr.handlePointerDown(px, py)) return;
     if (ed.currentTool === 'hand') return;
     if (ed.selMover && ed.selMover.handlePointerDown(px, py)) return;
+
+    // 選択系ツール使用時かつ新規設定(replace)で既に選択範囲がある場合の挙動
+    if (
+      SELECT_TOOLS.has(ed.currentTool) &&
+      ed.selectionMode === 'replace' &&
+      ed.selectionMask &&
+      !(ed.currentTool === 'polySelect' && ed.polyPoints.length > 0)
+    ) {
+      const inside = px >= 0 && px < ed.width && py >= 0 && py < ed.height && ed.selectionMask[py * ed.width + px] === 1;
+      if (inside && ed.selMover) {
+        // 範囲内クリック（ドラッグ）で選択範囲を移動
+        ed.selMover._beginMove(px, py);
+      } else {
+        // 範囲外クリックで選択範囲を解除
+        ed.selectionMask = null;
+        ed.polyPoints = [];
+        if (ed.selMover) ed.selMover.reset();
+        ed._drawOverlay();
+        ed._updateStatus();
+      }
+      return;
+    }
+
     if (px < 0 || px >= ed.width || py < 0 || py >= ed.height) return;
 
     if (ed.currentTool === 'picker') {
-      const p = ed.ctx.getImageData(px, py, 1, 1).data;
-      if (p[3] > 0) {
-        const hex = rgbToHex(p[0], p[1], p[2]);
-        ed.currentColor = hex;
-        ed._updateCurrentColorUI();
-        if (ed.targetType === 'mask') {
-          ed.app.paletteManager.addColorToMaskPalette(hex);
-          ed._renderPaletteUI();
-        }
-      }
+      this.pickColorAt(px, py);
+      // スポイト実行後は前に使っていたツールに自動復帰
+      ed.selectTool(ed.previousTool || 'pencil');
       return;
     }
 
@@ -99,6 +137,8 @@ export class PaintToolHandler {
       }
     } else if (ed.currentTool === 'polySelect' && ed.polyPoints.length > 0) {
       this.drawOverlay([px, py]);
+    } else {
+      ed.updateCursor(px, py);
     }
   }
 
