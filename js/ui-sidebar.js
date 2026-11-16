@@ -1,3 +1,5 @@
+import { renderSidebarToolAccordions } from './ui-sidebar-tools.js';
+
 export function renderSidebarUI() {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
@@ -16,9 +18,6 @@ export function renderSidebarUI() {
           <button id="btn-load-mask">マスク画像を開く</button>
         </div>
         <div class="btn-group mt-05">
-          <button id="btn-regen-mask" title="現在のベース画像からマスク画像を再生成します">🔄 ベースからマスク再生成</button>
-        </div>
-        <div class="btn-group mt-05">
           <button id="btn-save-base">💾 ベースPNG保存</button>
           <button id="btn-save-mask">💾 マスクPNG保存</button>
         </div>
@@ -26,12 +25,46 @@ export function renderSidebarUI() {
           <button id="btn-paint-base" class="btn-primary">✏️ ベース画像を編集</button>
           <button id="btn-paint-mask" class="btn-primary">🎭 マスク画像を編集</button>
         </div>
+
+        <!-- ベース画像名称管理 -->
+        <fieldset class="sub-panel mt-05">
+          <legend>ベース画像名称管理</legend>
+          <div class="row">
+            <label style="min-width: 65px;">ベース名:</label>
+            <input type="text" id="inp-base-name" value="base.png" placeholder="base.png">
+          </div>
+          <div class="info-text" id="lbl-base-info">ベース: 未読込</div>
+        </fieldset>
+
+        <!-- 複数マスク画像管理（追加・切替・名称編集・複製・削除） -->
+        <fieldset class="sub-panel mt-05">
+          <legend>🎭 マスク画像管理 (複数保持・切替・複製・削除)</legend>
+          <div class="row">
+            <label style="min-width: 65px;">選択マスク:</label>
+            <select id="sel-active-mask">
+              <option value="-1">(マスク未登録)</option>
+            </select>
+          </div>
+          <div class="row mt-05">
+            <label style="min-width: 65px;">マスク名:</label>
+            <input type="text" id="inp-mask-name" value="" placeholder="mask.png" disabled>
+          </div>
+          <div class="btn-group mt-05">
+            <button id="btn-mask-add-file" title="新しいマスクPNGを追加登録">＋ 画像追加</button>
+            <button id="btn-mask-add-from-base" title="ベース画像から新規マスクを生成して追加">＋ ベース生成</button>
+          </div>
+          <div class="btn-group mt-05">
+            <button id="btn-regen-mask" title="現在選択中のマスクをベース画像から再生成して上書き">🔄 再生成</button>
+            <button id="btn-mask-duplicate" title="現在選択中のマスク画像と設定を複製">📋 複製</button>
+            <button id="btn-mask-delete" style="color:#ff8888;" title="現在選択中のマスク画像を削除">🗑️ 削除</button>
+          </div>
+          <div class="info-text" id="lbl-mask-info">マスク: 未読込 (0件)</div>
+        </fieldset>
+
         <div class="btn-group mt-05">
           <button id="btn-load-folder">📁 ローカルフォルダ</button>
           <button id="btn-google-drive">☁️ Google Drive</button>
         </div>
-        <div class="info-text" id="lbl-base-info">ベース: 未読込</div>
-        <div class="info-text" id="lbl-mask-info">マスク: 未読込</div>
         <div class="btn-group mt-05">
           <button id="btn-save-proj">プロジェクト保存</button>
           <button id="btn-save-proj-as">別名保存</button>
@@ -224,148 +257,7 @@ export function renderSidebarUI() {
       </div>
     </details>
 
-    <!-- セクション5: pak64車両画像 圧縮・標準配置変換 -->
-    <details class="accordion-panel">
-      <summary>🚃 pak64車両画像 圧縮・標準配置変換</summary>
-      <div class="panel-body">
-        <p class="desc-text">ベース画像とマスク画像を同時にpak64車両用の圧縮配置（_c）または標準配置（_s / 512×64倍数）へ相互変換します。</p>
-        <div class="row mt-05">
-          <label style="min-width: 85px;">車体長 (Length):</label>
-          <select id="inp-vehicle-length">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8" selected>8 (標準)</option>
-            <option value="9">9</option>
-            <option value="10">A (10)</option>
-            <option value="11">11</option>
-            <option value="12">12</option>
-          </select>
-        </div>
-        <label class="mt-05"><input type="checkbox" id="chk-vehicle-compress-bg"> 圧縮時の1px区切り余白を背景色(#E7FFFF/#FFFFFF)で埋める</label>
-        <div class="btn-group mt-05">
-          <button id="btn-vehicle-compress" class="btn-primary">🗜️ 圧縮配置に変換 (_c)</button>
-          <button id="btn-vehicle-expand" class="btn-primary">📐 標準配置に展開 (_s)</button>
-        </div>
-        <div class="info-text" id="lbl-vehicle-status">変換状態: 待機中</div>
-      </div>
-    </details>
-
-    <!-- セクション6: 飛行機平面図 8方向展開 (平面定義画像の直接読込・事前編集対応) -->
-    <details class="accordion-panel">
-      <summary>✈️ 飛行機平面図 8方向展開 (3D分類・マスク生成)</summary>
-      <div class="panel-body">
-        <p class="desc-text">平面定義画像を直接読み込み・編集してから、8方向(768×96px)のベース画像＆マスク画像を生成します。</p>
-        <div class="btn-group">
-          <button id="btn-aircraft-load-plan" class="btn-primary">📂 平面定義画像を開く</button>
-          <button id="btn-aircraft-new-plan">🆕 新規平面図</button>
-        </div>
-        <div class="btn-group mt-05">
-          <button id="btn-aircraft-edit-plan" class="btn-primary">✏️ 平面定義画像を編集</button>
-          <button id="btn-aircraft-save-plan">💾 平面図保存</button>
-        </div>
-        <div class="info-text" id="lbl-aircraft-plan-info">平面定義画像: 未読込</div>
-
-        <div class="row mt-05">
-          <label style="min-width: 65px;">全長 (m):</label>
-          <input type="number" id="inp-aircraft-length" value="39.5" step="0.1" min="1" max="200" style="background:#1e1e1e; border:1px solid #444; color:#eee; padding:3px 6px;">
-        </div>
-        <div class="row mt-05">
-          <label style="min-width: 65px;">全高 (m):</label>
-          <input type="number" id="inp-aircraft-height" value="12.5" step="0.1" min="0.1" max="100" style="background:#1e1e1e; border:1px solid #444; color:#eee; padding:3px 6px;">
-        </div>
-        <div class="row mt-05">
-          <label style="min-width: 65px;">縮尺係数:</label>
-          <input type="number" id="inp-aircraft-coeff" value="0.8" step="0.05" min="0.1" max="2.0" style="background:#1e1e1e; border:1px solid #444; color:#eee; padding:3px 6px;">
-        </div>
-        <fieldset class="sub-panel mt-05">
-          <legend>基準グレースケール色設定</legend>
-          <div class="row">
-            <label style="min-width: 110px;">上水平面:</label>
-            <input type="color" id="inp-aircraft-col-top" value="#CCCCCC" class="color-input-mini">
-            <span style="font-size:10px; color:#aaa;">#CCCCCC</span>
-          </div>
-          <div class="row mt-05">
-            <label style="min-width: 110px;">左斜め前垂直壁:</label>
-            <input type="color" id="inp-aircraft-col-left" value="#B2B2B2" class="color-input-mini">
-            <span style="font-size:10px; color:#aaa;">#B2B2B2</span>
-          </div>
-          <div class="row mt-05">
-            <label style="min-width: 110px;">右斜め前垂直壁:</label>
-            <input type="color" id="inp-aircraft-col-right" value="#808080" class="color-input-mini">
-            <span style="font-size:10px; color:#aaa;">#808080</span>
-          </div>
-          <div class="row mt-05">
-            <label style="min-width: 110px;">60°左斜め前光源:</label>
-            <input type="color" id="inp-aircraft-col-sun" value="#FFFFFF" class="color-input-mini">
-            <span style="font-size:10px; color:#aaa;">#FFFFFF</span>
-          </div>
-        </fieldset>
-        <button id="btn-aircraft-map" class="btn-primary w-100 mt-05">✈️ 8方向ベース＆マスクを生成</button>
-        <div class="info-text" id="lbl-aircraft-status">展開状態: 待機中</div>
-      </div>
-    </details>
-
-    <!-- セクション7: 制御点グラデーション生成 (ベース画像ターゲット) -->
-    <details class="accordion-panel">
-      <summary>🌈 制御点グラデーション生成 (ベース画像)</summary>
-      <div class="panel-body">
-        <p class="desc-text">ベース画像内のHSV彩度制御点（S=100%制御点・S=50%塗り領域）からグレースケールグラデーションを生成します。</p>
-        <label class="mt-05"><input type="checkbox" id="chk-gradient-split8" checked> 横8分割（8方向別々）にグラデーションを計算する</label>
-        <button id="btn-gradient-generate" class="btn-primary w-100 mt-05">🌈 ベース画像にグラデーション生成</button>
-        <div class="info-text" id="lbl-gradient-status">生成状態: 待機中</div>
-      </div>
-    </details>
-
-    <!-- セクション8: CityCar圧縮画像 展開変換 (ベース・マスク両対応) -->
-    <details class="accordion-panel">
-      <summary>🚗 CityCar圧縮画像 展開変換</summary>
-      <div class="panel-body">
-        <p class="desc-text">RGB=(0,0,0)の縦区切り線で8分割されたCityCar圧縮画像を、512×64pxの標準配置へ展開します（ベース・マスク同時対応）。</p>
-        <button id="btn-citycar-expand" class="btn-primary w-100 mt-05">🚗 CityCar画像を512×64へ展開</button>
-        <div class="info-text" id="lbl-citycar-status">変換状態: 待機中</div>
-      </div>
-    </details>
-
-    <!-- セクション9: 特殊色・外部連携設定 -->
-    <details class="accordion-panel">
-      <summary>特殊色・外部連携設定</summary>
-      <div class="panel-body">
-        <fieldset class="sub-panel">
-          <legend>🪟 窓色ランダム暗転 (SpecialColor一部解除)</legend>
-          <label><input type="checkbox" id="chk-window-darken"> 連結した窓ブロックをランダムに暗転させる</label>
-          <div class="row mt-05">
-            <span>暗転比率:</span>
-            <span class="val-badge" id="lbl-window-darken-ratio">50%</span>
-            <input type="range" id="slider-window-darken-ratio" min="0" max="100" step="1" value="50">
-            <button type="button" id="btn-window-darken-reroll" style="flex-shrink:0;">🎲 再抽選</button>
-          </div>
-          <label class="mt-05"><input type="checkbox" id="chk-window-darken-all-special"> 標準窓色(#57656F/#4D4D4D)以外の特殊色も対象にする</label>
-          <div class="info-text" id="lbl-window-darken-info">対象窓グループ: 未実行</div>
-        </fieldset>
-
-        <fieldset class="sub-panel mt-05">
-          <legend>特殊色CSV (1列目読込・編集除外・衝突回避)</legend>
-          <div class="row">
-            <input type="file" id="file-csv" accept=".csv">
-          </div>
-          <div class="info-text mt-05" id="lbl-csv-info">特殊色: 0件登録済</div>
-        </fieldset>
-
-        <fieldset class="sub-panel mt-05">
-          <legend>Google Drive 認証設定</legend>
-          <label>API Key:</label>
-          <input type="text" id="gdrive-api-key" placeholder="AIzaSy...">
-          <label class="mt-05">Client ID:</label>
-          <input type="text" id="gdrive-client-id" placeholder="xxxx.apps.googleusercontent.com">
-          <p class="desc-text">※GitHub Pages等の環境では、ご自身のGoogle Cloudで発行したクライアント情報を入力して利用します。</p>
-        </fieldset>
-      </div>
-    </details>
+    ${renderSidebarToolAccordions()}
 
     <div class="sidebar-footer">
       <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存</button>

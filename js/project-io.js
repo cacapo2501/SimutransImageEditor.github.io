@@ -1,19 +1,17 @@
-import { Layer } from './layer.js';
 import { resolveSpecialColorConflicts } from './color-utils.js';
 
-export function imageToPngDataUrl(img) {
-  if (!img) return null;
+export function canvasToDataUrl(source) {
+  if (!source) return null;
+  if (source instanceof HTMLCanvasElement) return source.toDataURL('image/png');
   const c = document.createElement('canvas');
-  c.width = img.naturalWidth || img.width;
-  c.height = img.naturalHeight || img.height;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(img, 0, 0);
+  c.width = source.naturalWidth || source.width;
+  c.height = source.naturalHeight || source.height;
+  c.getContext('2d').drawImage(source, 0, 0);
   return c.toDataURL('image/png');
 }
 
 export function loadImageAsync(src) {
   return new Promise((resolve, reject) => {
-    if (!src) return resolve(null);
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = reject;
@@ -21,194 +19,202 @@ export function loadImageAsync(src) {
   });
 }
 
-function downloadImageElementAsPng(img, filename) {
-  const c = document.createElement('canvas');
-  c.width = img.naturalWidth || img.width;
-  c.height = img.naturalHeight || img.height;
-  const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(img, 0, 0);
-
-  const safeName = filename.toLowerCase().endsWith('.png') ? filename : `${filename}.png`;
-  c.toBlob(blob => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = safeName;
-    a.click();
-  }, 'image/png');
+function downloadBlob(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
 }
 
 export class ProjectIO {
-  static save(app) {
-    if (!app.baseImage) return alert('保存するデータがありません。');
+  static async save(app) {
+    if (!app.baseImage) {
+      alert('ベース画像が読み込まれていません。');
+      return;
+    }
 
-    const tintObj = {}, overridesObj = {};
-    app.maskTintColors.forEach((v, k) => { tintObj[k] = v; });
-    app.maskToneOverrides.forEach((v, k) => { overridesObj[k] = v; });
+    if (app.maskMgr) {
+      app.maskMgr.saveActiveStateFromApp();
+    }
 
-    const data = {
-      version: '15.0',
+    const maskEntries = (app.maskMgr && app.maskMgr.items.length > 0)
+      ? app.maskMgr.items.map(item => ({
+          name: item.name,
+          image_data_url: canvasToDataUrl(item.image),
+          tint_colors: Array.from(item.tintColors.entries()),
+          tone_overrides: Array.from(item.toneOverrides.entries())
+        }))
+      : [];
+
+    const projData = {
+      version: '3.1',
       base_name: app.baseName,
+      base_data_url: canvasToDataUrl(app.baseImage),
+      active_mask_index: app.maskMgr ? app.maskMgr.activeIndex : -1,
+      masks: maskEntries,
       mask_name: app.maskName,
-      base_image_data: imageToPngDataUrl(app.baseImage),
-      mask_image_data: imageToPngDataUrl(app.maskImage),
-      global_tone_config: app.globalTone,
+      mask_data_url: canvasToDataUrl(app.maskImage),
+      mask_tint_colors: Array.from(app.maskTintColors.entries()),
+      mask_tone_overrides: Array.from(app.maskToneOverrides.entries()),
       enable_mask_tint: app.enableMaskTint,
-      mask_tint_colors: tintObj,
-      mask_tone_overrides: overridesObj,
       enable_blur: app.enableBlur,
       blur_radius: app.blurRadius,
       pixel_snap: app.pixelSnap,
-      layers: app.layers.map(l => l.toDict(app.layers)),
-      active_idx: app.activeIdx,
-      palette_data: app.paletteManager.toDict(),
-      keybindings: app.paintEditor ? app.paintEditor.keybindings : null
+      global_tone: app.globalTone,
+      window_darken: app.windowDarken,
+      special_colors: Array.from(app.specialColors),
+      palette_data: app.paletteManager ? app.paletteManager.toDict() : null,
+      layers: app.layers.map(l => ({
+        name: l.name,
+        layer_type: l.layerType,
+        image_data_url: canvasToDataUrl(l.imageElement),
+        corners: l.corners,
+        transform_mode: l.transformMode,
+        opacity: l.opacity,
+        visible: l.visible,
+        fill_all: l.fillAll,
+        transparent_e7ffff: l.transparentE7ffff,
+        exclude_mask_color: l.excludeMaskColor,
+        tile_x: l.tileX,
+        tile_y: l.tileY,
+        target_mask_color: l.targetMaskColor,
+        source_index: l.sourceLayer ? app.layers.indexOf(l.sourceLayer) : -1
+      }))
     };
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = (app.baseName ? app.baseName.replace(/\.[^/.]+$/, '') : 'project') + '.proj.json';
-    a.click();
-    app.isDirty = false;
-    document.getElementById('status-bar').textContent = 'プロジェクト(画像・パレット内包)を保存しました。';
+    const jsonStr = JSON.stringify(projData, null, 2);
+    const defaultName = app.baseName.replace(/\.png$/i, '') + '.proj.json';
+
+    const saved = await app.storage.saveJsonFile(jsonStr, defaultName);
+    if (saved) {
+      app.isDirty = false;
+      alert('プロジェクトを保存しました！');
+    }
   }
 
   static async load(app, file) {
-    const r = new FileReader();
-    r.onload = async () => {
-      try {
-        const data = JSON.parse(r.result);
+    if (app.isDirty && !confirm('未保存の変更があります。破棄してプロジェクトを開きますか？')) return;
+    const text = await file.text();
+    const data = JSON.parse(text);
 
-        if (data.global_tone_config) app.globalTone = data.global_tone_config;
-        if (data.enable_mask_tint !== undefined) {
-          app.enableMaskTint = data.enable_mask_tint;
-          const chkTint = document.getElementById('chk-enable-tint');
-          if (chkTint) chkTint.checked = app.enableMaskTint;
-        }
-        if (data.mask_tint_colors) {
-          app.maskTintColors.clear();
-          Object.entries(data.mask_tint_colors).forEach(([k, v]) => app.maskTintColors.set(k, v));
-        }
-        if (data.mask_tone_overrides) {
-          app.maskToneOverrides.clear();
-          Object.entries(data.mask_tone_overrides).forEach(([k, v]) => app.maskToneOverrides.set(k, v));
-        }
-        app.enableBlur = data.enable_blur !== undefined ? data.enable_blur : true;
-        app.blurRadius = data.blur_radius || 0.0;
-        app.pixelSnap = data.pixel_snap !== undefined ? data.pixel_snap : true;
-        document.getElementById('chk-enable-blur').checked = app.enableBlur;
-        document.getElementById('slider-blur').value = app.blurRadius;
-        document.getElementById('lbl-blur-radius').textContent = `${app.blurRadius.toFixed(2)}px`;
-        document.getElementById('chk-pixel-snap').checked = app.pixelSnap;
-        app.onToneTargetChanged('__ALL__');
+    const baseImg = await loadImageAsync(data.base_data_url);
+    app.applyBaseImage(baseImg, data.base_name || 'base.png', { resetMask: true });
 
-        if (data.palette_data) app.paletteManager.fromDict(data.palette_data);
-        if (data.keybindings && app.paintEditor) {
-          Object.assign(app.paintEditor.keybindings, data.keybindings);
-          app.paintEditor.saveKeybindings();
-        }
-
-        if (data.base_image_data) {
-          const baseImg = await loadImageAsync(data.base_image_data);
-          if (baseImg) app.applyBaseImage(baseImg, data.base_name || 'base.png');
-        }
-        if (data.mask_image_data) {
-          const maskImg = await loadImageAsync(data.mask_image_data);
-          if (maskImg) app.applyMaskImage(maskImg, data.mask_name || 'mask.png');
-        }
-
-        const layerDefs = data.layers || [];
-        const layerImages = await Promise.all(layerDefs.map(ld => {
-          if (ld.image_data) return loadImageAsync(ld.image_data);
-          return Promise.resolve(null);
-        }));
-
-        app.layers = [];
-        for (let i = 0; i < layerDefs.length; i++) {
-          const ld = layerDefs[i];
-          const img = layerImages[i];
-          const layer = new Layer({
-            name: ld.name,
-            imageElement: img,
-            canvasW: app.baseW,
-            canvasH: app.baseH,
-            corners: ld.corners,
-            opacity: ld.opacity,
-            visible: ld.visible,
-            transformMode: ld.transform_mode,
-            tileX: ld.tile_x,
-            tileY: ld.tile_y,
-            targetMaskColor: ld.target_mask_color,
-            excludeMaskColor: ld.exclude_mask_color,
-            layerType: ld.layer_type,
-            fillAll: ld.fill_all,
-            transparentE7ffff: ld.transparent_e7ffff
-          });
-          app.layers.push(layer);
-        }
-
-        for (let i = 0; i < layerDefs.length; i++) {
-          const sIdx = layerDefs[i].source_idx;
-          if (sIdx !== null && sIdx !== undefined && sIdx >= 0 && sIdx < app.layers.length) {
-            app.layers[i].sourceLayer = app.layers[sIdx];
-          }
-        }
-
-        app.refreshLayerList();
-        const act = data.active_idx !== undefined ? data.active_idx : 0;
-        app.selectLayer(app.layers.length > 0 ? Math.min(act, app.layers.length - 1) : -1);
-
-        app.isDirty = false;
-        app.zoomFit();
-        app.render();
-        document.getElementById('status-bar').textContent = `プロジェクトを完全復元しました: ${file.name}`;
-      } catch (e) {
-        alert('プロジェクトの読み込みに失敗しました: ' + e);
+    if (Array.isArray(data.masks) && data.masks.length > 0 && app.maskMgr) {
+      app.maskMgr.clearAll();
+      for (let i = 0; i < data.masks.length; i++) {
+        const m = data.masks[i];
+        if (!m.image_data_url) continue;
+        const mImg = await loadImageAsync(m.image_data_url);
+        app.maskMgr.registerAnalyzedMask(mImg, m.name || `mask_${i + 1}.png`, { addAsNew: true });
+        if (m.tint_colors) app.maskTintColors = new Map(m.tint_colors);
+        if (m.tone_overrides) app.maskToneOverrides = new Map(m.tone_overrides);
+        app.maskMgr.saveActiveStateFromApp();
       }
-    };
-    r.readAsText(file);
+      const targetIdx = typeof data.active_mask_index === 'number' ? data.active_mask_index : 0;
+      if (targetIdx >= 0 && targetIdx < app.maskMgr.items.length) {
+        app.maskMgr.selectMask(targetIdx);
+      }
+    } else if (data.mask_data_url) {
+      const maskImg = await loadImageAsync(data.mask_data_url);
+      app.applyMaskImage(maskImg, data.mask_name || 'mask.png');
+      if (data.mask_tint_colors) app.maskTintColors = new Map(data.mask_tint_colors);
+      if (data.mask_tone_overrides) app.maskToneOverrides = new Map(data.mask_tone_overrides);
+      if (app.maskMgr) app.maskMgr.saveActiveStateFromApp();
+    }
+
+    if (data.palette_data && app.paletteManager) {
+      app.paletteManager.fromDict(data.palette_data);
+    }
+
+    if (data.global_tone) Object.assign(app.globalTone, data.global_tone);
+    if (data.window_darken) Object.assign(app.windowDarken, data.window_darken);
+    app.enableMaskTint = data.enable_mask_tint !== undefined ? data.enable_mask_tint : true;
+    app.enableBlur = data.enable_blur !== undefined ? data.enable_blur : true;
+    app.blurRadius = data.blur_radius || 0.0;
+    app.pixelSnap = data.pixel_snap !== undefined ? data.pixel_snap : true;
+    if (data.special_colors) app.specialColors = new Set(data.special_colors);
+
+    app.layers = [];
+    const { Layer } = await import('./layer.js');
+    for (const ld of (data.layers || [])) {
+      const lImg = await loadImageAsync(ld.image_data_url);
+      const layer = new Layer({
+        name: ld.name,
+        imageElement: lImg,
+        canvasW: app.baseW,
+        canvasH: app.baseH,
+        layerType: ld.layer_type,
+        corners: ld.corners,
+        transformMode: ld.transform_mode,
+        opacity: ld.opacity,
+        visible: ld.visible,
+        fillAll: ld.fill_all,
+        transparentE7ffff: ld.transparent_e7ffff,
+        excludeMaskColor: ld.exclude_mask_color,
+        tileX: ld.tile_x,
+        tileY: ld.tile_y,
+        targetMaskColor: ld.target_mask_color
+      });
+      layer._tempSrcIdx = ld.source_index;
+      app.layers.push(layer);
+    }
+    app.layers.forEach(l => {
+      if (l._tempSrcIdx >= 0 && l._tempSrcIdx < app.layers.length) {
+        l.sourceLayer = app.layers[l._tempSrcIdx];
+      }
+      delete l._tempSrcIdx;
+    });
+
+    app.refreshLayerList();
+    app.selectLayer(app.layers.length > 0 ? 0 : -1);
+    app.onToneTargetChanged('__ALL__');
+    app.toneTintCtrl.updateMaskCombos();
+    app.toneTintCtrl.updateTintTable();
+    app.isDirty = false;
+    app.zoomFit();
   }
 
-  // ベース画像単体PNG保存
   static exportBasePng(app) {
-    if (!app.baseImage) return alert('保存するベース画像がありません。');
-    downloadImageElementAsPng(app.baseImage, app.baseName || 'base.png');
-    document.getElementById('status-bar').textContent = 'ベース画像をPNG保存しました。';
-  }
-
-  // マスク画像単体PNG保存
-  static exportMaskPng(app) {
-    if (!app.maskImage) return alert('保存するマスク画像がありません。');
-    downloadImageElementAsPng(app.maskImage, app.maskName || 'mask.png');
-    document.getElementById('status-bar').textContent = 'マスク画像をPNG保存しました。';
-  }
-
-  // 合成結果PNG保存
-  // 合成結果PNG保存
-  static exportPng(app) {
-    const pixels = app.computeFinalImage();
-    if (!pixels) return alert('保存できる画像がありません。');
-
-    const conflicts = resolveSpecialColorConflicts(
-      pixels,
-      app.baseW,
-      app.baseH,
-      app.specialColors,
-      app.isBaseSpecialColor,
-      app.isBgMask
-    );
+    if (!app.baseImage) return alert('ベース画像が読み込まれていません。');
     const c = document.createElement('canvas');
     c.width = app.baseW;
     c.height = app.baseH;
-    c.getContext('2d').putImageData(new ImageData(pixels, app.baseW, app.baseH), 0, 0);
+    c.getContext('2d').drawImage(app.baseImage, 0, 0);
+    const filename = app.baseName.toLowerCase().endsWith('.png') ? app.baseName : `${app.baseName}.png`;
+    c.toBlob(blob => downloadBlob(blob, filename), 'image/png');
+  }
 
-    c.toBlob(blob => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'export_result.png';
-      a.click();
-      if (conflicts > 0) alert(`画像を保存しました。\n※ 乗算等によりSpecialColorと重複した ${conflicts} ピクセルのR成分を補正しました。(ベース画像固有のSpecialColorおよび#E7FFFFは保護されました)`);
-    }, 'image/png');
+  static exportMaskPng(app) {
+    if (!app.maskImage) return alert('マスク画像が読み込まれていません。');
+    const c = document.createElement('canvas');
+    c.width = app.baseW;
+    c.height = app.baseH;
+    c.getContext('2d').drawImage(app.maskImage, 0, 0);
+    const filename = app.maskName.toLowerCase().endsWith('.png') ? app.maskName : `${app.maskName}.png`;
+    c.toBlob(blob => downloadBlob(blob, filename), 'image/png');
+  }
+
+  static exportPng(app) {
+    if (!app.baseImage) return;
+    const pixels = app.computeFinalImage();
+    if (!pixels) return;
+
+    const copy = new Uint8ClampedArray(pixels);
+    const conflicts = resolveSpecialColorConflicts(
+      copy, app.baseW, app.baseH, app.specialColors, app.isBaseSpecialColor, app.isBgMask
+    );
+    if (conflicts > 0) {
+      alert(`出力前に SpecialColor との色衝突を ${conflicts} ピクセル自動回避しました。`);
+    }
+
+    const c = document.createElement('canvas');
+    c.width = app.baseW;
+    c.height = app.baseH;
+    c.getContext('2d').putImageData(new ImageData(copy, app.baseW, app.baseH), 0, 0);
+
+    const basePrefix = app.baseName.replace(/\.png$/i, '');
+    const outName = `${basePrefix}_combined.png`;
+    c.toBlob(blob => downloadBlob(blob, outName), 'image/png');
   }
 }

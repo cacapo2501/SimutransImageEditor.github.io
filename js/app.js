@@ -6,6 +6,8 @@ import { loadImageAsync } from './project-io.js';
 import { PaletteManager } from './palette-manager.js';
 import { PaintEditor } from './paint-editor.js';
 import { MaskGenerator } from './mask-generator.js';
+import { MaskCollectionManager } from './mask-collection-manager.js';
+import { BatchExporter } from './batch-exporter.js';
 import { LayerManager } from './layer-manager.js';
 import { ToneTintController } from './tone-tint-controller.js';
 import { DeftileBuilder } from './deftile-builder.js';
@@ -24,9 +26,7 @@ class AdvancedMultiplyApp {
   constructor() {
     document.addEventListener('selectstart', (e) => {
       const tag = e.target && e.target.tagName;
-      if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
-        e.preventDefault();
-      }
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA') e.preventDefault();
     });
 
     renderSidebarUI();
@@ -68,13 +68,7 @@ class AdvancedMultiplyApp {
     };
     this.maskToneOverrides = new Map();
 
-    this.windowDarken = {
-      enabled: false,
-      ratio_pct: 50,
-      seed: 12345,
-      include_all_special: false
-    };
-
+    this.windowDarken = { enabled: false, ratio_pct: 50, seed: 12345, include_all_special: false };
     this.enableBlur = true;
     this.blurRadius = 0.0;
     this.pixelSnap = true;
@@ -96,6 +90,8 @@ class AdvancedMultiplyApp {
 
     this.canvasCtrl = new CanvasController(this);
     this.paintEditor = new PaintEditor(this);
+    this.maskMgr = new MaskCollectionManager(this);
+    this.batchExporter = new BatchExporter(this);
     this.layerManager = new LayerManager(this, safePickFile);
     this.toneTintCtrl = new ToneTintController(this);
     this.deftileBuilder = new DeftileBuilder(this, safePickFile);
@@ -105,7 +101,10 @@ class AdvancedMultiplyApp {
     this.gradientCtrl = new GradientGeneratorController(this);
     this.citycarCtrl = new CityCarLayoutController(this);
 
+    this._bindBaseNameEvents();
     this._bindZoomAndGuideEvents();
+    this.maskMgr.bindEvents();
+    this.batchExporter.bindEvents();
     this.imageIOCtrl.bindAll();
     this.layerManager.bindEvents();
     this.toneTintCtrl.bindEvents();
@@ -117,16 +116,41 @@ class AdvancedMultiplyApp {
     this.render();
   }
 
+  _bindBaseNameEvents() {
+    const inpBase = document.getElementById('inp-base-name');
+    if (inpBase) {
+      inpBase.oninput = (e) => {
+        this.setBaseName(e.target.value, { updateInput: false });
+        this.markDirty();
+      };
+    }
+  }
+
+  setBaseName(name, { updateInput = true } = {}) {
+    this.baseName = name || 'base.png';
+    if (updateInput) {
+      const inpBase = document.getElementById('inp-base-name');
+      if (inpBase) inpBase.value = this.baseName;
+    }
+    const info = document.getElementById('lbl-base-info');
+    if (info && this.baseW && this.baseH) {
+      info.textContent = `ベース: ${this.baseName} (${this.baseW}×${this.baseH}px)`;
+    }
+  }
+
   markDirty() { this.isDirty = true; }
 
   resetMaskState() {
-    this.maskImage = null;
-    this.maskName = 'mask.png';
-    this.maskRgb = null;
-    this.maskColors = [];
-    this.maskTintColors.clear();
-    this.maskToneOverrides.clear();
-
+    if (this.maskMgr) {
+      this.maskMgr.clearAll();
+    } else {
+      this.maskImage = null;
+      this.maskName = 'mask.png';
+      this.maskRgb = null;
+      this.maskColors = [];
+      this.maskTintColors.clear();
+      this.maskToneOverrides.clear();
+    }
     this.layers.forEach(l => {
       l.targetMaskColor = null;
       l.excludeMaskColor = false;
@@ -134,9 +158,6 @@ class AdvancedMultiplyApp {
     this.layerManager.syncActiveUI();
     this.toneTintCtrl.updateMaskCombos();
     this.toneTintCtrl.updateTintTable();
-
-    const info = document.getElementById('lbl-mask-info');
-    if (info) info.textContent = 'マスク: 未読込';
   }
 
   regenerateMaskFromBase() {
@@ -144,27 +165,34 @@ class AdvancedMultiplyApp {
       alert('先にベース画像を開くか、新規作成してください。');
       return null;
     }
-    if (!confirm('現在のマスク画像を破棄し、ベース画像からマスク画像を再生成しますか？')) {
+    if (!confirm('現在選択中のマスク画像を破棄し、ベース画像からマスク画像を再生成しますか？')) {
       return null;
     }
-    this.resetMaskState();
     MaskGenerator.analyzeBaseImage(this, this.baseImage, this.baseName);
+    const keepName = this.maskMgr?.getActive()?.name || this.baseName.replace(/\.png$/i, '_paint.png');
     const generated = MaskGenerator.generateFromBase(this);
+    if (this.maskMgr) {
+      this.maskMgr.registerAnalyzedMask(generated, keepName, { addAsNew: this.maskMgr.items.length === 0 });
+    }
+    this.toneTintCtrl.updateMaskCombos();
+    this.toneTintCtrl.updateTintTable();
     this.markDirty();
     this.render();
     return generated;
   }
 
   applyBaseImage(img, name, { resetMask = true } = {}) {
-    if (resetMask) {
-      this.resetMaskState();
-    }
-    if (this.vehicleCtrl) {
-      this.vehicleCtrl.syncLengthFromFilename(name);
-    }
+    if (resetMask) this.resetMaskState();
+    if (this.vehicleCtrl) this.vehicleCtrl.syncLengthFromFilename(name);
     MaskGenerator.analyzeBaseImage(this, img, name);
+    this.setBaseName(name, { updateInput: true });
+
     if (!this.maskImage) {
-      MaskGenerator.generateFromBase(this);
+      const autoName = (name || 'base.png').replace(/\.png$/i, '_paint.png');
+      const generated = MaskGenerator.generateFromBase(this);
+      if (this.maskMgr && generated) {
+        this.maskMgr.registerAnalyzedMask(generated, autoName, { addAsNew: true });
+      }
     }
   }
 
@@ -181,8 +209,7 @@ class AdvancedMultiplyApp {
     const h = Math.max(1, Math.min(2048, parseInt(height, 10) || 96));
 
     const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
+    c.width = w; c.height = h;
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#E7FFFF';
     ctx.fillRect(0, 0, w, h);
@@ -191,26 +218,27 @@ class AdvancedMultiplyApp {
     this.isDirty = false;
     this.zoomFit();
     this.render();
-
-    if (openPaint) {
-      this.paintEditor.open('base');
-    }
+    if (openPaint) this.paintEditor.open('base');
   }
 
-  applyMaskImage(img, name) {
-    MaskGenerator.analyzeMaskImage(this, img, name);
+  applyMaskImage(img, name, { addAsNew = false } = {}) {
+    if (this.maskMgr) {
+      this.maskMgr.registerAnalyzedMask(img, name, { addAsNew });
+    } else {
+      MaskGenerator.analyzeMaskImage(this, img, name);
+    }
     this.toneTintCtrl.updateMaskCombos();
     this.toneTintCtrl.updateTintTable();
   }
 
-  async loadMaskFromFile(file) {
+  async loadMaskFromFile(file, { addAsNew = false } = {}) {
     if (!file) return;
     if (!this.baseImage) {
       alert('先にベース画像を開くか、新規作成してください。');
       return;
     }
     const img = await loadImageAsync(URL.createObjectURL(file));
-    this.applyMaskImage(img, file.name);
+    this.applyMaskImage(img, file.name, { addAsNew });
     this.markDirty();
     this.render();
   }
@@ -258,8 +286,7 @@ class AdvancedMultiplyApp {
     let imgData;
     if (this.isEyedropper && this.maskImage) {
       const off = document.createElement('canvas');
-      off.width = this.baseW;
-      off.height = this.baseH;
+      off.width = this.baseW; off.height = this.baseH;
       const oCtx = off.getContext('2d');
       oCtx.drawImage(this.maskImage, 0, 0, this.baseW, this.baseH);
       imgData = oCtx.getImageData(0, 0, this.baseW, this.baseH);
@@ -270,16 +297,14 @@ class AdvancedMultiplyApp {
     }
 
     const tc = document.createElement('canvas');
-    tc.width = this.baseW;
-    tc.height = this.baseH;
+    tc.width = this.baseW; tc.height = this.baseH;
     tc.getContext('2d').putImageData(imgData, 0, 0);
     this.ctx.imageSmoothingEnabled = this.zoomLevel < 1.0;
     this.ctx.drawImage(tc, this.panX, this.panY, vw, vh);
 
     if (this.showMainIsoTile) {
       const gc = document.createElement('canvas');
-      gc.width = this.baseW;
-      gc.height = this.baseH;
+      gc.width = this.baseW; gc.height = this.baseH;
       const gCtx = gc.getContext('2d');
       drawSimutransIsoTiles(gCtx, this.baseW, this.baseH, this.mainIsoTileW, this.mainIsoTileH, this.mainIsoColor);
       this.ctx.imageSmoothingEnabled = false;
