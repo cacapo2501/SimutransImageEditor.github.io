@@ -11,6 +11,9 @@ import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 import { renderDeftileModalUI } from './ui-deftile-modal.js';
 
+const DRAWING_TOOLS = new Set(['pencil', 'line', 'rectFill', 'bucket', 'text']);
+const SELECT_TOOLS = new Set(['rectSelect', 'polySelect', 'wand', 'colorSelect']);
+
 export class PaintEditor {
   constructor(app) {
     this.app = app;
@@ -37,6 +40,7 @@ export class PaintEditor {
 
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
+    this.previousTool = 'pencil';
     this.selectionMode = 'replace';
     this.zoomLevel = 8.0;
     this.panX = 40;
@@ -65,7 +69,6 @@ export class PaintEditor {
 
   _ensureInitialized() {
     if (this.initialized) return true;
-
     renderPaintModalUI();
     renderSubModalsUI();
     renderDeftileModalUI();
@@ -98,9 +101,7 @@ export class PaintEditor {
 
     const btnToggleLive = document.getElementById('btn-toggle-live-preview-size');
     if (btnToggleLive) {
-      btnToggleLive.onclick = () => {
-        document.getElementById('paint-deftile-live-preview')?.classList.toggle('expanded');
-      };
+      btnToggleLive.onclick = () => document.getElementById('paint-deftile-live-preview')?.classList.toggle('expanded');
     }
 
     this.initialized = true;
@@ -116,17 +117,50 @@ export class PaintEditor {
     if (this.dialogs) this.dialogs.saveKeybindings();
   }
 
-  updateCursor() {
+  isDrawingTool() {
+    return DRAWING_TOOLS.has(this.currentTool);
+  }
+
+  selectTool(toolName) {
+    if (this.clipMgr && this.clipMgr.floatingLayer) this.clipMgr.commitFloatingLayer();
+    if (toolName === 'picker' && this.currentTool !== 'picker') {
+      this.previousTool = this.currentTool;
+    } else if (toolName !== 'picker') {
+      this.previousTool = toolName;
+    }
+
+    this.currentTool = toolName;
+    document.querySelectorAll('#paint-toolbar .paint-tool-btn[data-tool]').forEach(b => {
+      b.classList.toggle('active', b.dataset.tool === toolName);
+    });
+
+    this.lineStart = null;
+    this.rectFillStart = null;
+    this.selStart = null;
+    this.polyPoints = [];
+    if (this.currentTool === 'hand') {
+      this.selectionMask = null;
+      if (this.selMover) this.selMover.reset();
+    }
+
+    this._drawOverlay();
+    this._updateStatus();
+  }
+
+  updateCursor(hoverPx = null, hoverPy = null) {
     if (!this.viewport) return;
     let cur = 'crosshair';
-    if (this.inputCtrl && this.inputCtrl.isPanning) {
-      cur = 'grabbing';
-    } else if (this.currentTool === 'hand') {
-      cur = 'grab';
-    } else if (this.currentTool === 'moveSel') {
+    if (this.inputCtrl && this.inputCtrl.isPanning) cur = 'grabbing';
+    else if (this.dialogs?.colorReplace?.isHandMode() || this.currentTool === 'hand') cur = 'grab';
+    else if (this.currentTool === 'moveSel') cur = 'move';
+    else if (
+      hoverPx !== null && hoverPy !== null &&
+      this.selectionMask && this.selectionMode === 'replace' &&
+      SELECT_TOOLS.has(this.currentTool) &&
+      hoverPx >= 0 && hoverPx < this.width && hoverPy >= 0 && hoverPy < this.height &&
+      this.selectionMask[hoverPy * this.width + hoverPx]
+    ) {
       cur = 'move';
-    } else {
-      cur = 'crosshair';
     }
     this.viewport.style.cursor = cur;
     if (this.canvas) this.canvas.style.cursor = cur;
@@ -135,8 +169,8 @@ export class PaintEditor {
 
   open(targetType = 'base') {
     if (!this._ensureInitialized()) return;
-
     this.targetType = targetType;
+
     let srcImg = null;
     if (targetType === 'base') srcImg = this.app.baseImage;
     else if (targetType === 'mask') srcImg = this.app.maskImage;
@@ -149,18 +183,12 @@ export class PaintEditor {
     }
 
     const btnResize = document.getElementById('btn-paint-resize');
-    if (btnResize) {
-      btnResize.style.display = targetType === 'base' ? 'inline-block' : 'none';
-    }
-
+    if (btnResize) btnResize.style.display = targetType === 'base' ? 'inline-block' : 'none';
     const livePreviewBox = document.getElementById('paint-deftile-live-preview');
-    if (livePreviewBox) {
-      livePreviewBox.style.display = targetType === 'deftile' ? 'flex' : 'none';
-    }
+    if (livePreviewBox) livePreviewBox.style.display = targetType === 'deftile' ? 'flex' : 'none';
 
     this.width = srcImg.naturalWidth || srcImg.width;
     this.height = srcImg.naturalHeight || srcImg.height;
-
     this.canvas.width = this.width;
     this.canvas.height = this.height;
     this.overlayCanvas.width = this.width;
@@ -184,11 +212,8 @@ export class PaintEditor {
 
     this._renderPaletteUI();
     this.updateCursor();
-    if (typeof this.modal.showModal === 'function') {
-      this.modal.showModal();
-    } else {
-      this.modal.setAttribute('open', '');
-    }
+    if (typeof this.modal.showModal === 'function') this.modal.showModal();
+    else this.modal.setAttribute('open', '');
 
     requestAnimationFrame(() => {
       const vw = this.viewport.clientWidth;
@@ -201,7 +226,6 @@ export class PaintEditor {
       this._drawOverlay();
       this._refreshDeftileLivePreview();
     });
-
     this._updateStatus();
   }
 
@@ -225,7 +249,6 @@ export class PaintEditor {
       this.modal.close();
       return;
     }
-
     if (this.targetType === 'aircraftPlan') {
       this.app.aircraftCtrl.setPlanCanvas(outCanvas);
       this.modal.close();
@@ -258,10 +281,7 @@ export class PaintEditor {
 
   _pushHistory() {
     const data = this.ctx.getImageData(0, 0, this.width, this.height);
-    const maskSnap = (this.targetType === 'base' && this.app.maskImage)
-      ? cloneCanvasFromSource(this.app.maskImage)
-      : null;
-
+    const maskSnap = (this.targetType === 'base' && this.app.maskImage) ? cloneCanvasFromSource(this.app.maskImage) : null;
     this.undoStack.push({ imageData: data, width: this.width, height: this.height, maskCanvas: maskSnap });
     if (this.undoStack.length > this.maxUndo) this.undoStack.shift();
     this.redoStack = [];
@@ -325,57 +345,40 @@ export class PaintEditor {
     if (hintEl) hintEl.textContent = msg;
   }
 
-  _drawPixel(x, y) {
-    this.repeatMgr.drawPixel(x, y);
-  }
-
-  _handlePointerDown(px, py) {
-    this.toolHandler.handlePointerDown(px, py);
-    this._refreshDeftileLivePreview();
-  }
+  _drawPixel(x, y) { this.repeatMgr.drawPixel(x, y); }
+  _handlePointerDown(px, py) { this.toolHandler.handlePointerDown(px, py); this._refreshDeftileLivePreview(); }
   _handlePointerMove(px, py) {
     this.toolHandler.handlePointerMove(px, py);
-    if (this.isDrawing && this.currentTool === 'pencil') {
-      this._refreshDeftileLivePreview();
-    }
+    if (this.isDrawing && this.currentTool === 'pencil') this._refreshDeftileLivePreview();
   }
-  _handlePointerUp(px, py) {
-    this.toolHandler.handlePointerUp(px, py);
-    this._refreshDeftileLivePreview();
-  }
+  _handlePointerUp(px, py) { this.toolHandler.handlePointerUp(px, py); this._refreshDeftileLivePreview(); }
   _finalizePolySelect() { this.toolHandler.finalizePolySelect(); }
-  _drawOverlay(curPos = null) {
-    this.toolHandler.drawOverlay(curPos);
-    this._refreshDeftileLivePreview();
-  }
+  _drawOverlay(curPos = null) { this.toolHandler.drawOverlay(curPos); this._refreshDeftileLivePreview(); }
 
   _updateStatus() {
     this.updateCursor();
-    const modeNames = {
-      replace: '新規',
-      add: '＋追加',
-      subtract: '－一部削除',
-      intersect: '×乗算(交差)'
-    };
+    const modeNames = { replace: '新規', add: '＋追加', subtract: '－一部削除', intersect: '×乗算(交差)' };
     const toolLbl = document.getElementById('paint-lbl-tool');
     if (toolLbl) {
       toolLbl.textContent = `ツール: ${this.currentTool} | 選択モード: ${modeNames[this.selectionMode] || this.selectionMode} (${this.width}×${this.height}px)`;
     }
 
     if (this.currentTool === 'hand') {
-      this._showHint('✋ ハンドスクロールモード: 描画・選択を解除済。1本指または左ドラッグでキャンバスをスクロール移動できます');
+      this._showHint('✋ ハンドスクロールモード: 1本指または左ドラッグでキャンバスをスクロール移動できます');
+    } else if (this.currentTool === 'picker') {
+      this._showHint(`🎯 スポイト: 色をクリックで取得し、自動的に「${this.previousTool}」へ戻ります`);
+    } else if (SELECT_TOOLS.has(this.currentTool) && this.selectionMode === 'replace' && this.selectionMask) {
+      this._showHint('選択範囲(新規): 範囲内をドラッグで移動 / 範囲外をクリックで選択解除');
     } else if (this.currentTool === 'moveSel') {
-      this._showHint(this.selectionMask
-        ? '↔️ 選択範囲の移動: 選択範囲内をドラッグまたは矢印キーで移動できます'
-        : '⚠️ 選択範囲がありません。先に選択ツールで範囲を指定してください');
+      this._showHint(this.selectionMask ? '↔️ 選択範囲の移動: 範囲内ドラッグまたは矢印キーで移動' : '⚠️ 先に選択ツールで範囲を指定してください');
     } else if (this.repeatMgr && this.repeatMgr.enabled && !this.selectionMask) {
       this._showHint('🔁 上方リピートON中: 先に選択範囲を指定してその中を描画すると上方へ反復されます');
     } else if (this.repeatMgr && this.repeatMgr.isActive()) {
       this._showHint(`🔁 上方リピート有効: 選択範囲内の編集を上方 ${this.repeatMgr.stepY}px おきに ${this.repeatMgr.count} 回反復`);
     } else if (this.currentTool === 'polySelect') {
       this._showHint('クリックで頂点追加 / 始点クリック・ダブルクリック・Enterで確定 / Escで取消');
-    } else if (this.currentTool === 'rectFill') {
-      this._showHint('ドラッグで矩形範囲を一括塗りつぶし');
+    } else if (this.isDrawingTool()) {
+      this._showHint('ドラッグで描画 / 右クリックでスポイト(色取得)');
     } else {
       this._showHint('');
     }
