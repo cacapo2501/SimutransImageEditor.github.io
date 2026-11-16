@@ -58,6 +58,7 @@ export class MaskCollectionManager {
     this._syncAppFromActive();
     this.refreshUI();
     if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
+    if (this.app.datGenerator?.liveryMgr) this.app.datGenerator.liveryMgr.onAppMaskChanged();
   }
 
   saveActiveStateFromApp() {
@@ -121,6 +122,7 @@ export class MaskCollectionManager {
     this.saveActiveStateFromApp();
     this.refreshUI();
     if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
+    if (this.app.datGenerator?.liveryMgr) this.app.datGenerator.liveryMgr.onAppMaskChanged();
   }
 
   selectMask(idx) {
@@ -138,6 +140,7 @@ export class MaskCollectionManager {
     }
     this.refreshUI();
     if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
+    if (this.app.datGenerator?.liveryMgr) this.app.datGenerator.liveryMgr.onAppMaskChanged();
     this.app.render();
   }
 

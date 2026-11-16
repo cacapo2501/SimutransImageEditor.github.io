@@ -1,4 +1,5 @@
 import { DAT_OBJECT_CATEGORIES, DAT_OBJECT_TEMPLATES, BUILDING_PRESETS, CLIMATE_OPTIONS } from './dat-templates.js';
+import { renderDatAiSectionHtml } from './ui-dat-ai.js';
 
 function buildObjectSelectOptions() {
   return DAT_OBJECT_CATEGORIES.map(group => {
@@ -51,12 +52,14 @@ export function renderDatModalUI() {
               </div>
             </fieldset>
 
+            ${renderDatAiSectionHtml()}
+
             <fieldset class="sub-panel">
               <legend>共通パラメータ</legend>
               <div class="dat-field-grid">
                 <div class="dat-field">
-                  <label>アドオン識別名 (name=)</label>
-                  <input type="text" id="inp-dat-name" value="new_building" placeholder="半角英数推奨">
+                  <label id="lbl-dat-name-field">アドオン識別名 (name=)</label>
+                  <input type="text" id="inp-dat-name" value="new_building" placeholder="車両例: 会社_系列_形式(塗装)">
                 </div>
                 <div class="dat-field">
                   <label>作者名 (copyright=)</label>
@@ -85,6 +88,13 @@ export function renderDatModalUI() {
                 <div class="dat-field">
                   <label>開始列 (X)</label>
                   <input type="number" id="inp-dat-start-col" value="0" min="0">
+                </div>
+                <div class="dat-field full-width">
+                  <div class="btn-group">
+                    <button type="button" id="btn-dat-open-img-picker" class="btn-primary">🗺️ 編集中画像からGUIで指定</button>
+                    <button type="button" id="btn-dat-clear-custom-img" style="display:none; flex:0 0 auto;">↺ 個別解除</button>
+                  </div>
+                  <div class="info-text" id="lbl-dat-custom-img-status">画像位置: 開始行列 (Y, X) から自動展開</div>
                 </div>
                 <div class="dat-field full-width">
                   <label>画像オフセット (,x,y 形式 / 省略可)</label>

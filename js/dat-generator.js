@@ -1,6 +1,10 @@
 import { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS } from './dat-templates.js';
-import { serializeDatObject, downloadDatText } from './dat-serializer.js';
+import { serializeDatObject } from './dat-serializer.js';
 import { renderDatModalUI, renderDynamicDatFields } from './ui-dat-modal.js';
+import { DatAiController } from './dat-ai-controller.js';
+import { DatCollectionManager, bindDatOutputActions } from './dat-collection-manager.js';
+import { DatImagePicker } from './dat-image-picker.js';
+import { DatLiveryManager, buildMaskImagePrefix } from './dat-livery-manager.js';
 
 function cloneDefaults(objType) {
   const tpl = DAT_OBJECT_TEMPLATES[objType];
@@ -19,6 +23,10 @@ export class DatGeneratorController {
     this.currentObjType = 'building';
     this.autoSync = true;
     this.stateByObj = {};
+    this.aiCtrl = new DatAiController(this);
+    this.collectionMgr = new DatCollectionManager(this);
+    this.imagePicker = new DatImagePicker(this);
+    this.liveryMgr = new DatLiveryManager(this);
 
     this.common = {
       name: 'new_building',
@@ -28,6 +36,7 @@ export class DatGeneratorController {
       startRow: '0',
       startCol: '0',
       imgOffset: '',
+      customImageCoords: null,
       extraLines: ''
     };
   }
@@ -47,6 +56,10 @@ export class DatGeneratorController {
     if (this.initialized) return;
     renderDatModalUI();
     this._bindModalEvents();
+    this.aiCtrl.bindEvents();
+    this.collectionMgr.bindEvents();
+    this.liveryMgr.bindEvents();
+    this.aiCtrl.syncInitialUI();
     this.initialized = true;
   }
 
@@ -58,10 +71,13 @@ export class DatGeneratorController {
   }
 
   _deriveImagePrefixFromApp() {
+    const activeMask = this.liveryMgr.getActiveMaskItem();
+    if (activeMask) {
+      return buildMaskImagePrefix(this.app, activeMask, this.liveryMgr.useBatchImgNaming);
+    }
     const raw = (this.app && this.app.baseName) ? this.app.baseName : 'base.png';
     const noExt = raw.replace(/\.png$/i, '');
-    if (/_combined$/i.test(noExt)) return noExt;
-    return `${noExt}_combined`;
+    return /_combined$/i.test(noExt) ? noExt : `${noExt}_combined`;
   }
 
   _deriveAddonNameFromApp(objType) {
@@ -95,12 +111,8 @@ export class DatGeneratorController {
       this.hasOpenedOnce = true;
     }
 
-    const selObj = document.getElementById('sel-dat-obj-type');
-    if (selObj) selObj.value = this.currentObjType;
-
-    this._syncCommonInputsFromState();
-    this._updatePresetVisibility();
-    this._renderDynamicFields();
+    this._applyControllerStateToForm();
+    this.liveryMgr.refreshUI();
     if (this.autoSync) {
       this.regenerateOutput();
     }
@@ -135,6 +147,28 @@ export class DatGeneratorController {
       const base = (this.common.name || 'addon').trim();
       inpFilename.value = base.toLowerCase().endsWith('.dat') ? base : `${base}.dat`;
     }
+    this._syncCustomImageStatus();
+  }
+
+  _syncCustomImageStatus() {
+    const custom = this.common.customImageCoords;
+    const count = custom ? Object.keys(custom).length : 0;
+    const lbl = document.getElementById('lbl-dat-custom-img-status');
+    const btnClear = document.getElementById('btn-dat-clear-custom-img');
+    if (lbl) {
+      lbl.textContent = count > 0
+        ? `画像位置: 個別セル指定中 (${count}件 / 未指定は Y,X 自動展開)`
+        : '画像位置: 開始行列 (Y, X) から自動展開';
+    }
+    if (btnClear) btnClear.style.display = count > 0 ? '' : 'none';
+  }
+
+  applyImagePickerResult({ startRow, startCol, customImageCoords }) {
+    this.common.startRow = startRow;
+    this.common.startCol = startCol;
+    this.common.customImageCoords = customImageCoords || null;
+    this._syncCommonInputsFromState();
+    if (this.autoSync) this.regenerateOutput();
   }
 
   _updatePresetVisibility() {
@@ -168,6 +202,49 @@ export class DatGeneratorController {
     });
   }
 
+  _applyControllerStateToForm() {
+    const selObj = document.getElementById('sel-dat-obj-type');
+    if (selObj) selObj.value = this.currentObjType;
+    this._syncCommonInputsFromState();
+    this._updatePresetVisibility();
+    this.aiCtrl.updateObjTypeVisibility(this.currentObjType);
+    this._renderDynamicFields();
+  }
+
+  // 生成AIの解析結果（単体または編成・形式複数件）をフォーム＆コレクションに適用する
+  applyAiResult(parsed) {
+    if (!parsed || !Array.isArray(parsed.objects) || parsed.objects.length === 0) return;
+    this.autoSync = true;
+    this._updateSyncBadge();
+    this.liveryMgr.clearBaseNameCache();
+
+    const activeMask = this.liveryMgr.getActiveMaskItem();
+    const maskImgPrefix = activeMask
+      ? buildMaskImagePrefix(this.app, activeMask, this.liveryMgr.useBatchImgNaming)
+      : null;
+
+    if (parsed.objects.length > 1) {
+      const list = parsed.objects.map(o => ({
+        ...o,
+        common: { ...o.common, imgPrefix: maskImgPrefix || o.common.imgPrefix, customImageCoords: null }
+      }));
+      this.collectionMgr.setItems(list);
+    } else {
+      const item = parsed.objects[0];
+      this.collectionMgr.items = [];
+      this.collectionMgr.activeIndex = -1;
+      this.collectionMgr.refreshUI();
+      this.currentObjType = item.objType;
+      this.common = { ...item.common, imgPrefix: maskImgPrefix || item.common.imgPrefix, customImageCoords: null };
+      const values = { ...item.values };
+      if (Array.isArray(values.climates)) values.climates = [...values.climates];
+      this.stateByObj[item.objType] = values;
+      this._applyControllerStateToForm();
+    }
+    this.liveryMgr.refreshUI();
+    this.regenerateOutput();
+  }
+
   buildCurrentText() {
     const state = this._getObjState(this.currentObjType);
     return serializeDatObject(this.currentObjType, state, this.common);
@@ -176,7 +253,9 @@ export class DatGeneratorController {
   regenerateOutput() {
     const txt = document.getElementById('txt-dat-output');
     if (!txt) return;
-    txt.value = this.buildCurrentText();
+    const combined = this.collectionMgr.buildCombinedText();
+    txt.value = combined !== null ? combined : this.buildCurrentText();
+    this.collectionMgr.updateActiveOptionLabel();
     this._updateSidebarStatus();
   }
 
@@ -213,6 +292,7 @@ export class DatGeneratorController {
         this._syncCommonInputsFromState();
       }
       this._updatePresetVisibility();
+      this.aiCtrl.updateObjTypeVisibility(this.currentObjType);
       this._renderDynamicFields();
       if (this.autoSync) this.regenerateOutput();
       this._updateSidebarStatus();
@@ -234,6 +314,7 @@ export class DatGeneratorController {
       const handler = () => {
         this.common[key] = isCheckbox ? el.checked : el.value;
         if (key === 'name') {
+          this.liveryMgr.clearBaseNameCache();
           const inpFilename = document.getElementById('inp-dat-filename');
           if (inpFilename && !inpFilename.dataset.userEdited) {
             const base = (this.common.name || 'addon').trim();
@@ -259,76 +340,13 @@ export class DatGeneratorController {
       document.getElementById('inp-dat-img-prefix').value = this.common.imgPrefix;
       if (this.autoSync) this.regenerateOutput();
     };
-
-    document.getElementById('inp-dat-filename').oninput = (e) => {
-      e.target.dataset.userEdited = '1';
-    };
-
-    document.getElementById('chk-dat-auto-sync').onchange = (e) => {
-      this.autoSync = e.target.checked;
-      this._updateSyncBadge();
+    document.getElementById('btn-dat-open-img-picker').onclick = () => this.imagePicker.open();
+    document.getElementById('btn-dat-clear-custom-img').onclick = () => {
+      this.common.customImageCoords = null;
+      this._syncCustomImageStatus();
       if (this.autoSync) this.regenerateOutput();
     };
 
-    document.getElementById('txt-dat-output').oninput = () => {
-      if (this.autoSync) {
-        this.autoSync = false;
-        this._updateSyncBadge();
-      }
-    };
-
-    document.getElementById('btn-dat-regenerate').onclick = () => {
-      this.autoSync = true;
-      this._updateSyncBadge();
-      this.regenerateOutput();
-    };
-
-    document.getElementById('btn-dat-append').onclick = () => this.appendCurrentObject();
-
-    document.getElementById('btn-dat-clear').onclick = () => {
-      const txt = document.getElementById('txt-dat-output');
-      if (txt) txt.value = '';
-      this.autoSync = false;
-      this._updateSyncBadge('手動編集中 (空)');
-    };
-
-    document.getElementById('btn-dat-load-file').onclick = async () => {
-      if (!this.pickFileFn) return;
-      const f = await this.pickFileFn('.dat,.txt');
-      if (!f) return;
-      const content = await f.text();
-      const txt = document.getElementById('txt-dat-output');
-      if (txt) txt.value = content;
-      const inpFilename = document.getElementById('inp-dat-filename');
-      if (inpFilename) {
-        inpFilename.value = f.name;
-        inpFilename.dataset.userEdited = '1';
-      }
-      this.autoSync = false;
-      this._updateSyncBadge('読込ファイル編集中');
-    };
-
-    document.getElementById('btn-dat-copy').onclick = async () => {
-      const txt = document.getElementById('txt-dat-output');
-      if (!txt || !txt.value) return;
-      try {
-        await navigator.clipboard.writeText(txt.value);
-        this._updateSyncBadge('コピーしました！');
-        setTimeout(() => this._updateSyncBadge(), 1500);
-      } catch (err) {
-        txt.select();
-        document.execCommand('copy');
-      }
-    };
-
-    document.getElementById('btn-dat-save-file').onclick = () => {
-      const txt = document.getElementById('txt-dat-output')?.value || '';
-      if (!txt.trim()) {
-        alert('保存するdatテキストが空です。');
-        return;
-      }
-      const filename = document.getElementById('inp-dat-filename')?.value || 'addon.dat';
-      downloadDatText(txt, filename);
-    };
+    bindDatOutputActions(this);
   }
 }

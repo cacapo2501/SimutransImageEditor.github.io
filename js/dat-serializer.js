@@ -22,7 +22,8 @@ function imgRef(prefix, row, col, offsetStr) {
   return `${prefix}.${row}.${col}${offsetStr}`;
 }
 
-function serializeBuildingOrFactoryImages(lines, objType, v, prefix, startRow, startCol, offsetStr) {
+function buildBuildingEntries(objType, v, startRow, startCol) {
+  const entries = [];
   const dimsW = Math.max(1, parseInt(v.dimsW, 10) || 1);
   const dimsH = Math.max(1, parseInt(v.dimsH, 10) || 1);
   const views = Math.max(1, parseInt(v.dimsViews, 10) || 1);
@@ -31,7 +32,7 @@ function serializeBuildingOrFactoryImages(lines, objType, v, prefix, startRow, s
   const seasons = Math.max(1, parseInt(v.seasons, 10) || 1);
   const layerMode = objType === 'factory' ? 'back' : (v.imageLayer || 'back');
 
-  const writeLayer = (layerPrefix) => {
+  const pushLayer = (layerPrefix) => {
     for (let s = 0; s < seasons; s++) {
       for (let a = 0; a < frames; a++) {
         for (let view = 0; view < views; view++) {
@@ -41,7 +42,7 @@ function serializeBuildingOrFactoryImages(lines, objType, v, prefix, startRow, s
                 // 下段(h=0)が画像の下行になるよう逆順に割り当て
                 const row = startRow + s * (heightTiles * frames) + a * heightTiles + (heightTiles - 1 - h);
                 const col = startCol + view * (dimsW * dimsH) + y * dimsW + x;
-                lines.push(`${layerPrefix}[${view}][${y}][${x}][${h}][${a}][${s}]=${imgRef(prefix, row, col, offsetStr)}`);
+                entries.push({ key: `${layerPrefix}[${view}][${y}][${x}][${h}][${a}][${s}]`, row, col });
               }
             }
           }
@@ -50,119 +51,133 @@ function serializeBuildingOrFactoryImages(lines, objType, v, prefix, startRow, s
     }
   };
 
-  if (layerMode === 'back' || layerMode === 'both') writeLayer('BackImage');
-  if (layerMode === 'front' || layerMode === 'both') writeLayer('FrontImage');
+  if (layerMode === 'back' || layerMode === 'both') pushLayer('BackImage');
+  if (layerMode === 'front' || layerMode === 'both') pushLayer('FrontImage');
+  return entries;
 }
 
-function serializeInfraImages(lines, objType, v, prefix, startRow, startCol, offsetStr) {
+function buildInfraEntries(objType, v, startRow, startCol) {
+  const entries = [];
   if (objType === 'way') {
     const dirs = ['-', 'N', 'S', 'NS', 'E', 'NE', 'SE', 'NSE', 'W', 'NW', 'SW', 'NSW', 'EW', 'NEW', 'SEW', 'NSEW'];
-    dirs.forEach((d, i) => lines.push(`Image[${d}]=${imgRef(prefix, startRow, startCol + i, offsetStr)}`));
+    dirs.forEach((d, i) => entries.push({ key: `Image[${d}]`, row: startRow, col: startCol + i }));
     if (v.includeDiagonal) {
-      ['NE', 'SE', 'NW', 'SW'].forEach((d, i) => lines.push(`Diagonal[${d}]=${imgRef(prefix, startRow + 1, startCol + i, offsetStr)}`));
+      ['NE', 'SE', 'NW', 'SW'].forEach((d, i) => entries.push({ key: `Diagonal[${d}]`, row: startRow + 1, col: startCol + i }));
     }
     if (v.includeSlopes) {
-      ['3', '6', '9', '12'].forEach((d, i) => lines.push(`ImageUp[${d}]=${imgRef(prefix, startRow + 2, startCol + i, offsetStr)}`));
+      ['3', '6', '9', '12'].forEach((d, i) => entries.push({ key: `ImageUp[${d}]`, row: startRow + 2, col: startCol + i }));
     }
     if (v.includeCursorIcon) {
-      lines.push(`Cursor=${imgRef(prefix, startRow + 3, startCol, offsetStr)}`);
-      lines.push(`Icon=> ${prefix}.${startRow + 3}.${startCol + 1}`);
+      entries.push({ key: 'Cursor', row: startRow + 3, col: startCol });
+      entries.push({ key: 'Icon', row: startRow + 3, col: startCol + 1, isIcon: true });
     }
   } else if (objType === 'way-object') {
     const dirs = ['NS', 'EW', 'NE', 'SE', 'NW', 'SW', 'N', 'S', 'E', 'W'];
-    dirs.forEach((d, i) => lines.push(`FrontImage[${d}]=${imgRef(prefix, startRow, startCol + i, offsetStr)}`));
-    ['NE', 'SE', 'NW', 'SW'].forEach((d, i) => lines.push(`Diagonal[${d}]=${imgRef(prefix, startRow + 1, startCol + i, offsetStr)}`));
+    dirs.forEach((d, i) => entries.push({ key: `FrontImage[${d}]`, row: startRow, col: startCol + i }));
+    ['NE', 'SE', 'NW', 'SW'].forEach((d, i) => entries.push({ key: `Diagonal[${d}]`, row: startRow + 1, col: startCol + i }));
     if (v.includeCursorIcon) {
-      lines.push(`Cursor=${imgRef(prefix, startRow + 2, startCol, offsetStr)}`);
-      lines.push(`Icon=> ${prefix}.${startRow + 2}.${startCol + 1}`);
+      entries.push({ key: 'Cursor', row: startRow + 2, col: startCol });
+      entries.push({ key: 'Icon', row: startRow + 2, col: startCol + 1, isIcon: true });
     }
   } else if (objType === 'bridge') {
-    lines.push(`BackImage[NS]=${imgRef(prefix, startRow, startCol, offsetStr)}`);
-    lines.push(`BackImage[EW]=${imgRef(prefix, startRow, startCol + 1, offsetStr)}`);
-    ['N', 'S', 'E', 'W'].forEach((d, i) => lines.push(`BackStart[${d}]=${imgRef(prefix, startRow + 1, startCol + i, offsetStr)}`));
-    ['N', 'S', 'E', 'W'].forEach((d, i) => lines.push(`BackRamp[${d}]=${imgRef(prefix, startRow + 2, startCol + i, offsetStr)}`));
-    lines.push(`BackPillar[S]=${imgRef(prefix, startRow + 3, startCol, offsetStr)}`);
-    lines.push(`BackPillar[W]=${imgRef(prefix, startRow + 3, startCol + 1, offsetStr)}`);
+    entries.push({ key: 'BackImage[NS]', row: startRow, col: startCol });
+    entries.push({ key: 'BackImage[EW]', row: startRow, col: startCol + 1 });
+    ['N', 'S', 'E', 'W'].forEach((d, i) => entries.push({ key: `BackStart[${d}]`, row: startRow + 1, col: startCol + i }));
+    ['N', 'S', 'E', 'W'].forEach((d, i) => entries.push({ key: `BackRamp[${d}]`, row: startRow + 2, col: startCol + i }));
+    entries.push({ key: 'BackPillar[S]', row: startRow + 3, col: startCol });
+    entries.push({ key: 'BackPillar[W]', row: startRow + 3, col: startCol + 1 });
     if (v.includeCursorIcon) {
-      lines.push(`Cursor=${imgRef(prefix, startRow + 3, startCol + 2, offsetStr)}`);
-      lines.push(`Icon=> ${prefix}.${startRow + 3}.${startCol + 3}`);
+      entries.push({ key: 'Cursor', row: startRow + 3, col: startCol + 2 });
+      entries.push({ key: 'Icon', row: startRow + 3, col: startCol + 3, isIcon: true });
     }
   } else if (objType === 'tunnel') {
-    ['N', 'S', 'E', 'W'].forEach((d, i) => lines.push(`BackImage[${d}]=${imgRef(prefix, startRow, startCol + i, offsetStr)}`));
-    ['N', 'S', 'E', 'W'].forEach((d, i) => lines.push(`FrontImage[${d}]=${imgRef(prefix, startRow + 1, startCol + i, offsetStr)}`));
+    ['N', 'S', 'E', 'W'].forEach((d, i) => entries.push({ key: `BackImage[${d}]`, row: startRow, col: startCol + i }));
+    ['N', 'S', 'E', 'W'].forEach((d, i) => entries.push({ key: `FrontImage[${d}]`, row: startRow + 1, col: startCol + i }));
     if (v.includeCursorIcon) {
-      lines.push(`Cursor=${imgRef(prefix, startRow + 2, startCol, offsetStr)}`);
-      lines.push(`Icon=> ${prefix}.${startRow + 2}.${startCol + 1}`);
+      entries.push({ key: 'Cursor', row: startRow + 2, col: startCol });
+      entries.push({ key: 'Icon', row: startRow + 2, col: startCol + 1, isIcon: true });
     }
   } else if (objType === 'crossing') {
-    lines.push(`openimage[NS][0]=${imgRef(prefix, startRow, startCol, offsetStr)}`);
-    lines.push(`openimage[EW][0]=${imgRef(prefix, startRow, startCol + 1, offsetStr)}`);
-    lines.push(`closedimage[NS][0]=${imgRef(prefix, startRow + 1, startCol, offsetStr)}`);
-    lines.push(`closedimage[EW][0]=${imgRef(prefix, startRow + 1, startCol + 1, offsetStr)}`);
+    entries.push({ key: 'openimage[NS][0]', row: startRow, col: startCol });
+    entries.push({ key: 'openimage[EW][0]', row: startRow, col: startCol + 1 });
+    entries.push({ key: 'closedimage[NS][0]', row: startRow + 1, col: startCol });
+    entries.push({ key: 'closedimage[EW][0]', row: startRow + 1, col: startCol + 1 });
   } else if (objType === 'roadsign') {
     const count = Math.max(1, Math.min(32, parseInt(v.signalStates, 10) || 4));
     for (let i = 0; i < count; i++) {
-      lines.push(`Image[${i}]=${imgRef(prefix, startRow, startCol + i, offsetStr)}`);
+      entries.push({ key: `Image[${i}]`, row: startRow, col: startCol + i });
     }
     if (v.includeCursorIcon) {
-      lines.push(`Cursor=${imgRef(prefix, startRow + 1, startCol, offsetStr)}`);
-      lines.push(`Icon=> ${prefix}.${startRow + 1}.${startCol + 1}`);
+      entries.push({ key: 'Cursor', row: startRow + 1, col: startCol });
+      entries.push({ key: 'Icon', row: startRow + 1, col: startCol + 1, isIcon: true });
     }
   }
+  return entries;
+}
+
+// オブジェクトが使用する画像キーと座標の一覧を生成（GUIピッカー・出力共通）
+export function collectImageEntries(objType, values, common) {
+  const v = values || {};
+  if (objType === 'good') return [];
+  const startRow = Math.max(0, parseInt(common?.startRow, 10) || 0);
+  const startCol = Math.max(0, parseInt(common?.startCol, 10) || 0);
+  const custom = (common && common.customImageCoords) ? common.customImageCoords : null;
+
+  let entries = [];
+  if (objType === 'building' || objType === 'factory') {
+    entries = buildBuildingEntries(objType, v, startRow, startCol);
+  } else if (objType === 'vehicle') {
+    const dirs = String(v.directions) === '4'
+      ? ['S', 'E', 'N', 'W']
+      : ['S', 'E', 'SE', 'SW', 'N', 'W', 'NW', 'NE'];
+    dirs.forEach((d, i) => entries.push({ key: `EmptyImage[${d}]`, row: startRow, col: startCol + i }));
+    if (v.hasFreightImage) {
+      const fRow = Math.max(0, parseInt(v.freightRow, 10) || 1);
+      dirs.forEach((d, i) => entries.push({ key: `FreightImage[${d}]`, row: fRow, col: startCol + i }));
+    }
+  } else if (objType === 'citycar') {
+    ['S', 'E', 'SE', 'SW', 'N', 'W', 'NW', 'NE'].forEach((d, i) => {
+      entries.push({ key: `Image[${d}]`, row: startRow, col: startCol + i });
+    });
+  } else if (objType === 'tree') {
+    const ages = Math.max(1, parseInt(v.ageCount, 10) || 5);
+    const seasons = Math.max(1, parseInt(v.seasons, 10) || 4);
+    for (let age = 0; age < ages; age++) {
+      for (let s = 0; s < seasons; s++) {
+        entries.push({ key: `Image[${age}][${s}]`, row: startRow + age, col: startCol + s });
+      }
+    }
+  } else if (objType === 'groundobj') {
+    const seasons = Math.max(1, parseInt(v.seasons, 10) || 1);
+    for (let s = 0; s < seasons; s++) {
+      entries.push({ key: `Image[0][${s}]`, row: startRow, col: startCol + s });
+    }
+  } else {
+    entries = buildInfraEntries(objType, v, startRow, startCol);
+  }
+
+  if (custom) {
+    entries = entries.map(e => {
+      const ov = custom[e.key];
+      return ov ? { ...e, row: ov.row, col: ov.col } : e;
+    });
+  }
+  return entries;
 }
 
 function serializeImages(lines, objType, v, common) {
   if (!common.includeImages) return;
   const prefix = String(common.imgPrefix || '').trim();
   if (!prefix || objType === 'good') return;
-
-  const startRow = Math.max(0, parseInt(common.startRow, 10) || 0);
-  const startCol = Math.max(0, parseInt(common.startCol, 10) || 0);
   const offsetStr = normalizeOffset(common.imgOffset);
-
-  if (objType === 'building' || objType === 'factory') {
-    serializeBuildingOrFactoryImages(lines, objType, v, prefix, startRow, startCol, offsetStr);
-    return;
-  }
-
-  if (objType === 'vehicle') {
-    const dirs = String(v.directions) === '4'
-      ? ['S', 'E', 'N', 'W']
-      : ['S', 'E', 'SE', 'SW', 'N', 'W', 'NW', 'NE'];
-    dirs.forEach((d, i) => lines.push(`EmptyImage[${d}]=${imgRef(prefix, startRow, startCol + i, offsetStr)}`));
-    if (v.hasFreightImage) {
-      const fRow = Math.max(0, parseInt(v.freightRow, 10) || 1);
-      dirs.forEach((d, i) => lines.push(`FreightImage[${d}]=${imgRef(prefix, fRow, startCol + i, offsetStr)}`));
+  const entries = collectImageEntries(objType, v, common);
+  entries.forEach((e) => {
+    if (e.isIcon) {
+      lines.push(`${e.key}=> ${prefix}.${e.row}.${e.col}`);
+    } else {
+      lines.push(`${e.key}=${imgRef(prefix, e.row, e.col, offsetStr)}`);
     }
-    return;
-  }
-
-  if (objType === 'citycar') {
-    const dirs = ['S', 'E', 'SE', 'SW', 'N', 'W', 'NW', 'NE'];
-    dirs.forEach((d, i) => lines.push(`Image[${d}]=${imgRef(prefix, startRow, startCol + i, offsetStr)}`));
-    return;
-  }
-
-  if (objType === 'tree') {
-    const ages = Math.max(1, parseInt(v.ageCount, 10) || 5);
-    const seasons = Math.max(1, parseInt(v.seasons, 10) || 4);
-    for (let age = 0; age < ages; age++) {
-      for (let s = 0; s < seasons; s++) {
-        lines.push(`Image[${age}][${s}]=${imgRef(prefix, startRow + age, startCol + s, offsetStr)}`);
-      }
-    }
-    return;
-  }
-
-  if (objType === 'groundobj') {
-    const seasons = Math.max(1, parseInt(v.seasons, 10) || 1);
-    for (let s = 0; s < seasons; s++) {
-      lines.push(`Image[0][${s}]=${imgRef(prefix, startRow, startCol + s, offsetStr)}`);
-    }
-    return;
-  }
-
-  serializeInfraImages(lines, objType, v, prefix, startRow, startCol, offsetStr);
+  });
 }
 
 // フォーム状態から Simutrans dat テキストを生成する
