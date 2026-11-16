@@ -1,6 +1,28 @@
 export function renderSubModalsUI() {
   const container = document.getElementById('modal-container') || document.body;
 
+  if (!document.getElementById('modal-copy-layer')) {
+    container.insertAdjacentHTML('beforeend', `
+      <dialog id="modal-copy-layer">
+        <div class="picker-content" style="width:380px;">
+          <h3 style="font-size:13px; margin-bottom:8px;">📋 レイヤーのコピー先マスク選択</h3>
+          <p class="desc-text" style="margin-bottom:8px;">コピーしたテクスチャ・ストラクチャを適用するマスク画像を選択してください。</p>
+          <div class="row">
+            <label style="width:85px;">コピー先:</label>
+            <select id="sel-copy-target-mask" style="flex:1;"></select>
+          </div>
+          <label class="mt-05" style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
+            <input type="checkbox" id="chk-copy-switch-mask" checked> 別マスクへコピーした場合、そのマスクへ表示を切り替える
+          </label>
+          <div class="btn-group mt-1">
+            <button type="button" id="btn-copy-layer-ok" class="btn-primary">✓ コピーを実行</button>
+            <button type="button" id="btn-copy-layer-cancel">キャンセル</button>
+          </div>
+        </div>
+      </dialog>
+    `);
+  }
+
   if (!document.getElementById('modal-palette-blend')) {
     container.insertAdjacentHTML('beforeend', `
       <dialog id="modal-palette-blend">
@@ -134,7 +156,7 @@ export function renderSubModalsUI() {
             <button id="btn-close-replace" style="margin-left:auto;">✕ 閉じる</button>
           </header>
           <div class="replace-body">
-            <p class="desc-text">置換元は「🎯画像採取」で編集中画像から取得、置換先は現在使用中のパレットから選択できます。</p>
+            <p class="desc-text">置換元は「🎯画像から取得」で編集中画像から取得、置換先は現在使用中のパレットから選択できます。</p>
             <div id="replace-rules-container"></div>
             <button id="btn-add-replace-rule" class="w-100 mt-05">＋ 置換ルールを追加</button>
             <div class="row mt-1">

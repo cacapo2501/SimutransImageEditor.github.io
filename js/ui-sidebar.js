@@ -36,7 +36,7 @@ export function renderSidebarUI() {
           <div class="info-text" id="lbl-base-info">ベース: 未読込</div>
         </fieldset>
 
-        <!-- 複数マスク画像管理（追加・切替・名称編集・複製・削除） -->
+        <!-- 複数マスク画像管理 -->
         <fieldset class="sub-panel mt-05">
           <legend>🎭 マスク画像管理 (複数保持・切替・複製・削除)</legend>
           <div class="row">
@@ -82,7 +82,7 @@ export function renderSidebarUI() {
           <button id="btn-add-structure">＋ 小物追加</button>
         </div>
         <div class="btn-group mt-05">
-          <button id="btn-copy-layer">📋 コピー(相対参照)</button>
+          <button id="btn-copy-layer">📋 コピー(マスク指定可)</button>
           <button id="btn-del-layer">－ 削除</button>
         </div>
         <div id="layer-listbox"></div>
@@ -97,6 +97,17 @@ export function renderSidebarUI() {
           <label><input type="radio" name="layer-type" value="multiply" checked> 乗算 (テクスチャ)</label>
           <label><input type="radio" name="layer-type" value="structure"> ストラクチャー (小物)</label>
           <label><input type="checkbox" id="chk-trans-e7ffff"> ストラクチャの #E7FFFF を透過色 (#C0C0C000) にする</label>
+        </fieldset>
+
+        <fieldset class="sub-panel">
+          <legend>適用マスク画像設定 (このレイヤー)</legend>
+          <div class="row">
+            <label style="min-width: 75px;">対象マスク:</label>
+            <select id="sel-layer-target-mask">
+              <option value="">すべてのマスク画像に適用 (共通)</option>
+            </select>
+          </div>
+          <span class="info-text">※特定マスクのみに指定すると、他のマスク選択時はリストから非表示になります</span>
         </fieldset>
 
         <fieldset class="sub-panel">

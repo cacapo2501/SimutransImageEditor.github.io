@@ -1,5 +1,6 @@
 import { MaskGenerator } from './mask-generator.js';
 import { cloneCanvasFromSource } from './paint-resize.js';
+import { Layer } from './layer.js';
 
 export class MaskCollectionManager {
   constructor(app) {
@@ -27,6 +28,7 @@ export class MaskCollectionManager {
         this.app.maskName = cur.name;
         this._refreshSelectOptionsOnly();
         this._updateInfoLabel();
+        if (this.app.layerManager) this.app.layerManager._updateTargetMaskDropdownOptions();
         this.app.markDirty();
       };
     }
@@ -37,22 +39,12 @@ export class MaskCollectionManager {
         return;
       }
       const f = await this.app.imageIOCtrl.pickFileFn('.png');
-      if (f) {
-        await this.app.loadMaskFromFile(f, { addAsNew: true });
-      }
+      if (f) await this.app.loadMaskFromFile(f, { addAsNew: true });
     });
 
-    document.getElementById('btn-mask-add-from-base')?.addEventListener('click', () => {
-      this.addNewFromBase();
-    });
-
-    document.getElementById('btn-mask-duplicate')?.addEventListener('click', () => {
-      this.duplicateActiveMask();
-    });
-
-    document.getElementById('btn-mask-delete')?.addEventListener('click', () => {
-      this.deleteActiveMask();
-    });
+    document.getElementById('btn-mask-add-from-base')?.addEventListener('click', () => this.addNewFromBase());
+    document.getElementById('btn-mask-duplicate')?.addEventListener('click', () => this.duplicateActiveMask());
+    document.getElementById('btn-mask-delete')?.addEventListener('click', () => this.deleteActiveMask());
   }
 
   getActive() {
@@ -65,6 +57,7 @@ export class MaskCollectionManager {
     this.activeIndex = -1;
     this._syncAppFromActive();
     this.refreshUI();
+    if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
   }
 
   saveActiveStateFromApp() {
@@ -127,6 +120,7 @@ export class MaskCollectionManager {
     MaskGenerator.analyzeMaskImage(this.app, img, name);
     this.saveActiveStateFromApp();
     this.refreshUI();
+    if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
   }
 
   selectMask(idx) {
@@ -143,6 +137,7 @@ export class MaskCollectionManager {
       this.app.toneTintCtrl.onToneTargetChanged('__ALL__');
     }
     this.refreshUI();
+    if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
     this.app.render();
   }
 
@@ -177,6 +172,7 @@ export class MaskCollectionManager {
       app.toneTintCtrl.updateTintTable();
     }
     this.refreshUI();
+    if (app.layerManager) app.layerManager.onMaskCollectionChanged();
     app.markDirty();
     app.render();
   }
@@ -189,10 +185,12 @@ export class MaskCollectionManager {
     }
     this.saveActiveStateFromApp();
 
+    const oldMaskId = cur.id;
+    const newMaskId = this._nextId++;
     const clonedCanvas = cloneCanvasFromSource(cur.image);
     const copyName = cur.name.replace(/(\.png)?$/i, '_copy$1');
     const copyEntry = {
-      id: this._nextId++,
+      id: newMaskId,
       name: copyName,
       image: clonedCanvas,
       rgb: cur.rgb ? new Uint8Array(cur.rgb) : null,
@@ -203,6 +201,31 @@ export class MaskCollectionManager {
       )
     };
 
+    // 複製元マスク専用レイヤーがあれば新しいマスク専用として自動複製
+    const dedicatedLayers = this.app.layers.filter(l => l.targetMaskId === oldMaskId);
+    dedicatedLayers.forEach(src => {
+      const master = src.sourceLayer || src;
+      this.app.layers.push(new Layer({
+        name: src.name,
+        imageElement: master.imageElement,
+        canvasW: this.app.baseW,
+        canvasH: this.app.baseH,
+        layerType: src.layerType,
+        corners: src.corners.map(([x, y]) => [x, y]),
+        transformMode: src.transformMode,
+        opacity: src.opacity,
+        visible: src.visible,
+        fillAll: src.fillAll,
+        transparentE7ffff: src.transparentE7ffff,
+        excludeMaskColor: src.excludeMaskColor,
+        tileX: src.tileX,
+        tileY: src.tileY,
+        targetMaskColor: src.targetMaskColor ? [...src.targetMaskColor] : null,
+        targetMaskId: newMaskId,
+        sourceLayer: master
+      }));
+    });
+
     this.items.splice(this.activeIndex + 1, 0, copyEntry);
     this.activeIndex = this.activeIndex + 1;
     this._syncAppFromActive();
@@ -212,14 +235,19 @@ export class MaskCollectionManager {
       this.app.toneTintCtrl.updateTintTable();
     }
     this.refreshUI();
+    if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
     this.app.markDirty();
     this.app.render();
   }
 
   deleteActiveMask() {
     if (this.items.length === 0) return;
+    const cur = this.getActive();
+    const deletedId = cur.id;
+
     if (this.items.length === 1) {
       if (!confirm('最後のマスク画像を削除して未設定状態に戻しますか？')) return;
+      this.app.layers = this.app.layers.filter(l => l.targetMaskId !== deletedId);
       this.clearAll();
       if (this.app.toneTintCtrl) {
         this.app.toneTintCtrl.updateMaskCombos();
@@ -230,9 +258,9 @@ export class MaskCollectionManager {
       return;
     }
 
-    const cur = this.getActive();
-    if (!confirm(`マスク画像「${cur.name}」を削除しますか？`)) return;
+    if (!confirm(`マスク画像「${cur.name}」を削除しますか？（このマスク専用のレイヤーも削除されます）`)) return;
 
+    this.app.layers = this.app.layers.filter(l => l.targetMaskId !== deletedId);
     this.items.splice(this.activeIndex, 1);
     this.activeIndex = Math.min(this.activeIndex, this.items.length - 1);
     this._syncAppFromActive();
@@ -242,6 +270,7 @@ export class MaskCollectionManager {
       this.app.toneTintCtrl.updateTintTable();
     }
     this.refreshUI();
+    if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
     this.app.markDirty();
     this.app.render();
   }

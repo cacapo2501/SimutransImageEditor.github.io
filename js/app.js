@@ -311,11 +311,12 @@ class AdvancedMultiplyApp {
       this.ctx.drawImage(gc, this.panX, this.panY, vw, vh);
     }
 
+    const activeMaskId = this.maskMgr?.getActive()?.id ?? null;
     if (this.isEyedropper) {
       this.ctx.fillStyle = '#FFFF00';
       this.ctx.font = 'bold 12px sans-serif';
       this.ctx.fillText('【マスク画像表示中】適用したい色をクリックまたはタップしてください (Escでキャンセル)', this.panX + 10, this.panY - 12);
-    } else if (this.activeIdx >= 0) {
+    } else if (this.activeIdx >= 0 && this.layers[this.activeIdx]?.isActiveForMask(activeMaskId)) {
       RenderEngine.drawOverlay(this.ctx, this.layers[this.activeIdx], this.zoomLevel, this.panX, this.panY);
     }
   }

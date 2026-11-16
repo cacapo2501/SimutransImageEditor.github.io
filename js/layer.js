@@ -1,252 +1,187 @@
-import { sampleWarpedTexture } from './transform.js';
+// 単一レイヤーのデータ構造と変形計算（乗算テクスチャ / ストラクチャー小物）
 
 export class Layer {
-  constructor(opts) {
-    this.sourceLayer = opts.sourceLayer || null;
-    this._visible = opts.visible !== undefined ? opts.visible : true;
+  constructor({
+    name,
+    imageElement,
+    canvasW,
+    canvasH,
+    layerType = 'multiply',
+    corners = null,
+    transformMode = 'box',
+    opacity = 1.0,
+    visible = true,
+    fillAll = false,
+    transparentE7ffff = false,
+    excludeMaskColor = false,
+    tileX = 1.0,
+    tileY = 1.0,
+    targetMaskColor = null,
+    targetMaskId = null,
+    sourceLayer = null
+  }) {
+    this.name = name || 'layer.png';
+    this.imageElement = imageElement;
+    this.layerType = layerType;
+    this.transformMode = transformMode;
+    this.opacity = opacity;
+    this.visible = visible;
+    this.fillAll = fillAll;
+    this.transparentE7ffff = transparentE7ffff;
+    this.excludeMaskColor = excludeMaskColor;
+    this.tileX = tileX;
+    this.tileY = tileY;
+    this.targetMaskColor = targetMaskColor; // [r, g, b] | null
+    this.targetMaskId = targetMaskId;       // number (マスクID) | null (全マスク共通)
+    this.sourceLayer = sourceLayer;
 
-    if (!this.sourceLayer) {
-      this._name = opts.name || '';
-      this._imageElement = opts.imageElement || null;
-      this._opacity = opts.opacity !== undefined ? opts.opacity : 1.0;
-      this._transformMode = opts.transformMode || 'box';
-      this._tileX = Math.max(0.01, opts.tileX || 1.0);
-      this._tileY = Math.max(0.01, opts.tileY || 1.0);
-      this._targetMaskColor = opts.targetMaskColor ? [...opts.targetMaskColor] : null;
-      this._excludeMaskColor = Boolean(opts.excludeMaskColor);
-      this._layerType = opts.layerType || 'multiply';
-      this._fillAll = opts.fillAll || false;
-      this._transparentE7ffff = opts.transparentE7ffff || false;
-      this._cachedImageData = null;
-      this._cachedTiledData = null;
-      if (this._imageElement) this._prepareImageData();
+    const iw = imageElement ? (imageElement.naturalWidth || imageElement.width || canvasW) : canvasW;
+    const ih = imageElement ? (imageElement.naturalHeight || imageElement.height || canvasH) : canvasH;
+    this.corners = corners || [
+      [0, 0],
+      [iw, 0],
+      [iw, ih],
+      [0, ih]
+    ];
+  }
+
+  // 指定されたマスクIDに対してこのレイヤーが有効かどうか
+  isActiveForMask(activeMaskId) {
+    if (this.targetMaskId === null || this.targetMaskId === undefined) return true;
+    if (activeMaskId === null || activeMaskId === undefined) return false;
+    return this.targetMaskId === activeMaskId;
+  }
+
+  replaceImage(img, name) {
+    this.imageElement = img;
+    if (name) this.name = name;
+  }
+
+  _matchMaskPixel(maskRgb, idx) {
+    if (!this.targetMaskColor) return true;
+    if (!maskRgb) return false;
+    const [tr, tg, tb] = this.targetMaskColor;
+    const isMatch = maskRgb[idx * 3] === tr && maskRgb[idx * 3 + 1] === tg && maskRgb[idx * 3 + 2] === tb;
+    return this.excludeMaskColor ? !isMatch : isMatch;
+  }
+
+  _getQuadBounds(baseW, baseH) {
+    if (this.fillAll) return { minX: 0, minY: 0, maxX: baseW - 1, maxY: baseH - 1 };
+    let minX = baseW, minY = baseH, maxX = -1, maxY = -1;
+    for (const [cx, cy] of this.corners) {
+      if (cx < minX) minX = Math.floor(cx);
+      if (cx > maxX) maxX = Math.ceil(cx);
+      if (cy < minY) minY = Math.floor(cy);
+      if (cy > maxY) maxY = Math.ceil(cy);
+    }
+    return {
+      minX: Math.max(0, minX),
+      minY: Math.max(0, minY),
+      maxX: Math.min(baseW - 1, maxX),
+      maxY: Math.min(baseH - 1, maxY)
+    };
+  }
+
+  _sampleSource(u, v) {
+    if (!this._srcData) {
+      const iw = this.imageElement.naturalWidth || this.imageElement.width;
+      const ih = this.imageElement.naturalHeight || this.imageElement.height;
+      const c = document.createElement('canvas');
+      c.width = iw;
+      c.height = ih;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(this.imageElement, 0, 0);
+      this._srcW = iw;
+      this._srcH = ih;
+      this._srcData = ctx.getImageData(0, 0, iw, ih).data;
+    }
+    const tu = ((u * this.tileX) % 1 + 1) % 1;
+    const tv = ((v * this.tileY) % 1 + 1) % 1;
+    const sx = Math.min(this._srcW - 1, Math.floor(tu * this._srcW));
+    const sy = Math.min(this._srcH - 1, Math.floor(tv * this._srcH));
+    const idx = (sy * this._srcW + sx) * 4;
+    return [this._srcData[idx], this._srcData[idx + 1], this._srcData[idx + 2], this._srcData[idx + 3]];
+  }
+
+  _inverseBilinear(px, py) {
+    const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = this.corners;
+    const ex = x1 - x0, ey = y1 - y0;
+    const fx = x3 - x0, fy = y3 - y0;
+    const gx = x0 - x1 + x2 - x3, gy = y0 - y1 + y2 - y3;
+    const hx = px - x0, hy = py - y0;
+
+    const k2 = gx * fy - gy * ex;
+    const k1 = ex * fy - ey * fx + hx * gy - hy * gx;
+    const k0 = hx * ey - hy * ex;
+
+    let v;
+    if (Math.abs(k2) < 1e-6) {
+      if (Math.abs(k1) < 1e-6) return null;
+      v = -k0 / k1;
     } else {
-      this._name = null;
-      this._imageElement = null;
-      this._opacity = opts.opacity !== undefined ? opts.opacity : 1.0;
-      this._transformMode = opts.transformMode || 'box';
-      this._tileX = opts.tileX || 1.0;
-      this._tileY = opts.tileY || 1.0;
-      this._targetMaskColor = opts.targetMaskColor || null;
-      this._excludeMaskColor = Boolean(opts.excludeMaskColor);
-      this._layerType = opts.layerType || 'multiply';
-      this._fillAll = opts.fillAll || false;
-      this._transparentE7ffff = opts.transparentE7ffff || false;
-      this._cachedImageData = null;
-      this._cachedTiledData = null;
+      const disc = k1 * k1 - 4 * k2 * k0;
+      if (disc < 0) return null;
+      const sq = Math.sqrt(disc);
+      v = (-k1 - sq) / (2 * k2);
+      if (v < -1e-4 || v > 1 + 1e-4) v = (-k1 + sq) / (2 * k2);
     }
 
-    if (opts.corners) {
-      this.corners = opts.corners.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000]);
-    } else {
-      this.resetTransform(opts.canvasW || 256, opts.canvasH || 256);
-    }
+    const denomX = ex + gx * v;
+    const denomY = ey + gy * v;
+    const u = Math.abs(denomX) > Math.abs(denomY)
+      ? (hx - fx * v) / (denomX || 1e-6)
+      : (hy - fy * v) / (denomY || 1e-6);
+
+    if (!this.fillAll && (u < -1e-4 || u > 1 + 1e-4 || v < -1e-4 || v > 1 + 1e-4)) return null;
+    return [u, v];
   }
 
-  get name() { return this.sourceLayer ? this.sourceLayer.name : this._name; }
-  get imageElement() { return this.sourceLayer ? this.sourceLayer.imageElement : this._imageElement; }
-  get opacity() { return this.sourceLayer ? this.sourceLayer.opacity : this._opacity; }
-  set opacity(v) { if (this.sourceLayer) this.sourceLayer.opacity = v; else this._opacity = v; }
-  get tileX() { return this.sourceLayer ? this.sourceLayer.tileX : this._tileX; }
-  set tileX(v) {
-    if (this.sourceLayer) {
-      this.sourceLayer.tileX = v;
-    } else {
-      this._tileX = Math.max(0.01, v);
-      this._cachedTiledData = null;
-    }
-  }
-  get tileY() { return this.sourceLayer ? this.sourceLayer.tileY : this._tileY; }
-  set tileY(v) {
-    if (this.sourceLayer) {
-      this.sourceLayer.tileY = v;
-    } else {
-      this._tileY = Math.max(0.01, v);
-      this._cachedTiledData = null;
-    }
-  }
-  get targetMaskColor() { return this.sourceLayer ? this.sourceLayer.targetMaskColor : this._targetMaskColor; }
-  set targetMaskColor(v) { if (this.sourceLayer) this.sourceLayer.targetMaskColor = v; else this._targetMaskColor = v ? [...v] : null; }
-  get excludeMaskColor() { return this.sourceLayer ? this.sourceLayer.excludeMaskColor : this._excludeMaskColor; }
-  set excludeMaskColor(v) { if (this.sourceLayer) this.sourceLayer.excludeMaskColor = Boolean(v); else this._excludeMaskColor = Boolean(v); }
-  get transformMode() { return this.sourceLayer ? this.sourceLayer.transformMode : this._transformMode; }
-  set transformMode(v) { if (this.sourceLayer) this.sourceLayer.transformMode = v; else this._transformMode = v; }
-  get layerType() { return this.sourceLayer ? this.sourceLayer.layerType : this._layerType; }
-  set layerType(v) { if (this.sourceLayer) this.sourceLayer.layerType = v; else this._layerType = v; }
-  get fillAll() { return this.sourceLayer ? this.sourceLayer.fillAll : this._fillAll; }
-  set fillAll(v) { if (this.sourceLayer) this.sourceLayer.fillAll = v; else this._fillAll = v; }
-  get transparentE7ffff() { return this.sourceLayer ? this.sourceLayer.transparentE7ffff : this._transparentE7ffff; }
-  set transparentE7ffff(v) {
-    if (this.sourceLayer) {
-      this.sourceLayer.transparentE7ffff = v;
-    } else {
-      this._transparentE7ffff = v;
-      this._cachedTiledData = null;
-    }
-  }
-  get visible() { return this._visible; }
-  set visible(v) { this._visible = v; }
+  getMultiplierMap(baseW, baseH, maskRgb) {
+    this._srcData = null;
+    const map = new Float32Array(baseW * baseH).fill(1.0);
+    if (!this.imageElement) return map;
 
-  _prepareImageData() {
-    const img = this.imageElement;
-    if (!img) return;
-    const c = document.createElement('canvas');
-    c.width = img.naturalWidth || img.width;
-    c.height = img.naturalHeight || img.height;
-    const ctx = c.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    this._cachedImageData = ctx.getImageData(0, 0, c.width, c.height);
-    this._cachedTiledData = null;
-  }
-
-  replaceImage(img, newName = null) {
-    if (this.sourceLayer) {
-      this.sourceLayer.replaceImage(img, newName);
-      return;
-    }
-    this._imageElement = img;
-    if (newName) this._name = newName;
-    this._prepareImageData();
-  }
-
-  getPngDataUrl() {
-    if (this.sourceLayer || !this.imageElement) return null;
-    const c = document.createElement('canvas');
-    c.width = this.imageElement.naturalWidth || this.imageElement.width;
-    c.height = this.imageElement.naturalHeight || this.imageElement.height;
-    const ctx = c.getContext('2d');
-    ctx.drawImage(this.imageElement, 0, 0);
-    return c.toDataURL('image/png');
-  }
-
-  resetTransform(canvasW, canvasH) {
-    const ow = this.imageElement ? (this.imageElement.naturalWidth || 64) : 64;
-    const oh = this.imageElement ? (this.imageElement.naturalHeight || 64) : 64;
-    const initW = Math.min(ow * this.tileX, canvasW * 0.6);
-    const initH = initW * ((oh * this.tileY) / Math.max(1e-4, ow * this.tileX));
-    const cx = canvasW / 2, cy = canvasH / 2;
-    this.corners = [
-      [cx - initW / 2, cy - initH / 2],
-      [cx + initW / 2, cy - initH / 2],
-      [cx + initW / 2, cy + initH / 2],
-      [cx - initW / 2, cy + initH / 2]
-    ].map(([x, y]) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100]);
-  }
-
-  _getTiledImageData() {
-    const master = this.sourceLayer || this;
-    if (master._cachedTiledData) return master._cachedTiledData;
-
-    const base = master._cachedImageData;
-    if (!base) return null;
-    const repX = Math.ceil(this.tileX), repY = Math.ceil(this.tileY);
-    const tW = Math.max(1, Math.round(base.width * this.tileX));
-    const tH = Math.max(1, Math.round(base.height * this.tileY));
-
-    const c = document.createElement('canvas');
-    c.width = tW; c.height = tH;
-    const ctx = c.getContext('2d');
-
-    const tc = document.createElement('canvas');
-    tc.width = base.width; tc.height = base.height;
-    tc.getContext('2d').putImageData(base, 0, 0);
-
-    for (let y = 0; y < repY; y++) {
-      for (let x = 0; x < repX; x++) {
-        ctx.drawImage(tc, x * base.width, y * base.height);
+    const { minX, minY, maxX, maxY } = this._getQuadBounds(baseW, baseH);
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const i = y * baseW + x;
+        if (!this._matchMaskPixel(maskRgb, i)) continue;
+        const uv = this._inverseBilinear(x + 0.5, y + 0.5);
+        if (!uv) continue;
+        const [r, g, b, a] = this._sampleSource(uv[0], uv[1]);
+        if (a === 0) continue;
+        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+        const alpha = (a / 255.0) * this.opacity;
+        map[i] = 1.0 - alpha * (1.0 - lum);
       }
     }
-
-    const tiled = ctx.getImageData(0, 0, tW, tH);
-    if (this.transparentE7ffff) {
-      const d = tiled.data;
-      for (let i = 0; i < d.length; i += 4) {
-        if (d[i] === 231 && d[i + 1] === 255 && d[i + 2] === 255) {
-          d[i] = 192; d[i + 1] = 192; d[i + 2] = 192; d[i + 3] = 0;
-        }
-      }
-    }
-
-    master._cachedTiledData = tiled;
-    return tiled;
+    return map;
   }
 
-  getMultiplierMap(targetW, targetH, maskRgbData) {
-    if (this.layerType !== 'multiply' || !this.visible || this.opacity <= 0) {
-      return new Float32Array(targetW * targetH).fill(1.0);
-    }
-    const tiled = this._getTiledImageData();
-    if (!tiled) return new Float32Array(targetW * targetH).fill(1.0);
+  getWarpedStructure(baseW, baseH, maskRgb) {
+    this._srcData = null;
+    if (!this.imageElement) return null;
+    const out = new Float32Array(baseW * baseH * 4);
+    const { minX, minY, maxX, maxY } = this._getQuadBounds(baseW, baseH);
 
-    const sampled = sampleWarpedTexture(tiled, this.corners, targetW, targetH, this.fillAll, this.transformMode);
-    if (!sampled) return new Float32Array(targetW * targetH).fill(1.0);
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const i = y * baseW + x;
+        if (!this._matchMaskPixel(maskRgb, i)) continue;
+        const uv = this._inverseBilinear(x + 0.5, y + 0.5);
+        if (!uv) continue;
+        const [r, g, b, a] = this._sampleSource(uv[0], uv[1]);
+        if (a === 0) continue;
+        if (this.transparentE7ffff && r === 231 && g === 255 && b === 255) continue;
 
-    const out = new Float32Array(targetW * targetH).fill(1.0);
-    const tCol = this.targetMaskColor;
-    const exclude = this.excludeMaskColor;
-
-    for (let i = 0; i < targetW * targetH; i++) {
-      if (tCol && maskRgbData) {
-        const isMatch = (
-          maskRgbData[i * 3] === tCol[0] &&
-          maskRgbData[i * 3 + 1] === tCol[1] &&
-          maskRgbData[i * 3 + 2] === tCol[2]
-        );
-        if (exclude ? isMatch : !isMatch) continue;
+        const sa = (a / 255.0) * this.opacity;
+        out[i * 4] = r / 255.0;
+        out[i * 4 + 1] = g / 255.0;
+        out[i * 4 + 2] = b / 255.0;
+        out[i * 4 + 3] = sa;
       }
-      const alpha = sampled[i * 4 + 3] * this.opacity;
-      const gray = 0.299 * sampled[i * 4] + 0.587 * sampled[i * 4 + 1] + 0.114 * sampled[i * 4 + 2];
-      out[i] = 1.0 - alpha * (1.0 - gray);
     }
     return out;
-  }
-
-  getWarpedStructure(targetW, targetH, maskRgbData) {
-    if (this.layerType !== 'structure' || !this.visible || this.opacity <= 0) return null;
-    const tiled = this._getTiledImageData();
-    if (!tiled) return null;
-
-    const sampled = sampleWarpedTexture(tiled, this.corners, targetW, targetH, this.fillAll, this.transformMode);
-    if (!sampled) return null;
-
-    const tCol = this.targetMaskColor;
-    const exclude = this.excludeMaskColor;
-
-    for (let i = 0; i < targetW * targetH; i++) {
-      if (tCol && maskRgbData) {
-        const isMatch = (
-          maskRgbData[i * 3] === tCol[0] &&
-          maskRgbData[i * 3 + 1] === tCol[1] &&
-          maskRgbData[i * 3 + 2] === tCol[2]
-        );
-        // excludeがtrueの場合は一致したピクセルに重ねない（透過0にする）
-        if (exclude ? isMatch : !isMatch) {
-          sampled[i * 4 + 3] = 0;
-          continue;
-        }
-      }
-      sampled[i * 4 + 3] *= this.opacity;
-    }
-    return sampled;
-  }
-
-  toDict(layerList = []) {
-    const srcIdx = this.sourceLayer ? layerList.indexOf(this.sourceLayer) : null;
-    return {
-      name: this.name,
-      corners: this.corners.map(([x, y]) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100]),
-      opacity: Math.round(this.opacity * 100) / 100,
-      visible: Boolean(this.visible),
-      transform_mode: this.transformMode,
-      tile_x: Math.round(this.tileX * 100) / 100,
-      tile_y: Math.round(this.tileY * 100) / 100,
-      target_mask_color: this.targetMaskColor ? [...this.targetMaskColor] : null,
-      exclude_mask_color: Boolean(this.excludeMaskColor),
-      layer_type: this.layerType,
-      fill_all: Boolean(this.fillAll),
-      transparent_e7ffff: Boolean(this.transparentE7ffff),
-      source_idx: (srcIdx !== null && srcIdx !== -1) ? srcIdx : null,
-      image_data: this.getPngDataUrl()
-    };
   }
 }

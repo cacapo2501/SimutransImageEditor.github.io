@@ -27,7 +27,7 @@ function downloadBlob(blob, filename) {
 }
 
 export class ProjectIO {
-  static async save(app) {
+  static async save(app, { saveAs = false } = {}) {
     if (!app.baseImage) {
       alert('ベース画像が読み込まれていません。');
       return;
@@ -37,17 +37,16 @@ export class ProjectIO {
       app.maskMgr.saveActiveStateFromApp();
     }
 
-    const maskEntries = (app.maskMgr && app.maskMgr.items.length > 0)
-      ? app.maskMgr.items.map(item => ({
-          name: item.name,
-          image_data_url: canvasToDataUrl(item.image),
-          tint_colors: Array.from(item.tintColors.entries()),
-          tone_overrides: Array.from(item.toneOverrides.entries())
-        }))
-      : [];
+    const maskItems = app.maskMgr ? app.maskMgr.items : [];
+    const maskEntries = maskItems.map(item => ({
+      name: item.name,
+      image_data_url: canvasToDataUrl(item.image),
+      tint_colors: Array.from(item.tintColors.entries()),
+      tone_overrides: Array.from(item.toneOverrides.entries())
+    }));
 
     const projData = {
-      version: '3.1',
+      version: '3.2',
       base_name: app.baseName,
       base_data_url: canvasToDataUrl(app.baseImage),
       active_mask_index: app.maskMgr ? app.maskMgr.activeIndex : -1,
@@ -78,6 +77,7 @@ export class ProjectIO {
         tile_x: l.tileX,
         tile_y: l.tileY,
         target_mask_color: l.targetMaskColor,
+        target_mask_index: l.targetMaskId !== null ? maskItems.findIndex(m => m.id === l.targetMaskId) : -1,
         source_index: l.sourceLayer ? app.layers.indexOf(l.sourceLayer) : -1
       }))
     };
@@ -85,7 +85,7 @@ export class ProjectIO {
     const jsonStr = JSON.stringify(projData, null, 2);
     const defaultName = app.baseName.replace(/\.png$/i, '') + '.proj.json';
 
-    const saved = await app.storage.saveJsonFile(jsonStr, defaultName);
+    const saved = await app.storage.saveJsonFile(jsonStr, defaultName, { saveAs });
     if (saved) {
       app.isDirty = false;
       alert('プロジェクトを保存しました！');
@@ -135,10 +135,15 @@ export class ProjectIO {
     app.pixelSnap = data.pixel_snap !== undefined ? data.pixel_snap : true;
     if (data.special_colors) app.specialColors = new Set(data.special_colors);
 
+    const loadedMasks = app.maskMgr ? app.maskMgr.items : [];
     app.layers = [];
     const { Layer } = await import('./layer.js');
     for (const ld of (data.layers || [])) {
       const lImg = await loadImageAsync(ld.image_data_url);
+      const mappedMaskId = (typeof ld.target_mask_index === 'number' && ld.target_mask_index >= 0 && ld.target_mask_index < loadedMasks.length)
+        ? loadedMasks[ld.target_mask_index].id
+        : null;
+
       const layer = new Layer({
         name: ld.name,
         imageElement: lImg,
@@ -154,7 +159,8 @@ export class ProjectIO {
         excludeMaskColor: ld.exclude_mask_color,
         tileX: ld.tile_x,
         tileY: ld.tile_y,
-        targetMaskColor: ld.target_mask_color
+        targetMaskColor: ld.target_mask_color,
+        targetMaskId: mappedMaskId
       });
       layer._tempSrcIdx = ld.source_index;
       app.layers.push(layer);
@@ -166,8 +172,7 @@ export class ProjectIO {
       delete l._tempSrcIdx;
     });
 
-    app.refreshLayerList();
-    app.selectLayer(app.layers.length > 0 ? 0 : -1);
+    if (app.layerManager) app.layerManager.onMaskCollectionChanged();
     app.onToneTargetChanged('__ALL__');
     app.toneTintCtrl.updateMaskCombos();
     app.toneTintCtrl.updateTintTable();

@@ -6,11 +6,12 @@ export class RenderEngine {
   static compute(app) {
     if (!app.baseRgb) return null;
     const total = app.baseW * app.baseH;
+    const activeMaskId = app.maskMgr?.getActive()?.id ?? null;
     let multAccum = new Float32Array(total).fill(1.0);
 
-    // 1. 乗算テクスチャ積算
+    // 1. 乗算テクスチャ積算（現在のマスク画像で有効なレイヤーのみ）
     app.layers.forEach(layer => {
-      if (layer.visible && layer.layerType === 'multiply') {
+      if (layer.visible && layer.layerType === 'multiply' && layer.isActiveForMask(activeMaskId)) {
         const mMap = layer.getMultiplierMap(app.baseW, app.baseH, app.maskRgb);
         for (let i = 0; i < total; i++) multAccum[i] *= mMap[i];
       }
@@ -132,10 +133,10 @@ export class RenderEngine {
       }
     }
 
-    // 4. ストラクチャー上乗せ
+    // 4. ストラクチャー上乗せ（現在のマスク画像で有効なレイヤーのみ）
     const structureAppliedMask = new Uint8Array(total);
     app.layers.forEach(layer => {
-      if (layer.visible && layer.layerType === 'structure') {
+      if (layer.visible && layer.layerType === 'structure' && layer.isActiveForMask(activeMaskId)) {
         const sData = layer.getWarpedStructure(app.baseW, app.baseH, app.maskRgb);
         if (!sData) return;
         for (let i = 0; i < total; i++) {
@@ -183,7 +184,7 @@ export class RenderEngine {
       for (let i = 0; i < outRgb.length; i++) outRgb[i] = blurred[i];
     }
 
-    // 6. ベース・マスク・テクスチャ適用後のピクセルアルファ設定
+    // 6. ピクセルアルファ設定
     for (let i = 0; i < total; i++) {
       if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;
       if (app.isBgMask && app.isBgMask[i] && structureAppliedMask[i] === 0) continue;

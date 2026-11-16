@@ -11,7 +11,7 @@ export class LayerManager {
   bindEvents() {
     document.getElementById('btn-add-multiply').onclick = () => this.addLayer('multiply');
     document.getElementById('btn-add-structure').onclick = () => this.addLayer('structure');
-    document.getElementById('btn-copy-layer').onclick = () => this.copyLayer();
+    document.getElementById('btn-copy-layer').onclick = () => this.openCopyLayerDialog();
     document.getElementById('btn-del-layer').onclick = () => this.delLayer();
     document.getElementById('btn-layer-up').onclick = () => this.moveLayer(-1);
     document.getElementById('btn-layer-down').onclick = () => this.moveLayer(1);
@@ -35,6 +35,19 @@ export class LayerManager {
         this.app.render();
       }
     };
+
+    const selTargetMask = document.getElementById('sel-layer-target-mask');
+    if (selTargetMask) {
+      selTargetMask.onchange = (e) => {
+        if (this.app.activeIdx < 0) return;
+        const raw = e.target.value;
+        const nextMaskId = raw === '' ? null : parseInt(raw, 10);
+        this.app.layers[this.app.activeIdx].targetMaskId = Number.isNaN(nextMaskId) ? null : nextMaskId;
+        this.app.markDirty();
+        this.onMaskCollectionChanged();
+        this.app.render();
+      };
+    }
 
     document.getElementById('chk-exclude-mask').onchange = (e) => {
       if (this.app.activeIdx >= 0) {
@@ -92,9 +105,7 @@ export class LayerManager {
       };
     });
 
-    document.getElementById('chk-pixel-snap').onchange = (e) => {
-      this.app.pixelSnap = e.target.checked;
-    };
+    document.getElementById('chk-pixel-snap').onchange = (e) => { this.app.pixelSnap = e.target.checked; };
 
     document.getElementById('btn-snap-now').onclick = () => {
       if (this.app.activeIdx >= 0) {
@@ -126,16 +137,70 @@ export class LayerManager {
     };
   }
 
+  getActiveMaskId() {
+    return this.app.maskMgr?.getActive()?.id ?? null;
+  }
+
+  getVisibleLayerIndices() {
+    const activeMaskId = this.getActiveMaskId();
+    const indices = [];
+    this.app.layers.forEach((l, i) => {
+      if (l.isActiveForMask(activeMaskId)) indices.push(i);
+    });
+    return indices;
+  }
+
+  onMaskCollectionChanged() {
+    this._updateTargetMaskDropdownOptions();
+    const visibleIndices = this.getVisibleLayerIndices();
+
+    if (this.app.activeIdx >= 0 && !visibleIndices.includes(this.app.activeIdx)) {
+      this.app.activeIdx = visibleIndices.length > 0 ? visibleIndices[0] : -1;
+    } else if (this.app.activeIdx < 0 && visibleIndices.length > 0) {
+      this.app.activeIdx = visibleIndices[0];
+    }
+
+    this.refreshList();
+    this.syncActiveUI();
+  }
+
+  _updateTargetMaskDropdownOptions() {
+    const sel = document.getElementById('sel-layer-target-mask');
+    if (!sel) return;
+
+    const masks = this.app.maskMgr?.items || [];
+    const opts = ['<option value="">すべてのマスク画像に適用 (共通)</option>'];
+    masks.forEach((m, idx) => {
+      opts.push(`<option value="${m.id}">[${idx + 1}] ${m.name} のみに適用</option>`);
+    });
+    sel.innerHTML = opts.join('');
+
+    const curLayer = this.app.activeIdx >= 0 ? this.app.layers[this.app.activeIdx] : null;
+    sel.value = curLayer && curLayer.targetMaskId !== null ? String(curLayer.targetMaskId) : '';
+  }
+
   refreshList() {
     const lb = document.getElementById('layer-listbox');
     if (!lb) return;
     lb.innerHTML = '';
+
+    const activeMaskId = this.getActiveMaskId();
+    const masks = this.app.maskMgr?.items || [];
+
     this.app.layers.forEach((l, i) => {
+      if (!l.isActiveForMask(activeMaskId)) return;
+
       const tag = l.sourceLayer ? '[小物(参照)]' : (l.layerType === 'structure' ? '[小物]' : '[乗算]');
+      const scopeTag = l.targetMaskId !== null ? '[マスク専用] ' : '';
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'layer-list-item' + (i === this.app.activeIdx ? ' selected' : '');
-      btn.textContent = `${tag} ${l.name}`;
+      btn.textContent = `${tag} ${scopeTag}${l.name}`;
+
+      if (l.targetMaskId !== null) {
+        const mObj = masks.find(m => m.id === l.targetMaskId);
+        btn.title = mObj ? `対象マスク: ${mObj.name}` : '特定マスク専用';
+      }
 
       const handleSelect = (e) => { e.preventDefault(); this.select(i); };
       btn.addEventListener('pointerdown', handleSelect);
@@ -146,16 +211,7 @@ export class LayerManager {
 
   select(idx) {
     this.app.activeIdx = idx;
-    const items = document.querySelectorAll('#layer-listbox .layer-list-item');
-    items.forEach((item, i) => {
-      if (i === idx) {
-        item.classList.add('selected');
-        item.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      } else {
-        item.classList.remove('selected');
-      }
-    });
-
+    this.refreshList();
     this.syncActiveUI();
     if (idx >= 0) {
       const acc = document.getElementById('accordion-layer');
@@ -165,6 +221,7 @@ export class LayerManager {
   }
 
   syncActiveUI() {
+    this._updateTargetMaskDropdownOptions();
     const idx = this.app.activeIdx;
     if (idx < 0 || idx >= this.app.layers.length) return;
     const l = this.app.layers[idx];
@@ -180,24 +237,23 @@ export class LayerManager {
     document.getElementById('lbl-tile-x').textContent = l.tileX.toFixed(1);
     document.getElementById('lbl-tile-y').textContent = l.tileY.toFixed(1);
 
+    const selTargetMask = document.getElementById('sel-layer-target-mask');
+    if (selTargetMask) {
+      selTargetMask.value = l.targetMaskId !== null ? String(l.targetMaskId) : '';
+    }
+
     if (l.targetMaskColor) {
       const hex = rgbToHex(...l.targetMaskColor);
       document.getElementById('layer-mask-swatch').style.backgroundColor = hex;
       document.getElementById('lbl-layer-mask').textContent = l.excludeMaskColor
         ? `適用先: ${hex} 以外 (この色を除外)`
         : `適用先: ${hex} (この色のみに適用)`;
-
-      if (this.app.toneTintCtrl) {
-        this.app.toneTintCtrl.setLayerMaskValue(hex);
-      }
+      if (this.app.toneTintCtrl) this.app.toneTintCtrl.setLayerMaskValue(hex);
     } else {
       document.getElementById('layer-mask-swatch').style.backgroundColor = '#FFFFFF';
       document.getElementById('lbl-layer-mask').textContent = '適用先: 全体 (マスクなし)';
-      if (this.app.toneTintCtrl) {
-        this.app.toneTintCtrl.setLayerMaskValue('');
-      }
+      if (this.app.toneTintCtrl) this.app.toneTintCtrl.setLayerMaskValue('');
     }
-
   }
 
   async addLayer(layerType) {
@@ -210,34 +266,88 @@ export class LayerManager {
       imageElement: img,
       canvasW: this.app.baseW,
       canvasH: this.app.baseH,
-      layerType: layerType
+      layerType: layerType,
+      targetMaskId: null
     });
     this.app.layers.push(l);
-    this.refreshList();
     this.select(this.app.layers.length - 1);
     this.app.markDirty();
     this.app.render();
   }
 
-  copyLayer() {
+  openCopyLayerDialog() {
     const idx = this.app.activeIdx;
-    if (idx < 0) return;
+    if (idx < 0 || idx >= this.app.layers.length) return;
+
+    const masks = this.app.maskMgr?.items || [];
+    const modal = document.getElementById('modal-copy-layer');
+    const sel = document.getElementById('sel-copy-target-mask');
+
+    if (!modal || !sel || masks.length === 0) {
+      this._executeCopyLayer(null, false);
+      return;
+    }
+
+    const activeMaskId = this.getActiveMaskId();
+    const opts = ['<option value="">すべてのマスク画像に適用 (共通)</option>'];
+    masks.forEach((m, i) => {
+      const selected = m.id === activeMaskId ? ' selected' : '';
+      opts.push(`<option value="${m.id}"${selected}>[${i + 1}] ${m.name} のみに適用</option>`);
+    });
+    sel.innerHTML = opts.join('');
+
+    document.getElementById('btn-copy-layer-ok').onclick = () => {
+      const raw = sel.value;
+      const targetMaskId = raw === '' ? null : parseInt(raw, 10);
+      const switchMask = Boolean(document.getElementById('chk-copy-switch-mask')?.checked);
+      modal.close();
+      this._executeCopyLayer(Number.isNaN(targetMaskId) ? null : targetMaskId, switchMask);
+    };
+
+    document.getElementById('btn-copy-layer-cancel').onclick = () => modal.close();
+    modal.showModal();
+  }
+
+  _executeCopyLayer(targetMaskId, switchToTargetMask) {
+    const idx = this.app.activeIdx;
+    if (idx < 0 || idx >= this.app.layers.length) return;
     const src = this.app.layers[idx];
     const master = src.sourceLayer || src;
+
     const copy = new Layer({
       name: master.name,
       imageElement: master.imageElement,
       canvasW: this.app.baseW,
       canvasH: this.app.baseH,
+      layerType: src.layerType,
       corners: src.corners.map(([x, y]) => [x + 10, y + 10]),
-      sourceLayer: master,
-      fillAll: master.fillAll,
-      transparentE7ffff: master.transparentE7ffff,
-      excludeMaskColor: master.excludeMaskColor
+      transformMode: src.transformMode,
+      opacity: src.opacity,
+      visible: src.visible,
+      fillAll: src.fillAll,
+      transparentE7ffff: src.transparentE7ffff,
+      excludeMaskColor: src.excludeMaskColor,
+      tileX: src.tileX,
+      tileY: src.tileY,
+      targetMaskColor: src.targetMaskColor ? [...src.targetMaskColor] : null,
+      targetMaskId: targetMaskId,
+      sourceLayer: master
     });
+
     this.app.layers.push(copy);
-    this.refreshList();
-    this.select(this.app.layers.length - 1);
+    const newIdx = this.app.layers.length - 1;
+
+    if (switchToTargetMask && targetMaskId !== null && this.app.maskMgr) {
+      const mIdx = this.app.maskMgr.items.findIndex(m => m.id === targetMaskId);
+      if (mIdx >= 0 && mIdx !== this.app.maskMgr.activeIndex) {
+        this.app.maskMgr.selectMask(mIdx);
+      }
+    }
+
+    this.onMaskCollectionChanged();
+    if (this.getVisibleLayerIndices().includes(newIdx)) {
+      this.select(newIdx);
+    }
     this.app.markDirty();
     this.app.render();
   }
@@ -246,8 +356,10 @@ export class LayerManager {
     const idx = this.app.activeIdx;
     if (idx < 0) return;
     this.app.layers.splice(idx, 1);
+    const visible = this.getVisibleLayerIndices();
+    this.app.activeIdx = visible.length > 0 ? visible[0] : -1;
     this.refreshList();
-    this.select(Math.min(idx, this.app.layers.length - 1));
+    this.syncActiveUI();
     this.app.markDirty();
     this.app.render();
   }
@@ -255,12 +367,17 @@ export class LayerManager {
   moveLayer(delta) {
     const idx = this.app.activeIdx;
     if (idx < 0) return;
-    const targetIdx = idx + delta;
-    if (targetIdx < 0 || targetIdx >= this.app.layers.length) return;
+    const visible = this.getVisibleLayerIndices();
+    const pos = visible.indexOf(idx);
+    if (pos < 0) return;
+
+    const targetPos = pos + delta;
+    if (targetPos < 0 || targetPos >= visible.length) return;
+    const targetIdx = visible[targetPos];
+
     const temp = this.app.layers[idx];
     this.app.layers[idx] = this.app.layers[targetIdx];
     this.app.layers[targetIdx] = temp;
-    this.refreshList();
     this.select(targetIdx);
     this.app.markDirty();
     this.app.render();
