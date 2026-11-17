@@ -140,3 +140,29 @@ export function restoreDatProjectState(gen, data) {
     applyPendingDatProjectUi(gen);
   }
 }
+
+// 車両の先頭車・後尾車判定を行い、デフォルトの OTRP Reverse 有効化と排他整合を適用する
+export function applyDefaultVehicleReverse(entry, idx, total) {
+  if (!entry || entry.objType !== 'vehicle') return entry;
+  const values = entry.values || {};
+  const common = entry.common || {};
+  const hasNone = (raw) => String(raw || '').split(/\r?\n/).some(s => s.trim().toLowerCase() === 'none');
+  const isEndCar = (total > 1 && (idx === 0 || idx === total - 1))
+    || hasNone(values.constraintsPrev)
+    || hasNone(values.constraintsNext);
+
+  const fmt = common.imageFormat || 'auto';
+  if (fmt === 'vehicle_otrp_reverse' || fmt === 'vehicle_otrp_reverse_only') {
+    // OTRP Reverse と標準 FreightImage の同時設定は不可
+    values.hasFreightImage = false;
+  } else if (fmt === 'auto') {
+    if (values.hasFreightImage) {
+      common.imageFormat = 'vehicle_freight';
+    } else if (isEndCar) {
+      common.imageFormat = 'vehicle_otrp_reverse';
+      values.reverseRowMode = values.reverseRowMode || 'same_row';
+      values.hasFreightImage = false;
+    }
+  }
+  return entry;
+}

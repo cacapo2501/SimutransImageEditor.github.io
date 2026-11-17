@@ -198,13 +198,9 @@ export function buildFormattedImages(objType, values, common) {
       entries.push(...buildDirectionalSlots(`FreightImage[${tIdx}]`, DIRS_8, fRow + tIdx, startCol, flipBase));
     });
   } else if (format === 'vehicle_otrp_reverse') {
+    // OTRP Reverse指定時は通常のFreightImageと同時設定不可のため、Reverse専用として展開する
     entries = buildDirectionalSlots('EmptyImage', DIRS_8, startRow, startCol, flipBase);
     let idx = 0;
-    if (v.hasFreightImage) {
-      entries.push({ metaLine: `FreightImageType[${idx}]=${freightName}` });
-      entries.push(...buildDirectionalSlots(`FreightImage[${idx}]`, DIRS_8, fRow, startCol, flipBase));
-      idx++;
-    }
     entries.push({ metaLine: `FreightImageType[${idx}]=Reverse` });
     entries.push(...buildDirectionalSlots(`FreightImage[${idx}]`, DIRS_8, revRow, startCol, actualRevFlip));
     idx++;

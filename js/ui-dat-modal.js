@@ -255,3 +255,95 @@ export function renderDynamicDatFields(container, tpl, state, onChanged) {
     container.appendChild(wrap);
   });
 }
+
+// DAT生成モーダル内の主要フォーム・出力関連イベントを一括バインドする
+export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS, bindDatOutputActions }) {
+  const modal = document.getElementById('modal-dat-generator');
+  const closeModal = () => modal.close();
+  document.getElementById('btn-close-dat-top').onclick = closeModal;
+  document.getElementById('btn-dat-close').onclick = closeModal;
+
+  document.getElementById('sel-dat-obj-type').onchange = (e) => {
+    const prevDefault = DAT_OBJECT_TEMPLATES[gen.currentObjType]?.defaults?.name;
+    gen.currentObjType = e.target.value;
+    if (!gen.common.name || gen.common.name === prevDefault) {
+      gen.common.name = gen._deriveAddonNameFromApp(gen.currentObjType);
+      gen._syncCommonInputsFromState();
+    }
+    gen._updatePresetVisibility();
+    gen.aiCtrl.updateObjTypeVisibility(gen.currentObjType);
+    gen._renderMainFormatOptions();
+    gen._renderDynamicFields();
+    if (gen.autoSync) gen.regenerateOutput();
+    gen._updateSidebarStatus();
+    gen.app?.markDirty?.();
+  };
+
+  document.getElementById('btn-dat-apply-preset').onclick = () => {
+    const presetKey = document.getElementById('sel-dat-building-preset')?.value;
+    const preset = BUILDING_PRESETS[presetKey];
+    if (!preset) return;
+    const state = gen._getObjState('building');
+    Object.assign(state, preset.values);
+    gen._renderDynamicFields();
+    if (gen.autoSync) gen.regenerateOutput();
+  };
+
+  const bindCommon = (id, key, isCheckbox = false) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const handler = () => {
+      gen.common[key] = isCheckbox ? el.checked : el.value;
+      if (key === 'name') {
+        gen.liveryMgr.clearBaseNameCache();
+        const inpFilename = document.getElementById('inp-dat-filename');
+        if (inpFilename && !inpFilename.dataset.userEdited) {
+          const base = (gen.common.name || 'addon').trim();
+          inpFilename.value = base.toLowerCase().endsWith('.dat') ? base : `${base}.dat`;
+        }
+      }
+      if (gen.autoSync) gen.regenerateOutput();
+      gen.app?.markDirty?.();
+    };
+    el.addEventListener(isCheckbox ? 'change' : 'input', handler);
+  };
+
+  bindCommon('inp-dat-name', 'name');
+  bindCommon('inp-dat-copyright', 'copyright');
+  bindCommon('chk-dat-include-images', 'includeImages', true);
+  bindCommon('chk-dat-flip-directions', 'flipDirections', true);
+  bindCommon('inp-dat-img-prefix', 'imgPrefix');
+  bindCommon('inp-dat-start-row', 'startRow');
+  bindCommon('inp-dat-start-col', 'startCol');
+  bindCommon('inp-dat-img-offset', 'imgOffset');
+  bindCommon('inp-dat-extra-lines', 'extraLines');
+
+  document.getElementById('sel-dat-image-format')?.addEventListener('change', (e) => {
+    const fmt = e.target.value;
+    gen.common.imageFormat = fmt;
+    const st = gen._getObjState(gen.currentObjType);
+    // FreightImage と OTRP Reverse の排他性を維持する
+    if (fmt === 'vehicle_otrp_reverse' || fmt === 'vehicle_otrp_reverse_only' || fmt.startsWith('vehicle_empty')) {
+      st.hasFreightImage = false;
+    } else if (fmt === 'vehicle_freight' || fmt === 'vehicle_freight_typed') {
+      st.hasFreightImage = true;
+    }
+    gen._renderMainFormatOptions();
+    if (gen.autoSync) gen.regenerateOutput();
+    gen.app?.markDirty?.();
+  });
+
+  document.getElementById('btn-dat-sync-img-name').onclick = () => {
+    gen.common.imgPrefix = gen._deriveImagePrefixFromApp();
+    document.getElementById('inp-dat-img-prefix').value = gen.common.imgPrefix;
+    if (gen.autoSync) gen.regenerateOutput();
+  };
+  document.getElementById('btn-dat-open-img-picker').onclick = () => gen.imagePicker.open();
+  document.getElementById('btn-dat-clear-custom-img').onclick = () => {
+    gen.common.customImageCoords = null;
+    gen._syncCustomImageStatus();
+    if (gen.autoSync) gen.regenerateOutput();
+  };
+
+  bindDatOutputActions(gen);
+}

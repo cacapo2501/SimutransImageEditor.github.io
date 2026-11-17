@@ -1,6 +1,6 @@
 import { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS } from './dat-templates.js';
 import { serializeDatObject } from './dat-serializer.js';
-import { renderDatModalUI, renderDynamicDatFields } from './ui-dat-modal.js';
+import { renderDatModalUI, renderDynamicDatFields, bindDatModalEvents } from './ui-dat-modal.js';
 import { renderFormatOptionsPanel } from './ui-dat-image-picker.js';
 import { DatAiController } from './dat-ai-controller.js';
 import { DatCollectionManager, bindDatOutputActions } from './dat-collection-manager.js';
@@ -8,7 +8,8 @@ import {
   createDefaultDatCommon,
   serializeDatProjectState,
   restoreDatProjectState,
-  applyPendingDatProjectUi
+  applyPendingDatProjectUi,
+  applyDefaultVehicleReverse
 } from './dat-project-state.js';
 import { DatImagePicker } from './dat-image-picker.js';
 import { DatLiveryManager, buildMaskImagePrefix } from './dat-livery-manager.js';
@@ -42,12 +43,20 @@ export class DatGeneratorController {
   importProjectState(data) { restoreDatProjectState(this, data); }
 
   bindEvents() {
+    // サイドバーから開く際は現在保持している currentObjType を維持する
     document.getElementById('btn-open-dat-generator')?.addEventListener('click', () => {
-      const quickSel = document.getElementById('sel-dat-quick-obj');
-      if (quickSel && quickSel.value && DAT_OBJECT_TEMPLATES[quickSel.value]) {
-        this.open(quickSel.value);
-      } else {
-        this.open();
+      this.open();
+    });
+    document.getElementById('sel-dat-quick-obj')?.addEventListener('change', (e) => {
+      const next = e.target.value;
+      if (DAT_OBJECT_TEMPLATES[next]) {
+        this.currentObjType = next;
+        if (this.initialized) {
+          this._applyControllerStateToForm();
+          if (this.autoSync) this.regenerateOutput();
+        }
+        this._updateSidebarStatus();
+        this.app?.markDirty?.();
       }
     });
   }
@@ -181,10 +190,26 @@ export class DatGeneratorController {
     });
   }
 
-  applyImagePickerResult({ commonPatch, valuesPatch }) {
-    if (commonPatch) Object.assign(this.common, commonPatch);
-    if (valuesPatch) Object.assign(this._getObjState(this.currentObjType), valuesPatch);
-    this._syncCommonInputsFromState();
+  // ピッカーで編集した単体または全編成アイテムを一括反映する
+  applyImagePickerResult({ items, activeIndex = 0, commonPatch, valuesPatch }) {
+    if (Array.isArray(items) && items.length > 0) {
+      if (this.collectionMgr.hasCollection() || items.length > 1) {
+        this.collectionMgr.setItems(items);
+        if (activeIndex > 0 && activeIndex < items.length) {
+          this.collectionMgr.selectItem(activeIndex);
+        }
+      } else {
+        const single = items[0];
+        this.currentObjType = single.objType;
+        this.common = { ...single.common };
+        this.stateByObj[single.objType] = { ...single.values };
+        this._applyControllerStateToForm();
+      }
+    } else {
+      if (commonPatch) Object.assign(this.common, commonPatch);
+      if (valuesPatch) Object.assign(this._getObjState(this.currentObjType), valuesPatch);
+      this._syncCommonInputsFromState();
+    }
     if (this.autoSync) this.regenerateOutput();
     this.app?.markDirty?.();
   }
@@ -224,6 +249,8 @@ export class DatGeneratorController {
   _applyControllerStateToForm() {
     const selObj = document.getElementById('sel-dat-obj-type');
     if (selObj) selObj.value = this.currentObjType;
+    const quickSel = document.getElementById('sel-dat-quick-obj');
+    if (quickSel) quickSel.value = this.currentObjType;
     this._syncCommonInputsFromState();
     this._updatePresetVisibility();
     this.aiCtrl.updateObjTypeVisibility(this.currentObjType);
@@ -244,21 +271,25 @@ export class DatGeneratorController {
       : null;
 
     if (parsed.objects.length > 1) {
-      const list = parsed.objects.map(o => ({
+      const list = parsed.objects.map((o, idx) => applyDefaultVehicleReverse({
         ...o,
-        common: { ...o.common, imgPrefix: maskImgPrefix || o.common.imgPrefix, customImageCoords: null }
-      }));
+        common: { ...o.common, imgPrefix: maskImgPrefix || o.common.imgPrefix, customImageCoords: null },
+        values: { ...o.values, ...(Array.isArray(o.values?.climates) ? { climates: [...o.values.climates] } : {}) }
+      }, idx, parsed.objects.length));
       this.collectionMgr.setItems(list);
     } else {
-      const item = parsed.objects[0];
+      const raw = parsed.objects[0];
+      const item = applyDefaultVehicleReverse({
+        ...raw,
+        common: { ...raw.common, imgPrefix: maskImgPrefix || raw.common.imgPrefix, customImageCoords: null },
+        values: { ...raw.values, ...(Array.isArray(raw.values?.climates) ? { climates: [...raw.values.climates] } : {}) }
+      }, 0, 1);
       this.collectionMgr.items = [];
       this.collectionMgr.activeIndex = -1;
       this.collectionMgr.refreshUI();
       this.currentObjType = item.objType;
-      this.common = { ...item.common, imgPrefix: maskImgPrefix || item.common.imgPrefix, customImageCoords: null };
-      const values = { ...item.values };
-      if (Array.isArray(values.climates)) values.climates = [...values.climates];
-      this.stateByObj[item.objType] = values;
+      this.common = item.common;
+      this.stateByObj[item.objType] = item.values;
       this._applyControllerStateToForm();
     }
     this.liveryMgr.refreshUI();
@@ -292,6 +323,10 @@ export class DatGeneratorController {
   }
 
   _updateSidebarStatus() {
+    const quickSel = document.getElementById('sel-dat-quick-obj');
+    if (quickSel && quickSel.value !== this.currentObjType && DAT_OBJECT_TEMPLATES[this.currentObjType]) {
+      quickSel.value = this.currentObjType;
+    }
     const lbl = document.getElementById('lbl-dat-sidebar-status');
     if (lbl) {
       const tpl = DAT_OBJECT_TEMPLATES[this.currentObjType];
@@ -300,85 +335,6 @@ export class DatGeneratorController {
   }
 
   _bindModalEvents() {
-    const modal = document.getElementById('modal-dat-generator');
-    const closeModal = () => modal.close();
-    document.getElementById('btn-close-dat-top').onclick = closeModal;
-    document.getElementById('btn-dat-close').onclick = closeModal;
-
-    document.getElementById('sel-dat-obj-type').onchange = (e) => {
-      const prevDefault = DAT_OBJECT_TEMPLATES[this.currentObjType]?.defaults?.name;
-      this.currentObjType = e.target.value;
-      if (!this.common.name || this.common.name === prevDefault) {
-        this.common.name = this._deriveAddonNameFromApp(this.currentObjType);
-        this._syncCommonInputsFromState();
-      }
-      this._updatePresetVisibility();
-      this.aiCtrl.updateObjTypeVisibility(this.currentObjType);
-      this._renderMainFormatOptions();
-      this._renderDynamicFields();
-      if (this.autoSync) this.regenerateOutput();
-      this._updateSidebarStatus();
-      this.app?.markDirty?.();
-    };
-
-    document.getElementById('btn-dat-apply-preset').onclick = () => {
-      const presetKey = document.getElementById('sel-dat-building-preset')?.value;
-      const preset = BUILDING_PRESETS[presetKey];
-      if (!preset) return;
-      const state = this._getObjState('building');
-      Object.assign(state, preset.values);
-      this._renderDynamicFields();
-      if (this.autoSync) this.regenerateOutput();
-    };
-
-    const bindCommon = (id, key, isCheckbox = false) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const handler = () => {
-        this.common[key] = isCheckbox ? el.checked : el.value;
-        if (key === 'name') {
-          this.liveryMgr.clearBaseNameCache();
-          const inpFilename = document.getElementById('inp-dat-filename');
-          if (inpFilename && !inpFilename.dataset.userEdited) {
-            const base = (this.common.name || 'addon').trim();
-            inpFilename.value = base.toLowerCase().endsWith('.dat') ? base : `${base}.dat`;
-          }
-        }
-        if (this.autoSync) this.regenerateOutput();
-        this.app?.markDirty?.();
-      };
-      el.addEventListener(isCheckbox ? 'change' : 'input', handler);
-    };
-
-    bindCommon('inp-dat-name', 'name');
-    bindCommon('inp-dat-copyright', 'copyright');
-    bindCommon('chk-dat-include-images', 'includeImages', true);
-    bindCommon('chk-dat-flip-directions', 'flipDirections', true);
-    bindCommon('inp-dat-img-prefix', 'imgPrefix');
-    bindCommon('inp-dat-start-row', 'startRow');
-    bindCommon('inp-dat-start-col', 'startCol');
-    bindCommon('inp-dat-img-offset', 'imgOffset');
-    bindCommon('inp-dat-extra-lines', 'extraLines');
-
-    document.getElementById('sel-dat-image-format')?.addEventListener('change', (e) => {
-      this.common.imageFormat = e.target.value;
-      this._renderMainFormatOptions();
-      if (this.autoSync) this.regenerateOutput();
-      this.app?.markDirty?.();
-    });
-
-    document.getElementById('btn-dat-sync-img-name').onclick = () => {
-      this.common.imgPrefix = this._deriveImagePrefixFromApp();
-      document.getElementById('inp-dat-img-prefix').value = this.common.imgPrefix;
-      if (this.autoSync) this.regenerateOutput();
-    };
-    document.getElementById('btn-dat-open-img-picker').onclick = () => this.imagePicker.open();
-    document.getElementById('btn-dat-clear-custom-img').onclick = () => {
-      this.common.customImageCoords = null;
-      this._syncCustomImageStatus();
-      if (this.autoSync) this.regenerateOutput();
-    };
-
-    bindDatOutputActions(this);
+    bindDatModalEvents(this, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS, bindDatOutputActions });
   }
 }

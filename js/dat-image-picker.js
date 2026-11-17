@@ -1,6 +1,17 @@
 import { collectImageEntries } from './dat-serializer.js';
-import { renderDatImagePickerModalUI, renderFormatOptionsPanel, drawDatPickerOverlay } from './ui-dat-image-picker.js';
+import {
+  renderDatImagePickerModalUI,
+  renderFormatOptionsPanel,
+  renderDatPickerItemsList,
+  drawDatPickerOverlay
+} from './ui-dat-image-picker.js';
+import { cloneDatEntry } from './dat-project-state.js';
 import { RenderEngine } from './render-engine.js';
+import {
+  buildPickerSourceCanvas,
+  guessInitialTileSize,
+  bindPickerViewportEvents
+} from './dat-picker-viewport.js';
 
 export class DatImagePicker {
   constructor(datGenerator) {
@@ -13,14 +24,17 @@ export class DatImagePicker {
     this.panX = 16;
     this.panY = 16;
     this.mode = 'origin';
-    this.tempCommon = {};
-    this.tempValues = {};
-    this.tempCustomCoords = {};
+    this.tempItems = [];
+    this.tempActiveIdx = 0;
     this.selectedKeyIdx = 0;
 
     this.isPanning = false;
     this.panMoved = false;
     this.panStart = [0, 0];
+  }
+
+  _activeItem() {
+    return this.tempItems[this.tempActiveIdx] || this.tempItems[0];
   }
 
   _ensureInitialized() {
@@ -30,37 +44,8 @@ export class DatImagePicker {
     this.initialized = true;
   }
 
-  _buildSourceCanvas() {
-    const app = this.gen.app;
-    if (!app || !app.baseImage || !app.baseW || !app.baseH) return null;
-
-    const c = document.createElement('canvas');
-    c.width = app.baseW;
-    c.height = app.baseH;
-    const ctx = c.getContext('2d');
-
-    const pixels = app.computeFinalImage();
-    if (pixels) {
-      ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), app.baseW, app.baseH), 0, 0);
-    } else {
-      ctx.drawImage(app.baseImage, 0, 0, app.baseW, app.baseH);
-    }
-    return c;
-  }
-
-  _guessInitialTileSize(w, h) {
-    if (w === 768 && h % 96 === 0) return [96, 96];
-    if (w >= 1024 && w % 128 === 0 && h % 128 === 0) return [128, 128];
-    if (w % 64 === 0 && h % 64 === 0) return [64, 64];
-    if (this.gen.currentObjType === 'building' && w % 4 === 0 && w >= 64) {
-      const unit = Math.round(w / 4);
-      if (unit >= 16 && unit <= 512) return [unit, unit];
-    }
-    return [64, 64];
-  }
-
   open() {
-    const src = this._buildSourceCanvas();
+    const src = buildPickerSourceCanvas(this.gen.app);
     if (!src) {
       alert('先にベース画像を開くか、新規作成してください。');
       return;
@@ -68,7 +53,7 @@ export class DatImagePicker {
     this._ensureInitialized();
     this.srcCanvas = src;
 
-    const [gw, gh] = this._guessInitialTileSize(src.width, src.height);
+    const [gw, gh] = guessInitialTileSize(src.width, src.height, this.gen.currentObjType);
     this.tileW = gw;
     this.tileH = gh;
     const inpTw = document.getElementById('inp-dat-picker-tw');
@@ -76,21 +61,31 @@ export class DatImagePicker {
     if (inpTw) inpTw.value = String(this.tileW);
     if (inpTh) inpTh.value = String(this.tileH);
 
-    this.tempCommon = {
-      ...this.gen.common,
-      startRow: String(Math.max(0, parseInt(this.gen.common.startRow, 10) || 0)),
-      startCol: String(Math.max(0, parseInt(this.gen.common.startCol, 10) || 0)),
-      imageFormat: this.gen.common.imageFormat || 'auto'
-    };
-    this.tempValues = { ...this.gen._getObjState(this.gen.currentObjType) };
-    this.tempCustomCoords = this.gen.common.customImageCoords
-      ? JSON.parse(JSON.stringify(this.gen.common.customImageCoords))
-      : {};
+    // 複数編成がある場合は全形式を読み込み、単体時は1件として保持する
+    if (this.gen.collectionMgr.hasCollection()) {
+      this.gen.collectionMgr.saveActiveFromController();
+      this.tempItems = this.gen.collectionMgr.items.map(cloneDatEntry);
+      this.tempActiveIdx = Math.max(0, Math.min(this.gen.collectionMgr.activeIndex, this.tempItems.length - 1));
+    } else {
+      this.tempItems = [cloneDatEntry({
+        objType: this.gen.currentObjType,
+        common: this.gen.common,
+        values: this.gen._getObjState(this.gen.currentObjType)
+      })];
+      this.tempActiveIdx = 0;
+    }
+
+    this.tempItems.forEach((it) => {
+      it.common.startRow = String(Math.max(0, parseInt(it.common.startRow, 10) || 0));
+      it.common.startCol = String(Math.max(0, parseInt(it.common.startCol, 10) || 0));
+      it.common.imageFormat = it.common.imageFormat || 'auto';
+      if (it.common.imageFormat === 'vehicle_otrp_reverse' || it.common.imageFormat === 'vehicle_otrp_reverse_only') {
+        it.values.hasFreightImage = false;
+      }
+    });
     this.selectedKeyIdx = 0;
 
-    const selFmt = document.getElementById('sel-dat-picker-format');
-    if (selFmt) selFmt.value = this.tempCommon.imageFormat;
-    this._renderFormatOptions();
+    this._syncActiveItemControls();
 
     const sizeLbl = document.getElementById('lbl-dat-picker-img-size');
     if (sizeLbl) {
@@ -108,24 +103,45 @@ export class DatImagePicker {
     });
   }
 
+  _syncActiveItemControls() {
+    const active = this._activeItem();
+    if (!active) return;
+    const selFmt = document.getElementById('sel-dat-picker-format');
+    if (selFmt) selFmt.value = active.common.imageFormat || 'auto';
+    this._renderFormatOptions();
+  }
+
   _renderFormatOptions() {
     const box = document.getElementById('dat-picker-format-options');
+    const active = this._activeItem();
+    if (!active) return;
     renderFormatOptionsPanel(box, {
-      objType: this.gen.currentObjType,
-      common: this.tempCommon,
-      values: this.tempValues,
+      objType: active.objType,
+      common: active.common,
+      values: active.values,
       onChange: () => this.refreshAll()
     });
   }
 
+  _getEntriesForItem(item) {
+    if (!item) return [];
+    const coords = item.common.customImageCoords && Object.keys(item.common.customImageCoords).length > 0
+      ? item.common.customImageCoords
+      : null;
+    return collectImageEntries(item.objType, item.values, { ...item.common, customImageCoords: coords });
+  }
+
   _getCurrentEntries() {
-    return collectImageEntries(this.gen.currentObjType, this.tempValues, {
-      ...this.tempCommon,
-      customImageCoords: Object.keys(this.tempCustomCoords).length > 0 ? this.tempCustomCoords : null
-    });
+    return this._getEntriesForItem(this._activeItem());
   }
 
   refreshAll() {
+    renderDatPickerItemsList(this.tempItems, this.tempActiveIdx, (idx) => {
+      this.tempActiveIdx = idx;
+      this.selectedKeyIdx = 0;
+      this._syncActiveItemControls();
+      this.refreshAll();
+    });
     this._renderKeyList();
     this._renderCanvas();
     this._updateSelectionLabel();
@@ -133,15 +149,17 @@ export class DatImagePicker {
 
   _updateSelectionLabel() {
     const lbl = document.getElementById('lbl-dat-picker-selection');
-    if (!lbl) return;
-    const customCount = Object.keys(this.tempCustomCoords).length;
-    const base = `開始位置: row=${this.tempCommon.startRow}, col=${this.tempCommon.startCol}`;
+    const active = this._activeItem();
+    if (!lbl || !active) return;
+    const customCount = active.common.customImageCoords ? Object.keys(active.common.customImageCoords).length : 0;
+    const base = `#${this.tempActiveIdx + 1} (${active.common.name || active.objType}) 開始: row=${active.common.startRow}, col=${active.common.startCol}`;
     lbl.textContent = customCount > 0 ? `${base} | 個別割当: ${customCount}件` : base;
   }
 
   _renderKeyList() {
     const listEl = document.getElementById('dat-picker-key-list');
-    if (!listEl) return;
+    const active = this._activeItem();
+    if (!listEl || !active) return;
     const entries = this._getCurrentEntries();
     if (this.selectedKeyIdx >= entries.length) this.selectedKeyIdx = 0;
 
@@ -151,10 +169,11 @@ export class DatImagePicker {
       return;
     }
 
+    const customCoords = active.common.customImageCoords || {};
     entries.forEach((entry, idx) => {
       const rowEl = document.createElement('div');
       const isSelected = idx === this.selectedKeyIdx;
-      const isCustom = Boolean(this.tempCustomCoords[entry.key]);
+      const isCustom = Boolean(customCoords[entry.key]);
       rowEl.className = 'dat-picker-key-item' + (isSelected ? ' active' : '') + (isCustom ? ' custom' : '');
       rowEl.innerHTML = `<span class="k-name">${entry.key}</span><span class="k-coord">.${entry.row}.${entry.col}${isCustom ? ' ★' : ''}</span>`;
       rowEl.onclick = () => {
@@ -185,6 +204,13 @@ export class DatImagePicker {
     ctx.imageSmoothingEnabled = this.zoom < 1.0;
     ctx.drawImage(this.srcCanvas, this.panX, this.panY, drawW, drawH);
 
+    // 選択中アイテム以外も含め全形式のセル配置を同時表示する
+    const otherEntries = [];
+    this.tempItems.forEach((item, idx) => {
+      if (idx === this.tempActiveIdx) return;
+      this._getEntriesForItem(item).forEach(e => otherEntries.push({ ...e, itemIdx: idx }));
+    });
+
     drawDatPickerOverlay(ctx, {
       srcW: this.srcCanvas.width,
       srcH: this.srcCanvas.height,
@@ -194,6 +220,7 @@ export class DatImagePicker {
       panX: this.panX,
       panY: this.panY,
       entries: this._getCurrentEntries(),
+      otherEntries,
       mode: this.mode,
       selectedKeyIdx: this.selectedKeyIdx
     });
@@ -216,7 +243,8 @@ export class DatImagePicker {
 
   _handleCanvasClick(clientX, clientY) {
     const canvas = document.getElementById('dat-picker-canvas');
-    if (!canvas || !this.srcCanvas) return;
+    const active = this._activeItem();
+    if (!canvas || !this.srcCanvas || !active) return;
     const rect = canvas.getBoundingClientRect();
     const ix = (clientX - rect.left - this.panX) / this.zoom;
     const iy = (clientY - rect.top - this.panY) / this.zoom;
@@ -224,26 +252,28 @@ export class DatImagePicker {
 
     const col = Math.floor(ix / this.tileW);
     const row = Math.floor(iy / this.tileH);
+    const selFmt = document.getElementById('sel-dat-picker-format');
 
     if (this.mode === 'origin') {
-      this.tempCommon.startRow = String(row);
-      this.tempCommon.startCol = String(col);
+      active.common.startRow = String(row);
+      active.common.startCol = String(col);
     } else if (this.mode === 'freight_row') {
-      this.tempValues.freightRow = String(row);
-      if (this.tempCommon.imageFormat === 'vehicle_otrp_reverse') {
-        this.tempValues.hasFreightImage = true;
-      } else if (this.tempCommon.imageFormat === 'auto' || this.tempCommon.imageFormat.startsWith('vehicle_empty')) {
-        this.tempCommon.imageFormat = 'vehicle_freight';
-        const selFmt = document.getElementById('sel-dat-picker-format');
+      // FreightImage と OTRP Reverse は同時指定不可のため切替する
+      active.values.freightRow = String(row);
+      active.values.hasFreightImage = true;
+      const fmt = active.common.imageFormat || 'auto';
+      if (fmt === 'auto' || fmt.startsWith('vehicle_empty') || fmt.startsWith('vehicle_otrp_reverse')) {
+        active.common.imageFormat = 'vehicle_freight';
         if (selFmt) selFmt.value = 'vehicle_freight';
       }
       this._renderFormatOptions();
     } else if (this.mode === 'reverse_row') {
-      this.tempValues.reverseRowMode = 'custom_row';
-      this.tempValues.reverseRow = String(row);
-      if (!String(this.tempCommon.imageFormat || '').startsWith('vehicle_otrp_reverse')) {
-        this.tempCommon.imageFormat = 'vehicle_otrp_reverse';
-        const selFmt = document.getElementById('sel-dat-picker-format');
+      // OTRP Reverse 指定時は標準 FreightImage を無効化する
+      active.values.reverseRowMode = 'custom_row';
+      active.values.reverseRow = String(row);
+      active.values.hasFreightImage = false;
+      if (!String(active.common.imageFormat || '').startsWith('vehicle_otrp_reverse')) {
+        active.common.imageFormat = 'vehicle_otrp_reverse';
         if (selFmt) selFmt.value = 'vehicle_otrp_reverse';
       }
       this._renderFormatOptions();
@@ -251,10 +281,9 @@ export class DatImagePicker {
       const entries = this._getCurrentEntries();
       const target = entries[this.selectedKeyIdx];
       if (target) {
-        this.tempCustomCoords[target.key] = { row, col };
-        if (this.selectedKeyIdx + 1 < entries.length) {
-          this.selectedKeyIdx += 1;
-        }
+        if (!active.common.customImageCoords) active.common.customImageCoords = {};
+        active.common.customImageCoords[target.key] = { row, col };
+        if (this.selectedKeyIdx + 1 < entries.length) this.selectedKeyIdx += 1;
       }
     }
     this.refreshAll();
@@ -286,9 +315,32 @@ export class DatImagePicker {
     });
 
     document.getElementById('sel-dat-picker-format')?.addEventListener('change', (e) => {
-      this.tempCommon.imageFormat = e.target.value;
+      const active = this._activeItem();
+      if (!active) return;
+      const fmt = e.target.value;
+      active.common.imageFormat = fmt;
+      // FreightImage と OTRP Reverse の排他性を保つ
+      if (fmt === 'vehicle_otrp_reverse' || fmt === 'vehicle_otrp_reverse_only' || fmt.startsWith('vehicle_empty')) {
+        active.values.hasFreightImage = false;
+      } else if (fmt === 'vehicle_freight' || fmt === 'vehicle_freight_typed') {
+        active.values.hasFreightImage = true;
+      }
       this.selectedKeyIdx = 0;
       this._renderFormatOptions();
+      this.refreshAll();
+    });
+
+    document.getElementById('btn-dat-picker-seq-rows')?.addEventListener('click', () => {
+      const baseRow = Math.max(0, parseInt(this.tempItems[0]?.common?.startRow, 10) || 0);
+      this.tempItems.forEach((it, idx) => { it.common.startRow = String(baseRow + idx); });
+      this.refreshAll();
+    });
+
+    document.getElementById('btn-dat-picker-align-cols')?.addEventListener('click', () => {
+      const active = this._activeItem();
+      if (!active) return;
+      const col = active.common.startCol || '0';
+      this.tempItems.forEach((it) => { it.common.startCol = String(col); });
       this.refreshAll();
     });
 
@@ -305,75 +357,18 @@ export class DatImagePicker {
       this.refreshAll();
     });
 
-    document.getElementById('btn-dat-picker-z-in')?.addEventListener('click', () => {
-      this.zoom = Math.min(16, this.zoom * 1.25);
-      this._renderCanvas();
-    });
-    document.getElementById('btn-dat-picker-z-out')?.addEventListener('click', () => {
-      this.zoom = Math.max(0.2, this.zoom * 0.8);
-      this._renderCanvas();
-    });
-    document.getElementById('btn-dat-picker-z-fit')?.addEventListener('click', () => this.zoomFit());
-
-    const canvas = document.getElementById('dat-picker-canvas');
-    if (canvas) {
-      canvas.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const rect = canvas.getBoundingClientRect();
-        const cx = e.clientX - rect.left;
-        const cy = e.clientY - rect.top;
-        const factor = e.deltaY < 0 ? 1.25 : 0.8;
-        const nextZ = Math.max(0.2, Math.min(16, this.zoom * factor));
-        this.panX = cx - ((cx - this.panX) / this.zoom) * nextZ;
-        this.panY = cy - ((cy - this.panY) / this.zoom) * nextZ;
-        this.zoom = nextZ;
-        this._renderCanvas();
-      }, { passive: false });
-
-      canvas.addEventListener('mousedown', (e) => {
-        this.isPanning = true;
-        this.panMoved = false;
-        this.panStart = [e.clientX - this.panX, e.clientY - this.panY];
-      });
-      canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    }
-
-    window.addEventListener('mousemove', (e) => {
-      if (!this.isPanning || !modal?.open) return;
-      const nx = e.clientX - this.panStart[0];
-      const ny = e.clientY - this.panStart[1];
-      if (Math.hypot(nx - this.panX, ny - this.panY) > 4) this.panMoved = true;
-      if (e.buttons !== 1 || this.panMoved) {
-        this.panX = nx;
-        this.panY = ny;
-        this._renderCanvas();
-      }
-    });
-
-    window.addEventListener('mouseup', (e) => {
-      if (!this.isPanning) return;
-      const wasClick = e.button === 0 && !this.panMoved && modal?.open;
-      this.isPanning = false;
-      if (wasClick && e.target === canvas) {
-        this._handleCanvasClick(e.clientX, e.clientY);
-      }
-    });
+    bindPickerViewportEvents(this, modal);
 
     document.getElementById('btn-dat-picker-reset-custom')?.addEventListener('click', () => {
-      this.tempCustomCoords = {};
+      const active = this._activeItem();
+      if (active) active.common.customImageCoords = null;
       this.refreshAll();
     });
 
     document.getElementById('btn-dat-picker-apply')?.addEventListener('click', () => {
       this.gen.applyImagePickerResult({
-        commonPatch: {
-          imageFormat: this.tempCommon.imageFormat,
-          customImgFormat: this.tempCommon.customImgFormat,
-          startRow: this.tempCommon.startRow,
-          startCol: this.tempCommon.startCol,
-          customImageCoords: Object.keys(this.tempCustomCoords).length > 0 ? { ...this.tempCustomCoords } : null
-        },
-        valuesPatch: { ...this.tempValues }
+        items: this.tempItems.map(cloneDatEntry),
+        activeIndex: this.tempActiveIdx
       });
       close();
     });

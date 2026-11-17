@@ -48,8 +48,8 @@ export function renderFormatOptionsPanel(container, { objType, common, values, o
 
   const isVehAuto = fmt === 'auto' && objType === 'vehicle';
   const showDirCount = isVehAuto || fmt === 'vehicle_freight';
-  const showFreightRow = fmt === 'vehicle_freight' || fmt === 'vehicle_freight_typed' || (fmt === 'vehicle_otrp_reverse' && v.hasFreightImage);
-  const showFreightType = fmt === 'vehicle_freight_typed' || (fmt === 'vehicle_otrp_reverse' && v.hasFreightImage);
+  const showFreightRow = fmt === 'vehicle_freight' || fmt === 'vehicle_freight_typed';
+  const showFreightType = fmt === 'vehicle_freight_typed';
   const showReverse = fmt === 'vehicle_otrp_reverse' || fmt === 'vehicle_otrp_reverse_only';
 
   if (!isVehAuto && !showFreightRow && !showReverse) {
@@ -79,23 +79,23 @@ export function renderFormatOptionsPanel(container, { objType, common, values, o
   }
 
   if (fmt === 'vehicle_otrp_reverse') {
-    appendCheck(container, '通常の積載画像 (FreightImage) も併用する', v.hasFreightImage, (ck) => {
-      v.hasFreightImage = ck;
-      rerenderAndNotify();
-    });
+    const note = document.createElement('div');
+    note.className = 'info-text mt-05';
+    note.textContent = '※ OTRP Reverse は通常の FreightImage と同時指定できません（Empty + Reverse 構成）。';
+    container.appendChild(note);
   }
 
   if (showFreightType) {
     const inp = document.createElement('input');
     inp.type = 'text';
-    inp.placeholder = '空=freight流用 (例: Passagiere, Reverse)';
+    inp.placeholder = '空=freight流用 (例: Passagiere, Kohle)';
     inp.value = v.freightTypeName || '';
     inp.oninput = () => { v.freightTypeName = inp.value; onChange(); };
     const wrap = appendField(container, '貨物タイプ名 (FreightImageType / カンマ複数可)', inp);
 
     const quickRow = document.createElement('div');
     quickRow.className = 'btn-group mt-05';
-    ['Passagiere', 'Kohle', 'Reverse'].forEach(preset => {
+    ['Passagiere', 'Post', 'Kohle', 'Goods'].forEach(preset => {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = preset;
@@ -201,6 +201,17 @@ export function renderDatImagePickerModalUI() {
 
         <div class="dat-picker-body">
           <aside class="dat-picker-sidebar">
+            <div id="dat-picker-items-wrap" class="dat-picker-items-wrap">
+              <div class="dat-picker-items-header">
+                <span>編集対象 (全形式同時編集)</span>
+                <span id="lbl-dat-picker-items-count" style="font-weight:normal; color:#9bb4c8;"></span>
+              </div>
+              <div class="btn-group" id="dat-picker-bulk-actions">
+                <button type="button" class="btn-sm" id="btn-dat-picker-seq-rows" title="上から順に開始行(Y)を連番に設定します">🔢 行(Y)連番</button>
+                <button type="button" class="btn-sm" id="btn-dat-picker-align-cols" title="選択中アイテムの開始列(X)を全形式に揃えます">📐 列(X)統一</button>
+              </div>
+              <div id="dat-picker-items-list"></div>
+            </div>
             <div class="dat-field">
               <label>クリック時の割当先</label>
               <select id="sel-dat-picker-mode">
@@ -233,8 +244,36 @@ export function renderDatImagePickerModalUI() {
   `);
 }
 
+// ピッカー内の全形式（複数編成・単体）リストを描画する
+export function renderDatPickerItemsList(items, activeIdx, onSelect) {
+  const wrap = document.getElementById('dat-picker-items-wrap');
+  const listEl = document.getElementById('dat-picker-items-list');
+  const countLbl = document.getElementById('lbl-dat-picker-items-count');
+  const bulkEl = document.getElementById('dat-picker-bulk-actions');
+  if (!wrap || !listEl) return;
+
+  if (countLbl) countLbl.textContent = `${items.length}件`;
+  if (bulkEl) bulkEl.style.display = items.length > 1 ? 'flex' : 'none';
+
+  listEl.innerHTML = '';
+  items.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'dat-picker-item-row' + (idx === activeIdx ? ' active' : '');
+    const name = item.common?.name || `Item_${idx + 1}`;
+    const fmt = item.common?.imageFormat || 'auto';
+    const shortFmt = fmt === 'vehicle_otrp_reverse' ? 'Rev'
+      : (fmt === 'vehicle_otrp_reverse_only' ? 'Revのみ'
+        : (fmt.startsWith('vehicle_freight') ? 'Frt' : fmt === 'auto' ? '標準' : fmt.replace('vehicle_', '')));
+    const sr = item.common?.startRow || '0';
+    const sc = item.common?.startCol || '0';
+    row.innerHTML = `<span class="item-title">#${idx + 1} [${item.objType}] ${name}</span><span class="item-meta">${shortFmt} (${sr},${sc})</span>`;
+    row.onclick = () => onSelect(idx);
+    listEl.appendChild(row);
+  });
+}
+
 // ピッカーキャンバス上のグリッド線・座標ラベル・割当セルハイライトを描画する
-export function drawDatPickerOverlay(ctx, { srcW, srcH, tileW, tileH, zoom, panX, panY, entries, mode, selectedKeyIdx }) {
+export function drawDatPickerOverlay(ctx, { srcW, srcH, tileW, tileH, zoom, panX, panY, entries, otherEntries = [], mode, selectedKeyIdx }) {
   const cols = Math.max(1, Math.ceil(srcW / tileW));
   const rows = Math.max(1, Math.ceil(srcH / tileH));
 
@@ -267,6 +306,26 @@ export function drawDatPickerOverlay(ctx, { srcW, srcH, tileW, tileH, zoom, panX
       }
     }
   }
+
+  // 非選択アイテムの割当セルを薄紫で同時にプレビュー表示する
+  otherEntries.forEach((entry) => {
+    const rx = panX + entry.col * tileW * zoom;
+    const ry = panY + entry.row * tileH * zoom;
+    const rw = tileW * zoom;
+    const rh = tileH * zoom;
+    ctx.fillStyle = 'rgba(180, 140, 255, 0.12)';
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeStyle = 'rgba(195, 160, 255, 0.55)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(rx + 1, ry + 1, Math.max(1, rw - 2), Math.max(1, rh - 2));
+    if (rw >= 24 && rh >= 18) {
+      ctx.font = 'bold 10px Consolas, monospace';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = 'rgba(210, 185, 255, 0.85)';
+      ctx.fillText(`#${entry.itemIdx + 1}`, rx + 3, ry + rh - 2);
+      ctx.textBaseline = 'top';
+    }
+  });
 
   entries.forEach((entry, idx) => {
     const rx = panX + entry.col * tileW * zoom;
