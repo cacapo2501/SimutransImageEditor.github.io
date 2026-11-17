@@ -1,6 +1,7 @@
 import { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS } from './dat-templates.js';
 import { serializeDatObject } from './dat-serializer.js';
-import { renderDatModalUI, renderDynamicDatFields, bindDatModalEvents } from './ui-dat-modal.js';
+import { renderDatModalUI, bindDatModalEvents } from './ui-dat-modal.js';
+import { renderDynamicDatFields } from './dat-dynamic-fields.js';
 import { renderFormatOptionsPanel } from './ui-dat-image-picker.js';
 import { DatAiController } from './dat-ai-controller.js';
 import { DatCollectionManager, bindDatOutputActions } from './dat-collection-manager.js';
@@ -16,6 +17,7 @@ import { DatLiveryManager, buildMaskImagePrefix } from './dat-livery-manager.js'
 import { computeSeasonPrefixes, renderSeasonMaskPanel } from './dat-season-masks.js';
 import { populateImageFormatSelect } from './dat-image-formats.js';
 import { renderFactoryFieldsPanel } from './dat-factory-fields.js';
+import { buildCompositeImagePrefix } from './composite-naming.js';
 
 function cloneDefaults(objType) {
   const tpl = DAT_OBJECT_TEMPLATES[objType];
@@ -94,17 +96,15 @@ export class DatGeneratorController {
     if (activeMask) {
       return buildMaskImagePrefix(this.app, activeMask, this.liveryMgr.useBatchImgNaming);
     }
-    const raw = (this.app && this.app.baseName) ? this.app.baseName : 'base.png';
-    const noExt = raw.replace(/\.png$/i, '');
-    const suffix = this.app?.tileCutter?.shouldCutOnExport?.() ? '_cut' : '_combined';
-    return /(_combined|_cut)$/i.test(noExt) ? noExt.replace(/(_combined|_cut)$/i, suffix) : `${noExt}${suffix}`;
+    const useCut = Boolean(this.app?.tileCutter?.shouldCutOnExport?.());
+    return buildCompositeImagePrefix(this.app?.baseName || 'base.png', '', { useCut });
   }
 
   _deriveAddonNameFromApp(objType) {
     const raw = (this.app && this.app.baseName) ? this.app.baseName : '';
     const cleaned = raw
       .replace(/\.png$/i, '')
-      .replace(/(_combined|_def|_base)$/i, '')
+      .replace(/(_combined|_def|_paint|_base)$/i, '')
       .replace(/[^a-zA-Z0-9_-]/g, '_');
     if (cleaned && cleaned !== 'base' && !/^new_\d+x\d+$/i.test(cleaned)) {
       return cleaned;
@@ -198,6 +198,9 @@ export class DatGeneratorController {
       common: this.common,
       values: this._getObjState(this.currentObjType),
       onChange: () => {
+        if (this.currentObjType === 'way' || this.currentObjType === 'way-object') {
+          this._renderDynamicFields();
+        }
         if (this.autoSync) this.regenerateOutput();
         this.app?.markDirty?.();
       }
@@ -271,6 +274,9 @@ export class DatGeneratorController {
           this.common.imgPrefix = this._deriveImagePrefixFromApp();
           this._syncCommonInputsFromState();
         }
+      }
+      if (this.currentObjType === 'way' || this.currentObjType === 'way-object') {
+        this._renderMainFormatOptions();
       }
       this._renderSeasonMaskPanel();
       if (this.autoSync) this.regenerateOutput();

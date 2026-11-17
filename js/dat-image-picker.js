@@ -9,12 +9,15 @@ import {
 import { cloneDatEntry } from './dat-project-state.js';
 import { populateImageFormatSelect } from './dat-image-formats.js';
 import { RenderEngine } from './render-engine.js';
+import { getWayKeyHint } from './dat-way-hints.js';
+import { bindPatternFileButtons } from './dat-image-pattern-io.js';
 import {
   buildPickerSourceCanvas,
   guessInitialTileSize,
   bindPickerViewportEvents,
   drawDatPickerOverlay,
-  bindPickerCustomKeyEvents
+  bindPickerCustomKeyEvents,
+  bindPickerToolbarEvents
 } from './dat-picker-viewport.js';
 
 export class DatImagePicker {
@@ -186,12 +189,15 @@ export class DatImagePicker {
     }
 
     const customCoords = active.common.customImageCoords || {};
+    const isWayLike = active.objType === 'way' || active.objType === 'way-object';
     entries.forEach((entry, idx) => {
       const rowEl = document.createElement('div');
       const isSelected = idx === this.selectedKeyIdx;
       const isCustom = Boolean(customCoords[entry.key]);
+      const hint = isWayLike ? getWayKeyHint(entry.key, { large: false }) : null;
       rowEl.className = 'dat-picker-key-item' + (isSelected ? ' active' : '') + (isCustom ? ' custom' : '');
-      rowEl.innerHTML = `<span class="k-name">${entry.key}</span><span class="k-coord">.${entry.row}.${entry.col}${isCustom ? ' ★' : ''}</span>`;
+      if (hint) rowEl.title = hint.label;
+      rowEl.innerHTML = `<span class="k-left">${hint ? hint.svg : ''}<span class="k-name">${entry.key}</span></span><span class="k-coord">.${entry.row}.${entry.col}${isCustom ? ' ★' : ''}</span>`;
       rowEl.onclick = () => {
         this.selectedKeyIdx = idx;
         if (this.mode !== 'per_key') this.setMode('per_key');
@@ -314,24 +320,7 @@ export class DatImagePicker {
     document.getElementById('btn-dat-picker-close-top')?.addEventListener('click', close);
     document.getElementById('btn-dat-picker-cancel')?.addEventListener('click', close);
 
-    document.querySelectorAll('.btn-dat-picker-preset').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.tileW = parseInt(btn.dataset.w, 10) || 64;
-        this.tileH = parseInt(btn.dataset.h, 10) || 64;
-        document.getElementById('inp-dat-picker-tw').value = String(this.tileW);
-        document.getElementById('inp-dat-picker-th').value = String(this.tileH);
-        this.refreshAll();
-      });
-    });
-
-    document.getElementById('inp-dat-picker-tw')?.addEventListener('input', (e) => {
-      this.tileW = Math.max(8, Math.min(1024, parseInt(e.target.value, 10) || 64));
-      this._renderCanvas();
-    });
-    document.getElementById('inp-dat-picker-th')?.addEventListener('input', (e) => {
-      this.tileH = Math.max(8, Math.min(1024, parseInt(e.target.value, 10) || 64));
-      this._renderCanvas();
-    });
+    bindPickerToolbarEvents(this);
 
     document.getElementById('sel-dat-picker-format')?.addEventListener('change', (e) => {
       const active = this._activeItem();
@@ -349,18 +338,25 @@ export class DatImagePicker {
       this.refreshAll();
     });
 
-    document.getElementById('btn-dat-picker-seq-rows')?.addEventListener('click', () => {
-      const baseRow = Math.max(0, parseInt(this.tempItems[0]?.common?.startRow, 10) || 0);
-      this.tempItems.forEach((it, idx) => { it.common.startRow = String(baseRow + idx); });
-      this.refreshAll();
-    });
-
-    document.getElementById('btn-dat-picker-align-cols')?.addEventListener('click', () => {
-      const active = this._activeItem();
-      if (!active) return;
-      const col = active.common.startCol || '0';
-      this.tempItems.forEach((it) => { it.common.startCol = String(col); });
-      this.refreshAll();
+    bindPatternFileButtons({
+      saveBtnId: 'btn-dat-picker-save-pattern',
+      loadBtnId: 'btn-dat-picker-load-pattern',
+      getTarget: () => this._activeItem(),
+      getTileSize: () => ({ tileW: this.tileW, tileH: this.tileH }),
+      pickFileFn: this.gen.pickFileFn,
+      onApplied: (pattern) => {
+        if (pattern.tileW && pattern.tileH) {
+          this.tileW = Math.max(8, Math.min(1024, parseInt(pattern.tileW, 10) || this.tileW));
+          this.tileH = Math.max(8, Math.min(1024, parseInt(pattern.tileH, 10) || this.tileH));
+          const tw = document.getElementById('inp-dat-picker-tw');
+          const th = document.getElementById('inp-dat-picker-th');
+          if (tw) tw.value = String(this.tileW);
+          if (th) th.value = String(this.tileH);
+        }
+        this.selectedKeyIdx = 0;
+        this._syncActiveItemControls();
+        this.refreshAll();
+      }
     });
 
     bindPickerCustomKeyEvents(this);

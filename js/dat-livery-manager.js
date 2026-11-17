@@ -1,15 +1,10 @@
 import { serializeDatObject } from './dat-serializer.js';
-
-function sanitizeTag(name) {
-  return String(name || '')
-    .replace(/\.png$/i, '')
-    .replace(/[\\/:*?"<>|]/g, '_');
-}
+import { buildCompositeImagePrefix } from './composite-naming.js';
 
 // マスクファイル名から塗装名候補を抽出する
 export function deriveLiveryName(maskName, baseName = '', idx = 0) {
   let clean = String(maskName || '').replace(/\.png$/i, '').replace(/(_paint|_mask)$/i, '');
-  const baseRoot = String(baseName || '').replace(/\.png$/i, '').replace(/(_combined|_def|_base)$/i, '');
+  const baseRoot = String(baseName || '').replace(/\.png$/i, '').replace(/(_combined|_def|_paint|_base)$/i, '');
   if (baseRoot && clean.toLowerCase().startsWith(baseRoot.toLowerCase() + '_')) {
     clean = clean.slice(baseRoot.length + 1);
   }
@@ -33,11 +28,9 @@ export function applyLiveryToName(rawName, liveryName, objType, baseNameHint = '
 
 // BatchExporter と同一規則でマスクごとの画像ファイル名プレフィックスを生成
 export function buildMaskImagePrefix(app, maskItem, useBatchNaming = true) {
-  const cleanBase = String(app?.baseName || 'base.png').replace(/\.png$/i, '');
-  const suffix = app?.tileCutter?.shouldCutOnExport?.() ? '_cut' : '_combined';
-  if (!useBatchNaming || !maskItem) return `${cleanBase}${suffix}`;
-  const cleanTag = sanitizeTag(maskItem.name);
-  return cleanTag ? `${cleanBase}_${cleanTag}${suffix}` : `${cleanBase}${suffix}`;
+  const useCut = Boolean(app?.tileCutter?.shouldCutOnExport?.());
+  const maskName = (useBatchNaming && maskItem) ? maskItem.name : '';
+  return buildCompositeImagePrefix(app?.baseName || 'base.png', maskName, { useCut });
 }
 
 function replaceConstraintNames(rawText, nameMap) {

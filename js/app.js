@@ -25,7 +25,7 @@ import { renderSubModalsUI } from './ui-sub-modals.js';
 import { renderDeftileModalUI } from './ui-deftile-modal.js';
 
 // アプリケーションバージョン
-export const APP_VERSION = '4.0.0';
+export const APP_VERSION = '4.1.0';
 
 class AdvancedMultiplyApp {
   constructor() {

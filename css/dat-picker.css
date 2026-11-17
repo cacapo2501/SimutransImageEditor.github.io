@@ -229,6 +229,34 @@
   color: #ffd200;
 }
 
+.dat-picker-key-item .k-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.dat-way-hint-svg {
+  flex-shrink: 0;
+  display: block;
+}
+
+.dat-picker-way-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  background: #141920;
+  border: 1px solid #354759;
+  border-radius: 3px;
+}
+
+.dat-way-hint-text {
+  font-size: 10px;
+  line-height: 1.35;
+  color: #cfe6ff;
+}
+
 .dat-picker-key-item .k-name {
   font-family: Consolas, monospace;
   color: #ddd;

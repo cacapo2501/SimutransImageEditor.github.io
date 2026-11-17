@@ -1,7 +1,8 @@
-import { DAT_OBJECT_CATEGORIES, DAT_OBJECT_TEMPLATES, BUILDING_PRESETS, CLIMATE_OPTIONS } from './dat-templates.js';
+import { DAT_OBJECT_CATEGORIES, DAT_OBJECT_TEMPLATES, BUILDING_PRESETS } from './dat-templates.js';
 import { IMAGE_FORMAT_OPTIONS } from './dat-image-formats.js';
 import { renderDatAiSectionHtml } from './ui-dat-ai.js';
 import { ProjectIO } from './project-io.js';
+import { bindPatternFileButtons } from './dat-image-pattern-io.js';
 
 function buildImageFormatOptions() {
   return IMAGE_FORMAT_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
@@ -127,6 +128,10 @@ export function renderDatModalUI() {
                     <button type="button" id="btn-dat-open-img-picker" class="btn-primary">🗺️ GUIで画像位置を指定 (一括 / 個別)</button>
                     <button type="button" id="btn-dat-clear-custom-img" style="display:none; flex:0 0 auto;">↺ 個別解除</button>
                   </div>
+                  <div class="btn-group mt-05">
+                    <button type="button" id="btn-dat-save-pattern" title="現在の画像指定パターンを別ファイル(JSON)に保存します">💾 パターン保存</button>
+                    <button type="button" id="btn-dat-load-pattern" title="保存済みの画像指定パターン(JSON)を読み込みます">📂 パターン読込</button>
+                  </div>
                   <div class="info-text" id="lbl-dat-custom-img-status">画像位置: 開始行列 (Y, X) から自動展開（独自配置PNGは上のGUIから個別指定）</div>
                 </div>
                 <div class="dat-field full-width">
@@ -178,101 +183,6 @@ export function renderDatModalUI() {
       </div>
     </dialog>
   `);
-}
-
-// テンプレート定義に従ってオブジェクト固有パラメータの入力欄を構築する
-export function renderDynamicDatFields(container, tpl, state, onChanged) {
-  if (!container || !tpl) return;
-  container.innerHTML = '';
-
-  tpl.fields.forEach((field) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'dat-field' + (field.fullWidth || field.type === 'checkbox' ? ' full-width' : '');
-
-    if (field.type === 'checkbox') {
-      const lbl = document.createElement('label');
-      lbl.className = 'dat-check-item';
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = Boolean(state[field.key]);
-      cb.onchange = () => {
-        state[field.key] = cb.checked;
-        onChanged();
-      };
-      lbl.appendChild(cb);
-      lbl.appendChild(document.createTextNode(field.label));
-      wrap.appendChild(lbl);
-      container.appendChild(wrap);
-      return;
-    }
-
-    const lbl = document.createElement('label');
-    lbl.textContent = field.label;
-    wrap.appendChild(lbl);
-
-    if (field.type === 'climates') {
-      const grid = document.createElement('div');
-      grid.className = 'dat-climate-grid';
-      const selected = new Set(Array.isArray(state[field.key]) ? state[field.key] : []);
-      CLIMATE_OPTIONS.forEach((opt) => {
-        const item = document.createElement('label');
-        item.className = 'dat-climate-item';
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = selected.has(opt.value);
-        cb.onchange = () => {
-          if (cb.checked) selected.add(opt.value);
-          else selected.delete(opt.value);
-          state[field.key] = CLIMATE_OPTIONS.map(o => o.value).filter(v => selected.has(v));
-          onChanged();
-        };
-        item.appendChild(cb);
-        item.appendChild(document.createTextNode(opt.label));
-        grid.appendChild(item);
-      });
-      wrap.appendChild(grid);
-      container.appendChild(wrap);
-      return;
-    }
-
-    let inputEl;
-    if (field.type === 'select') {
-      inputEl = document.createElement('select');
-      (field.options || []).forEach((opt) => {
-        const o = document.createElement('option');
-        o.value = opt.value;
-        o.textContent = opt.label;
-        inputEl.appendChild(o);
-      });
-      inputEl.value = state[field.key] ?? '';
-      inputEl.onchange = () => {
-        state[field.key] = inputEl.value;
-        onChanged();
-      };
-    } else if (field.type === 'textarea') {
-      inputEl = document.createElement('textarea');
-      inputEl.placeholder = field.placeholder || '';
-      inputEl.value = state[field.key] ?? '';
-      inputEl.oninput = () => {
-        state[field.key] = inputEl.value;
-        onChanged();
-      };
-    } else {
-      inputEl = document.createElement('input');
-      inputEl.type = field.type === 'number' ? 'number' : 'text';
-      if (field.min !== undefined) inputEl.min = String(field.min);
-      if (field.max !== undefined) inputEl.max = String(field.max);
-      if (field.placeholder) inputEl.placeholder = field.placeholder;
-      inputEl.value = state[field.key] ?? '';
-      inputEl.oninput = () => {
-        state[field.key] = inputEl.value;
-        onChanged();
-      };
-    }
-
-    wrap.appendChild(inputEl);
-    container.appendChild(wrap);
-  });
 }
 
 // DAT生成モーダル内の主要フォーム・出力関連イベントを一括バインドする
@@ -359,6 +269,17 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
     gen._syncCustomImageStatus();
     if (gen.autoSync) gen.regenerateOutput();
   };
+  bindPatternFileButtons({
+    saveBtnId: 'btn-dat-save-pattern',
+    loadBtnId: 'btn-dat-load-pattern',
+    getTarget: () => ({ objType: gen.currentObjType, common: gen.common, values: gen._getObjState(gen.currentObjType) }),
+    pickFileFn: gen.pickFileFn,
+    onApplied: () => {
+      gen._applyControllerStateToForm();
+      if (gen.autoSync) gen.regenerateOutput();
+      gen.app?.markDirty?.();
+    }
+  });
 
   document.getElementById('chk-dat-tilecut-enable')?.addEventListener('change', (e) => {
     const tc = gen.app?.tileCutter;

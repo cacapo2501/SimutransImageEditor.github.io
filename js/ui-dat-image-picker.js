@@ -1,5 +1,6 @@
 // 編集中画像から Image 座標 (row.col) を GUI で指定するモーダル UI ＆ 形式別オプションパネル
 import { IMAGE_FORMAT_OPTIONS } from './dat-image-formats.js';
+import { getWayKeyHint } from './dat-way-hints.js';
 
 function appendField(parent, labelText, inputEl) {
   const wrap = document.createElement('div');
@@ -43,6 +44,36 @@ export function renderFormatOptionsPanel(container, { objType, common, values, o
     ta.oninput = () => { common.customImgFormat = ta.value; onChange(); };
     appendField(container, 'カスタム画像書式 ({dir}, {prefix}, {row}, {col}, {offset})', ta);
     container.style.display = '';
+    return;
+  }
+
+  const isWay = objType === 'way';
+  const isWayObj = objType === 'way-object';
+  if (isWay || isWayObj) {
+    container.style.display = '';
+    if (isWay) {
+      appendCheck(container, '分岐ポイント画像 (NSE1〜NSEW2) を出力', Boolean(v.includePoints), (ck) => {
+        v.includePoints = ck; onChange();
+      });
+    }
+    appendCheck(container, '斜め画像 (Diagonal) を出力', v.includeDiagonal !== false, (ck) => {
+      v.includeDiagonal = ck; onChange();
+    });
+    if (isWay) {
+      appendCheck(container, '坂道画像 (ImageUp) を出力', Boolean(v.includeSlopes), (ck) => {
+        v.includeSlopes = ck; onChange();
+      });
+      appendCheck(container, '2段坂画像 (ImageUp2) を出力', Boolean(v.includeSlopes2), (ck) => {
+        v.includeSlopes2 = ck; onChange();
+      });
+    }
+    appendCheck(container, 'Cursor / Icon を出力', Boolean(v.includeCursorIcon), (ck) => {
+      v.includeCursorIcon = ck; onChange();
+    });
+    const legend = document.createElement('div');
+    legend.className = 'info-text';
+    legend.textContent = '方角目安: N=右上↗ / E=右下↘ / S=左下↙ / W=左上↖';
+    container.appendChild(legend);
     return;
   }
 
@@ -230,6 +261,7 @@ export function renderDatImagePickerModalUI() {
             </div>
             <div class="dat-picker-perkey-bar" id="dat-picker-perkey-bar" style="display:none;">
               <div style="font-size:10px; color:#ffe885; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="lbl-dat-picker-active-key">選択キー: -</div>
+              <div id="dat-picker-way-hint" class="dat-picker-way-hint" style="display:none;"></div>
               <div class="row" style="gap:4px; align-items:center;">
                 <label style="font-size:10px; color:#bbb;">Y:</label>
                 <input type="number" id="inp-dat-picker-key-row" min="0">
@@ -251,6 +283,8 @@ export function renderDatImagePickerModalUI() {
         <footer class="dat-footer">
           <span class="info-text" id="lbl-dat-picker-selection">開始位置: row=0, col=0</span>
           <div class="row" style="margin-left:auto; width:auto;">
+            <button type="button" id="btn-dat-picker-load-pattern" title="保存済みの画像指定パターン(JSON)を読み込みます">📂 パターン読込</button>
+            <button type="button" id="btn-dat-picker-save-pattern" title="現在の画像指定パターンを別ファイル(JSON)に保存します">💾 パターン保存</button>
             <button type="button" id="btn-dat-picker-reset-custom">↺ 個別割当をリセット</button>
             <button type="button" id="btn-dat-picker-apply" class="btn-primary">✓ この形式と位置を反映</button>
             <button type="button" id="btn-dat-picker-cancel">キャンセル</button>
@@ -331,4 +365,17 @@ export function syncDatPickerPerKeyBar(activeItem, entries, selectedKeyIdx, mode
   if (inpC) inpC.value = String(target.col);
   const btnClr = document.getElementById('btn-dat-picker-key-clear');
   if (btnClr) btnClr.disabled = !isCustom;
+
+  const hintEl = document.getElementById('dat-picker-way-hint');
+  if (hintEl) {
+    const isWayLike = activeItem?.objType === 'way' || activeItem?.objType === 'way-object';
+    const hint = isWayLike ? getWayKeyHint(target.key, { large: true }) : null;
+    if (hint) {
+      hintEl.style.display = 'flex';
+      hintEl.innerHTML = `${hint.svg}<span class="dat-way-hint-text">${hint.label}</span>`;
+    } else {
+      hintEl.style.display = 'none';
+      hintEl.innerHTML = '';
+    }
+  }
 }

@@ -3,6 +3,21 @@
 export const DIRS_8 = ['S', 'E', 'SE', 'SW', 'N', 'W', 'NW', 'NE'];
 export const DIRS_4 = ['S', 'E', 'N', 'W'];
 
+// way 形状ごとのまとまり順（直線 → カーブ → 終端 → T字分岐 → 十字 → 単独）
+export const WAY_BASE_DIRS = [
+  'NS', 'EW',
+  'NE', 'SE', 'NW', 'SW',
+  'N', 'S', 'E', 'W',
+  'NSE', 'NSW', 'NEW', 'SEW',
+  'NSEW', '-'
+];
+
+// Simutrans 102.2+ 分岐ポイント画像タイプ
+export const WAY_POINT_DIRS = [
+  'NSE1', 'NSW1', 'NEW1', 'SEW1', 'NSEW1',
+  'NSE2', 'NSW2', 'NEW2', 'SEW2', 'NSEW2'
+];
+
 export const DIR_180_MAP = {
   S: 'N',
   N: 'S',
@@ -91,25 +106,39 @@ function buildBuildingEntries(objType, v, startRow, startCol, forcedLayer = null
 function buildInfraEntries(objType, v, startRow, startCol) {
   const entries = [];
   if (objType === 'way') {
-    const dirs = ['-', 'N', 'S', 'NS', 'E', 'NE', 'SE', 'NSE', 'W', 'NW', 'SW', 'NSW', 'EW', 'NEW', 'SEW', 'NSEW'];
-    dirs.forEach((d, i) => entries.push({ key: `Image[${d}]`, row: startRow, col: startCol + i }));
-    if (v.includeDiagonal) {
-      ['NE', 'SE', 'NW', 'SW'].forEach((d, i) => entries.push({ key: `Diagonal[${d}]`, row: startRow + 1, col: startCol + i }));
+    WAY_BASE_DIRS.forEach((d, i) => entries.push({ key: `Image[${d}]`, row: startRow, col: startCol + i }));
+    let nextRow = startRow + 1;
+    if (v.includePoints) {
+      WAY_POINT_DIRS.forEach((d, i) => entries.push({ key: `Image[${d}][0]`, row: nextRow, col: startCol + i }));
+      nextRow += 1;
+    }
+    if (v.includeDiagonal !== false) {
+      ['NE', 'SE', 'NW', 'SW'].forEach((d, i) => entries.push({ key: `Diagonal[${d}]`, row: nextRow, col: startCol + i }));
+      nextRow += 1;
     }
     if (v.includeSlopes) {
-      ['3', '6', '9', '12'].forEach((d, i) => entries.push({ key: `ImageUp[${d}]`, row: startRow + 2, col: startCol + i }));
+      ['3', '6', '9', '12'].forEach((d, i) => entries.push({ key: `ImageUp[${d}]`, row: nextRow, col: startCol + i }));
+      nextRow += 1;
+    }
+    if (v.includeSlopes2) {
+      ['3', '6', '9', '12'].forEach((d, i) => entries.push({ key: `ImageUp2[${d}]`, row: nextRow, col: startCol + i }));
+      nextRow += 1;
     }
     if (v.includeCursorIcon) {
-      entries.push({ key: 'Cursor', row: startRow + 3, col: startCol });
-      entries.push({ key: 'Icon', row: startRow + 3, col: startCol + 1, isIcon: true });
+      entries.push({ key: 'Cursor', row: nextRow, col: startCol });
+      entries.push({ key: 'Icon', row: nextRow, col: startCol + 1, isIcon: true });
     }
   } else if (objType === 'way-object') {
     const dirs = ['NS', 'EW', 'NE', 'SE', 'NW', 'SW', 'N', 'S', 'E', 'W'];
     dirs.forEach((d, i) => entries.push({ key: `FrontImage[${d}]`, row: startRow, col: startCol + i }));
-    ['NE', 'SE', 'NW', 'SW'].forEach((d, i) => entries.push({ key: `Diagonal[${d}]`, row: startRow + 1, col: startCol + i }));
+    let nextRow = startRow + 1;
+    if (v.includeDiagonal !== false) {
+      ['NE', 'SE', 'NW', 'SW'].forEach((d, i) => entries.push({ key: `Diagonal[${d}]`, row: nextRow, col: startCol + i }));
+      nextRow += 1;
+    }
     if (v.includeCursorIcon) {
-      entries.push({ key: 'Cursor', row: startRow + 2, col: startCol });
-      entries.push({ key: 'Icon', row: startRow + 2, col: startCol + 1, isIcon: true });
+      entries.push({ key: 'Cursor', row: nextRow, col: startCol });
+      entries.push({ key: 'Icon', row: nextRow, col: startCol + 1, isIcon: true });
     }
   } else if (objType === 'bridge') {
     entries.push({ key: 'BackImage[NS]', row: startRow, col: startCol });

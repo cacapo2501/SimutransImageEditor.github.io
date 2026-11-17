@@ -40,8 +40,10 @@ export const EXTRA_DAT_TEMPLATES = {
       retire_year: '',
       retire_month: '',
       includeCursorIcon: true,
+      includePoints: false,
       includeDiagonal: true,
-      includeSlopes: true
+      includeSlopes: true,
+      includeSlopes2: false
     },
     fields: [
       { key: 'waytype', label: '軌道種別 (waytype)', type: 'select', options: WAYTYPE_OPTIONS },
@@ -58,8 +60,10 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
       { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },
       { key: 'retire_month', label: '引退月 (retire_month)', type: 'number', min: 1, max: 12 },
+      { key: 'includePoints', label: '分岐ポイント画像 (NSE1〜NSEW2) を出力', type: 'checkbox' },
       { key: 'includeDiagonal', label: '斜め画像 (Diagonal) を出力', type: 'checkbox' },
       { key: 'includeSlopes', label: '坂道画像 (ImageUp) を出力', type: 'checkbox' },
+      { key: 'includeSlopes2', label: '2段坂画像 (ImageUp2) を出力', type: 'checkbox' },
       { key: 'includeCursorIcon', label: 'Cursor / Icon を出力', type: 'checkbox' }
     ]
   },
@@ -79,6 +83,7 @@ export const EXTRA_DAT_TEMPLATES = {
       intro_month: '1',
       retire_year: '',
       retire_month: '',
+      includeDiagonal: true,
       includeCursorIcon: true
     },
     fields: [
@@ -94,6 +99,7 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
       { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },
       { key: 'retire_month', label: '引退月 (retire_month)', type: 'number', min: 1, max: 12 },
+      { key: 'includeDiagonal', label: '斜め画像 (Diagonal) を出力', type: 'checkbox' },
       { key: 'includeCursorIcon', label: 'Cursor / Icon を出力', type: 'checkbox' }
     ]
   },

@@ -1,4 +1,5 @@
 import { resolveSpecialColorConflicts } from './color-utils.js';
+import { buildCompositeImageFilename } from './composite-naming.js';
 
 export function canvasToDataUrl(source) {
   if (!source) return null;
@@ -222,10 +223,11 @@ export class ProjectIO {
     c.height = app.baseH;
     c.getContext('2d').putImageData(new ImageData(copy, app.baseW, app.baseH), 0, 0);
 
-    const basePrefix = app.baseName.replace(/\.png$/i, '');
-    const useCut = app.tileCutter?.shouldCutOnExport?.();
+    const activeMask = app.maskMgr?.getActive?.();
+    const maskName = activeMask ? activeMask.name : (app.maskImage ? app.maskName : '');
+    const useCut = Boolean(app.tileCutter?.shouldCutOnExport?.());
     const outCanvas = useCut ? app.tileCutter.cutCanvas(c) : c;
-    const outName = useCut ? `${basePrefix}_cut.png` : `${basePrefix}_combined.png`;
+    const outName = buildCompositeImageFilename(app.baseName, maskName, { useCut });
     outCanvas.toBlob(blob => downloadBlob(blob, outName), 'image/png');
   }
 }

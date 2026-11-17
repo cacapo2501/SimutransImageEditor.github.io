@@ -110,6 +110,11 @@ export function bindPickerViewportEvents(picker, modal) {
 }
 
 function shortenKeyTag(key) {
+  if (key.startsWith('ImageUp2[')) return key.replace('ImageUp2', 'Up2');
+  if (key.startsWith('ImageUp[')) return key.replace('ImageUp', 'Up');
+  if (key.startsWith('Diagonal[')) return key.replace('Diagonal', 'Dia');
+  const mWay = key.match(/^Image\[([A-Z0-9-]+)\](?:\[0\])?$/);
+  if (mWay) return mWay[1];
   const m = key.match(/^([A-Za-z0-9]+)(.*)$/);
   if (!m) return key;
   const head = m[1].startsWith('Empty') ? 'Emp' : m[1].startsWith('Freight') ? 'Frt' : m[1].startsWith('Back') ? 'Bk' : m[1].startsWith('Front') ? 'Fr' : m[1].slice(0, 4);
@@ -246,6 +251,42 @@ export function bindPickerCustomKeyEvents(picker) {
   document.getElementById('btn-dat-picker-reset-custom')?.addEventListener('click', () => {
     const active = picker._activeItem();
     if (active) active.common.customImageCoords = null;
+    picker.refreshAll();
+  });
+}
+
+// ツールバー（タイルサイズ・一括行/列）イベントをバインドする
+export function bindPickerToolbarEvents(picker) {
+  document.querySelectorAll('.btn-dat-picker-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      picker.tileW = parseInt(btn.dataset.w, 10) || 64;
+      picker.tileH = parseInt(btn.dataset.h, 10) || 64;
+      document.getElementById('inp-dat-picker-tw').value = String(picker.tileW);
+      document.getElementById('inp-dat-picker-th').value = String(picker.tileH);
+      picker.refreshAll();
+    });
+  });
+
+  document.getElementById('inp-dat-picker-tw')?.addEventListener('input', (e) => {
+    picker.tileW = Math.max(8, Math.min(1024, parseInt(e.target.value, 10) || 64));
+    picker._renderCanvas();
+  });
+  document.getElementById('inp-dat-picker-th')?.addEventListener('input', (e) => {
+    picker.tileH = Math.max(8, Math.min(1024, parseInt(e.target.value, 10) || 64));
+    picker._renderCanvas();
+  });
+
+  document.getElementById('btn-dat-picker-seq-rows')?.addEventListener('click', () => {
+    const baseRow = Math.max(0, parseInt(picker.tempItems[0]?.common?.startRow, 10) || 0);
+    picker.tempItems.forEach((it, idx) => { it.common.startRow = String(baseRow + idx); });
+    picker.refreshAll();
+  });
+
+  document.getElementById('btn-dat-picker-align-cols')?.addEventListener('click', () => {
+    const active = picker._activeItem();
+    if (!active) return;
+    const col = active.common.startCol || '0';
+    picker.tempItems.forEach((it) => { it.common.startCol = String(col); });
     picker.refreshAll();
   });
 }
