@@ -1,8 +1,10 @@
 // 編集中画像から Image 座標 (row.col) を GUI で指定するモーダル UI
+import { IMAGE_FORMAT_OPTIONS } from './dat-image-formats.js';
 
 export function renderDatImagePickerModalUI() {
   if (document.getElementById('modal-dat-image-picker')) return;
   const container = document.getElementById('modal-container') || document.body;
+  const fmtOpts = IMAGE_FORMAT_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
 
   container.insertAdjacentHTML('beforeend', `
     <dialog id="modal-dat-image-picker">
@@ -25,10 +27,15 @@ export function renderDatImagePickerModalUI() {
           <input type="number" id="inp-dat-picker-th" value="64" min="8" max="1024" style="width:54px;">
           <span style="font-size:11px; color:#aaa;">px</span>
 
-          <span style="margin-left:8px; font-size:11px; color:#ccc;">指定モード:</span>
+          <span style="margin-left:8px; font-size:11px; color:#ccc;">画像形式:</span>
+          <select id="sel-dat-picker-format">
+            ${fmtOpts}
+          </select>
+
+          <span style="margin-left:6px; font-size:11px; color:#ccc;">指定:</span>
           <select id="sel-dat-picker-mode">
-            <option value="origin">開始位置 (startRow, startCol) を一括指定</option>
-            <option value="per_key">個別キーごとにセルをクリック割当</option>
+            <option value="origin">開始位置 (startRow, startCol) 一括</option>
+            <option value="per_key">個別キーをクリック割当</option>
           </select>
 
           <div class="dat-picker-zoom-group">

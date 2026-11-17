@@ -108,6 +108,16 @@ export function renderDatAiSectionHtml() {
       <label class="dat-check-item mt-05">
         <input type="checkbox" id="chk-dat-export-all-objects" checked> 全オブジェクトを「---」区切りで一括出力
       </label>
+      <div class="dat-reverse-box mt-05">
+        <div style="font-size:10px; color:#9cdcfe; font-weight:bold; margin-bottom:4px;">🔁 編成反転オプション (順序・Constraint・向き)</div>
+        <label class="dat-check-item">
+          <input type="checkbox" id="chk-dat-reverse-flip-img" checked> 反転時に画像向き (S↔N等) も180°反転する
+        </label>
+        <div class="btn-group mt-05">
+          <button type="button" id="btn-dat-reverse-inplace" title="現在の編成順とconstraint[prev/next]を逆転させます">🔁 現在の編成を反転</button>
+          <button type="button" id="btn-dat-reverse-append" title="末尾に_revを付けた逆向き編成を複製追加します">➕ 反転編成を追加</button>
+        </div>
+      </div>
     </fieldset>
 
     <!-- マスク画像＝塗装バリエーション連携パネル -->

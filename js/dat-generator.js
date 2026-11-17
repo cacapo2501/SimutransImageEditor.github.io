@@ -32,6 +32,9 @@ export class DatGeneratorController {
       name: 'new_building',
       copyright: '',
       includeImages: true,
+      imageFormat: 'auto',
+      customImgFormat: 'EmptyImage[{dir}][0]={prefix}.{row}.{col}{offset}',
+      flipDirections: false,
       imgPrefix: 'base_combined',
       startRow: '0',
       startCol: '0',
@@ -133,6 +136,8 @@ export class DatGeneratorController {
     };
     setVal('inp-dat-name', this.common.name);
     setVal('inp-dat-copyright', this.common.copyright);
+    setVal('sel-dat-image-format', this.common.imageFormat || 'auto');
+    setVal('inp-dat-custom-format', this.common.customImgFormat || '');
     setVal('inp-dat-img-prefix', this.common.imgPrefix);
     setVal('inp-dat-start-row', this.common.startRow);
     setVal('inp-dat-start-col', this.common.startCol);
@@ -141,6 +146,10 @@ export class DatGeneratorController {
 
     const chkImg = document.getElementById('chk-dat-include-images');
     if (chkImg) chkImg.checked = Boolean(this.common.includeImages);
+    const chkFlip = document.getElementById('chk-dat-flip-directions');
+    if (chkFlip) chkFlip.checked = Boolean(this.common.flipDirections);
+    const customWrap = document.getElementById('dat-custom-format-wrap');
+    if (customWrap) customWrap.style.display = this.common.imageFormat === 'custom_template' ? '' : 'none';
 
     const inpFilename = document.getElementById('inp-dat-filename');
     if (inpFilename && !inpFilename.dataset.userEdited) {
@@ -163,7 +172,8 @@ export class DatGeneratorController {
     if (btnClear) btnClear.style.display = count > 0 ? '' : 'none';
   }
 
-  applyImagePickerResult({ startRow, startCol, customImageCoords }) {
+  applyImagePickerResult({ imageFormat, startRow, startCol, customImageCoords }) {
+    if (imageFormat) this.common.imageFormat = imageFormat;
     this.common.startRow = startRow;
     this.common.startCol = startCol;
     this.common.customImageCoords = customImageCoords || null;
@@ -329,11 +339,20 @@ export class DatGeneratorController {
     bindCommon('inp-dat-name', 'name');
     bindCommon('inp-dat-copyright', 'copyright');
     bindCommon('chk-dat-include-images', 'includeImages', true);
+    bindCommon('chk-dat-flip-directions', 'flipDirections', true);
+    bindCommon('inp-dat-custom-format', 'customImgFormat');
     bindCommon('inp-dat-img-prefix', 'imgPrefix');
     bindCommon('inp-dat-start-row', 'startRow');
     bindCommon('inp-dat-start-col', 'startCol');
     bindCommon('inp-dat-img-offset', 'imgOffset');
     bindCommon('inp-dat-extra-lines', 'extraLines');
+
+    document.getElementById('sel-dat-image-format')?.addEventListener('change', (e) => {
+      this.common.imageFormat = e.target.value;
+      const customWrap = document.getElementById('dat-custom-format-wrap');
+      if (customWrap) customWrap.style.display = this.common.imageFormat === 'custom_template' ? '' : 'none';
+      if (this.autoSync) this.regenerateOutput();
+    });
 
     document.getElementById('btn-dat-sync-img-name').onclick = () => {
       this.common.imgPrefix = this._deriveImagePrefixFromApp();

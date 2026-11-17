@@ -226,10 +226,14 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
       name: String(rawCommon.name || `${defaults.name || 'addon'}_${idx + 1}`),
       copyright: String(rawCommon.copyright ?? fallbackCommon.copyright ?? ''),
       includeImages: fallbackCommon.includeImages !== undefined ? Boolean(fallbackCommon.includeImages) : true,
+      imageFormat: String(fallbackCommon.imageFormat || 'auto'),
+      customImgFormat: String(fallbackCommon.customImgFormat || 'EmptyImage[{dir}][0]={prefix}.{row}.{col}{offset}'),
+      flipDirections: Boolean(fallbackCommon.flipDirections),
       imgPrefix: String(rawCommon.imgPrefix || fallbackCommon.imgPrefix || 'base_combined'),
       startRow: String(rawCommon.startRow ?? idx),
       startCol: String(rawCommon.startCol ?? fallbackCommon.startCol ?? '0'),
       imgOffset: String(rawCommon.imgOffset ?? fallbackCommon.imgOffset ?? ''),
+      customImageCoords: null,
       extraLines: String(rawCommon.extraLines ?? '')
     };
 

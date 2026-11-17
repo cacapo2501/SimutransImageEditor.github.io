@@ -1,5 +1,10 @@
 import { DAT_OBJECT_CATEGORIES, DAT_OBJECT_TEMPLATES, BUILDING_PRESETS, CLIMATE_OPTIONS } from './dat-templates.js';
+import { IMAGE_FORMAT_OPTIONS } from './dat-image-formats.js';
 import { renderDatAiSectionHtml } from './ui-dat-ai.js';
+
+function buildImageFormatOptions() {
+  return IMAGE_FORMAT_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+}
 
 function buildObjectSelectOptions() {
   return DAT_OBJECT_CATEGORIES.map(group => {
@@ -72,6 +77,19 @@ export function renderDatModalUI() {
               <legend>画像参照設定 (Image / BackImage / EmptyImage)</legend>
               <label class="dat-check-item">
                 <input type="checkbox" id="chk-dat-include-images" checked> 画像指定行を自動生成する
+              </label>
+              <div class="dat-field mt-05">
+                <label>画像指定形式 (切替可)</label>
+                <select id="sel-dat-image-format">
+                  ${buildImageFormatOptions()}
+                </select>
+              </div>
+              <div class="dat-field mt-05" id="dat-custom-format-wrap" style="display:none;">
+                <label>カスタム画像書式 ({dir}, {prefix}, {row}, {col}, {offset} 使用可)</label>
+                <textarea id="inp-dat-custom-format" placeholder="EmptyImage[{dir}][0]={prefix}.{row}.{col}{offset}"></textarea>
+              </div>
+              <label class="dat-check-item mt-05">
+                <input type="checkbox" id="chk-dat-flip-directions"> 車両・車の向きを180°反転 (S↔N, E↔W, SE↔NW, SW↔NE)
               </label>
               <div class="dat-field mt-05">
                 <label>画像ファイル名 (拡張子 .png なし)</label>

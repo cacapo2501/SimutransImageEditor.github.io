@@ -1,4 +1,24 @@
 import { serializeDatObject, downloadDatText } from './dat-serializer.js';
+import { flipCustomImageCoords180 } from './dat-image-formats.js';
+
+function addRevSuffixToName(rawName) {
+  const s = String(rawName || 'obj').trim();
+  const m = s.match(/^(.+?)(\([^()]+\))$/);
+  if (m) return `${m[1]}_rev${m[2]}`;
+  return `${s}_rev`;
+}
+
+function remapConstraintLines(rawText, nameMap) {
+  return String(rawText || '')
+    .split(/\r?\n/)
+    .map(l => {
+      const t = l.trim();
+      if (!t || t === 'none') return t;
+      return nameMap ? (nameMap.get(t) || t) : t;
+    })
+    .filter(Boolean)
+    .join('\n');
+}
 
 function cloneCommon(c) {
   const copy = { ...(c || {}) };
@@ -41,6 +61,14 @@ export class DatCollectionManager {
     document.getElementById('chk-dat-export-all-objects')?.addEventListener('change', (e) => {
       this.exportAll = e.target.checked;
       if (this.gen.autoSync) this.gen.regenerateOutput();
+    });
+    document.getElementById('btn-dat-reverse-inplace')?.addEventListener('click', () => {
+      const flipImg = Boolean(document.getElementById('chk-dat-reverse-flip-img')?.checked);
+      this.reverseFormation({ appendAsNew: false, flipDirections: flipImg });
+    });
+    document.getElementById('btn-dat-reverse-append')?.addEventListener('click', () => {
+      const flipImg = Boolean(document.getElementById('chk-dat-reverse-flip-img')?.checked);
+      this.reverseFormation({ appendAsNew: true, flipDirections: flipImg });
     });
   }
 
@@ -121,6 +149,55 @@ export class DatCollectionManager {
     this.activeIndex = -1;
     this.refreshUI();
     if (this.gen.autoSync) this.gen.regenerateOutput();
+  }
+
+  // 編成反転（順序逆転 + constraint[prev/next] 入替 + 任意で画像向き180度反転）
+  reverseFormation({ appendAsNew = false, flipDirections = true } = {}) {
+    if (this.items.length === 0) return;
+    this.saveActiveFromController();
+
+    const revItems = [...this.items].reverse().map(cloneEntry);
+    let nameMap = null;
+    if (appendAsNew) {
+      nameMap = new Map();
+      revItems.forEach((it) => {
+        const oldName = it.common.name;
+        const newName = addRevSuffixToName(oldName);
+        nameMap.set(oldName, newName);
+        it.common.name = newName;
+      });
+    }
+
+    revItems.forEach((it) => {
+      if (it.objType === 'vehicle') {
+        const oldPrev = it.values.constraintsPrev;
+        const oldNext = it.values.constraintsNext;
+        it.values.constraintsPrev = remapConstraintLines(oldNext, nameMap);
+        it.values.constraintsNext = remapConstraintLines(oldPrev, nameMap);
+      }
+      if (flipDirections) {
+        it.common.flipDirections = !Boolean(it.common.flipDirections);
+        if (it.common.customImageCoords) {
+          it.common.customImageCoords = flipCustomImageCoords180(it.common.customImageCoords);
+        }
+      }
+    });
+
+    if (appendAsNew) {
+      const insertAt = this.items.length;
+      this.items = [...this.items, ...revItems];
+      this.activeIndex = insertAt;
+    } else {
+      this.items = revItems;
+      this.activeIndex = 0;
+    }
+
+    this._loadItemIntoController(this.items[this.activeIndex]);
+    this.refreshUI();
+    this.gen.liveryMgr?.clearBaseNameCache();
+    this.gen.autoSync = true;
+    this.gen._updateSyncBadge();
+    this.gen.regenerateOutput();
   }
 
   buildCombinedText() {

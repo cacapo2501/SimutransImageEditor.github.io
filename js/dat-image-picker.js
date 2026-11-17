@@ -78,10 +78,14 @@ export class DatImagePicker {
 
     this.tempStartRow = Math.max(0, parseInt(this.gen.common.startRow, 10) || 0);
     this.tempStartCol = Math.max(0, parseInt(this.gen.common.startCol, 10) || 0);
+    this.tempImageFormat = this.gen.common.imageFormat || 'auto';
     this.tempCustomCoords = this.gen.common.customImageCoords
       ? JSON.parse(JSON.stringify(this.gen.common.customImageCoords))
       : {};
     this.selectedKeyIdx = 0;
+
+    const selFmt = document.getElementById('sel-dat-picker-format');
+    if (selFmt) selFmt.value = this.tempImageFormat;
 
     const sizeLbl = document.getElementById('lbl-dat-picker-img-size');
     if (sizeLbl) {
@@ -103,6 +107,8 @@ export class DatImagePicker {
     const objType = this.gen.currentObjType;
     const values = this.gen._getObjState(objType);
     return collectImageEntries(objType, values, {
+      ...this.gen.common,
+      imageFormat: this.tempImageFormat,
       startRow: this.tempStartRow,
       startCol: this.tempStartCol,
       customImageCoords: Object.keys(this.tempCustomCoords).length > 0 ? this.tempCustomCoords : null
@@ -288,6 +294,12 @@ export class DatImagePicker {
       this._renderCanvas();
     });
 
+    document.getElementById('sel-dat-picker-format')?.addEventListener('change', (e) => {
+      this.tempImageFormat = e.target.value;
+      this.selectedKeyIdx = 0;
+      this.refreshAll();
+    });
+
     document.getElementById('sel-dat-picker-mode')?.addEventListener('change', (e) => {
       this.mode = e.target.value;
       const guide = document.getElementById('lbl-dat-picker-guide');
@@ -360,6 +372,7 @@ export class DatImagePicker {
 
     document.getElementById('btn-dat-picker-apply')?.addEventListener('click', () => {
       this.gen.applyImagePickerResult({
+        imageFormat: this.tempImageFormat,
         startRow: String(this.tempStartRow),
         startCol: String(this.tempStartCol),
         customImageCoords: Object.keys(this.tempCustomCoords).length > 0 ? { ...this.tempCustomCoords } : null
