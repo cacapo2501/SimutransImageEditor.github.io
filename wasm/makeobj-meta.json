@@ -1,14 +1,14 @@
 {
-  "available": false,
+  "available": true,
   "edition": "Standard",
-  "version": "",
-  "simutransVersion": "",
-  "banner": "",
+  "version": "60.12",
+  "simutransVersion": "125.0.2 Nightly",
+  "banner": "Makeobj version 60.12 for Simutrans 125.0.2 Nightly and higher",
   "sourceRepo": "https://github.com/simutrans/simutrans",
-  "sourceRef": "",
-  "commit": "",
+  "sourceRef": "master",
+  "commit": "cbd2e2b5fcf046c13cff8df9403e9892b8ce0a14",
   "license": "Artistic License 1.0",
   "licenseFile": "./wasm/LICENSE_SIMUTRANS.txt",
   "noticeFile": "./wasm/NOTICE.md",
-  "builtAt": ""
+  "builtAt": "2026-11-17T07:58:08Z"
 }

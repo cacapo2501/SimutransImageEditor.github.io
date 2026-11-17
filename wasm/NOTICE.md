@@ -1,11 +1,14 @@
 # Simutrans makeobj (WebAssembly ビルド) ライセンスおよび出典情報
 
 - **ソフトウェア名**: Simutrans `makeobj` (Standard)
-- **ライセンス**: Artistic License 1.0
+- **バージョン**: Makeobj version 60.12 for Simutrans 125.0.2 Nightly and higher
+- **ライセンス**: Artistic License 1.0（同梱の `LICENSE_SIMUTRANS.txt` を参照）
 - **公式ソースコード**: https://github.com/simutrans/simutrans
-- **状態**: 未ビルド（`.github/workflows/build-makeobj-wasm.yml` を GitHub Actions で実行すると、`wasm/makeobj.js` / `wasm/makeobj.wasm` / `wasm/LICENSE_SIMUTRANS.txt` / `wasm/makeobj-meta.json` が生成されます）
+- **取得リファレンス / コミット**: `master` (`cbd2e2b5fcf046c13cff8df9403e9892b8ce0a14`)
+- **ビルド日時 (UTC)**: `2026-11-17T07:58:08Z`
 
-## Artistic License 1.0 準拠について
-- 本ディレクトリに配置される `makeobj` WebAssembly ビルドは、公式 Simutrans Standard ソースコードから無改変で Emscripten によりコンパイルされた非公式 Web ビルドです。
-- ビルド時に公式リポジトリの `LICENSE.txt` を `wasm/LICENSE_SIMUTRANS.txt` としてそのまま同梱し、取得元のリファレンス・コミットハッシュを `wasm/makeobj-meta.json` と本ファイルへ明記します。
-- ビルド手順および自動化スクリプトは `.github/workflows/build-makeobj-wasm.yml` と `.github/scripts/build_makeobj_wasm.py` に公開しています。
+## 変更点・ビルド方法 (Artistic License 1.0 第3条・第4条に基づく明記)
+本リポジトリの `wasm/makeobj.js` および `wasm/makeobj.wasm` は、上記公式 Simutrans Standard の
+`makeobj` C++ ソースコードを改変せず Emscripten により WebAssembly へコンパイルした非公式 Web ビルドです。
+ビルド手順および自動化スクリプトは同リポジトリ内の `.github/workflows/build-makeobj-wasm.yml` および
+`.github/scripts/build_makeobj_wasm.py` に公開しています。
