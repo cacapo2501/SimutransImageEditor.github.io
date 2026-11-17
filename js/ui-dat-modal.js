@@ -72,6 +72,10 @@ export function renderDatModalUI() {
                   <label>作者名 (copyright=)</label>
                   <input type="text" id="inp-dat-copyright" value="" placeholder="任意">
                 </div>
+                <div class="dat-field full-width">
+                  <label>日本語表示名 (ja.tab 用 / 省略可)</label>
+                  <input type="text" id="inp-dat-ja-name" value="" placeholder="例: JR東日本 E233系0番台 クハE233 (中央線)">
+                </div>
               </div>
             </fieldset>
 
@@ -184,6 +188,7 @@ export function renderDatModalUI() {
                 <button type="button" id="btn-dat-makeobj-add-png" title="datが参照する別PNG画像があれば追加添付">📎 追加PNG</button>
                 <button type="button" id="btn-dat-makeobj-clear-png" style="display:none;" title="追加PNG添付をクリア">✕</button>
                 <button type="button" id="btn-dat-makeobj-compile" class="btn-primary">⚙️ .pak コンパイル</button>
+                <button type="button" id="btn-dat-open-makeobj-modal" title="ja.tab生成・AI設定支援付きのmakeobj画面を開きます">🇯🇵 ja.tab / 詳細画面</button>
                 <button type="button" id="btn-dat-makeobj-license" title="makeobjのバージョンとArtistic License 1.0情報を表示">📜 ライセンス</button>
               </div>
               <div class="info-text" id="lbl-dat-makeobj-extra-png">追加PNG: なし（編集中画像は自動添付）</div>
@@ -257,6 +262,7 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
   };
 
   bindCommon('inp-dat-name', 'name');
+  bindCommon('inp-dat-ja-name', 'jaName');
   bindCommon('inp-dat-copyright', 'copyright');
   bindCommon('chk-dat-include-images', 'includeImages', true);
   bindCommon('chk-dat-flip-directions', 'flipDirections', true);
@@ -287,6 +293,10 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
     if (gen.autoSync) gen.regenerateOutput();
   };
   document.getElementById('btn-dat-open-img-picker').onclick = () => gen.imagePicker.open();
+  document.getElementById('btn-dat-open-makeobj-modal')?.addEventListener('click', () => {
+    modal.close();
+    gen.makeobjModalCtrl?.open({ forceSyncFromDat: true });
+  });
   document.getElementById('btn-dat-clear-custom-img').onclick = () => {
     gen.common.customImageCoords = null;
     gen._syncCustomImageStatus();

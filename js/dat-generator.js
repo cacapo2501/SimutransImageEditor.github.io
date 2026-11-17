@@ -20,6 +20,7 @@ import { populateImageFormatSelect } from './dat-image-formats.js';
 import { renderFactoryFieldsPanel } from './dat-factory-fields.js';
 import { buildCompositeImagePrefix } from './composite-naming.js';
 import { MakeobjDatBridge } from './makeobj-dat-bridge.js';
+import { MakeobjModalController } from './makeobj-modal-controller.js';
 
 export class DatGeneratorController {
   constructor(app, pickFileFn) {
@@ -35,6 +36,7 @@ export class DatGeneratorController {
     this.imagePicker = new DatImagePicker(this);
     this.liveryMgr = new DatLiveryManager(this);
     this.makeobjBridge = new MakeobjDatBridge(this);
+    this.makeobjModalCtrl = new MakeobjModalController(app);
     this._pendingProjectUi = null;
     this.common = createDefaultDatCommon();
   }
@@ -64,6 +66,7 @@ export class DatGeneratorController {
     document.getElementById('btn-open-dat-generator')?.addEventListener('click', () => {
       this.open();
     });
+    this.makeobjModalCtrl.bindEvents();
   }
 
   _ensureInitialized() {
@@ -147,6 +150,7 @@ export class DatGeneratorController {
       if (el) el.value = val ?? '';
     };
     setVal('inp-dat-name', this.common.name);
+    setVal('inp-dat-ja-name', this.common.jaName);
     setVal('inp-dat-copyright', this.common.copyright);
     this.common.imageFormat = populateImageFormatSelect(
       document.getElementById('sel-dat-image-format'),

@@ -1,5 +1,6 @@
-/* datファイル生成モーダル */
-#modal-dat-generator {
+/* datファイル生成モーダル & makeobjコンパイルモーダル */
+#modal-dat-generator,
+#modal-makeobj-compile {
   width: 92vw;
   height: 88vh;
   height: 88dvh;
@@ -14,7 +15,8 @@
   overflow: hidden;
 }
 
-#modal-dat-generator::backdrop {
+#modal-dat-generator::backdrop,
+#modal-makeobj-compile::backdrop {
   background: rgba(0, 0, 0, 0.75);
 }
 

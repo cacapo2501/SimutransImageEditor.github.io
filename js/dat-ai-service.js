@@ -176,6 +176,7 @@ ${schemaText}
       "obj": "${objType}",
       "common": {
         "name": "addon_unique_name",
+        "jaName": "日本語での表示名（ja.tab用・自然な日本語）",
         "copyright": "${copyright || ''}",
         "imgPrefix": "${imgPrefix || 'base_combined'}",
         "startRow": "0",
@@ -253,6 +254,7 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
     const rawCommon = item.common && typeof item.common === 'object' ? item.common : {};
     const common = {
       name: String(rawCommon.name || `${defaults.name || 'addon'}_${idx + 1}`),
+      jaName: String(rawCommon.jaName || ''),
       copyright: String(rawCommon.copyright ?? fallbackCommon.copyright ?? ''),
       includeImages: fallbackCommon.includeImages !== undefined ? Boolean(fallbackCommon.includeImages) : true,
       imageFormat: String(fallbackCommon.imageFormat || 'auto'),

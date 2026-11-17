@@ -193,6 +193,7 @@ export function renderSidebarToolAccordions() {
       <div class="panel-body">
         <p class="desc-text">建物・車両・CityCar・インフラ・自然物・工場等のテンプレートから pak 生成用の .dat ファイルを作成・編集します。</p>
         <button id="btn-open-dat-generator" class="btn-primary w-100 mt-05">📝 dat生成・編集エディタを開く</button>
+        <button id="btn-tool-open-makeobj" class="w-100 mt-05">⚙️ makeobj (.pak / ja.tab 出力)</button>
         <div class="info-text" id="lbl-dat-sidebar-status">選択中: 未起動</div>
       </div>
     </details>

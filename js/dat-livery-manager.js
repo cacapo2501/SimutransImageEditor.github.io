@@ -78,6 +78,10 @@ export class DatLiveryManager {
       if (!this.baseNameByKey.has(key)) {
         this.baseNameByKey.set(key, String(it.common?.name || '').replace(/\([^()]*\)$/, '').trim());
       }
+      const jaKey = `ja:${idx}:${it.objType}`;
+      if (!this.baseNameByKey.has(jaKey) && it.common?.jaName) {
+        this.baseNameByKey.set(jaKey, String(it.common.jaName).replace(/\([^()]*\)$/, '').trim());
+      }
     });
   }
 
@@ -167,6 +171,8 @@ export class DatLiveryManager {
         const nextName = applyLiveryToName(oldName, liveryName, it.objType, baseHint);
         nameMap.set(oldName, nextName);
         it.common.name = nextName;
+        const jaHint = this.baseNameByKey.get(`ja:${idx}:${it.objType}`) || it.common.jaName;
+        if (jaHint) it.common.jaName = applyLiveryToName(it.common.jaName, liveryName, it.objType, jaHint);
         it.common.imgPrefix = nextImgPrefix;
       });
 
@@ -188,6 +194,13 @@ export class DatLiveryManager {
       }
       const baseHint = this.baseNameByKey.get(key);
       this.gen.common.name = applyLiveryToName(this.gen.common.name, liveryName, objType, baseHint);
+      const jaKey = `ja:single:${objType}`;
+      if (!this.baseNameByKey.has(jaKey) && this.gen.common.jaName) {
+        this.baseNameByKey.set(jaKey, String(this.gen.common.jaName).replace(/\([^()]*\)$/, '').trim());
+      }
+      if (this.baseNameByKey.has(jaKey)) {
+        this.gen.common.jaName = applyLiveryToName(this.gen.common.jaName, liveryName, objType, this.baseNameByKey.get(jaKey));
+      }
       this.gen.common.imgPrefix = nextImgPrefix;
       this.gen._syncCommonInputsFromState();
     }
@@ -235,9 +248,12 @@ export class DatLiveryManager {
         const baseHint = this.baseNameByKey.get(key) || src.common.name;
         const nextName = applyLiveryToName(src.common.name, liveryName, src.objType, baseHint);
         nameMap.set(src.common.name, nextName);
+        const jaKey = baseItems.length > 1 ? `ja:${sIdx}:${src.objType}` : `ja:single:${src.objType}`;
+        const jaHint = this.baseNameByKey.get(jaKey) || src.common.jaName;
+        const nextJaName = jaHint ? applyLiveryToName(src.common.jaName, liveryName, src.objType, jaHint) : '';
         return {
           objType: src.objType,
-          common: { ...src.common, name: nextName, imgPrefix },
+          common: { ...src.common, name: nextName, jaName: nextJaName, imgPrefix },
           values: { ...src.values }
         };
       });

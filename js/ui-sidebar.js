@@ -280,6 +280,7 @@ export function renderSidebarUI() {
       </label>
       <div class="info-text" id="lbl-quick-tilecut-info" style="margin-bottom:4px;"></div>
       <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存</button>
+      <button id="btn-sidebar-makeobj" class="w-100 mt-05" style="padding:8px 0;">⚙️ makeobj で .pak コンパイル</button>
     </div>
   `;
 }

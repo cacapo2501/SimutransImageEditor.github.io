@@ -6,7 +6,6 @@ Artistic License 1.0 準拠ファイルとバージョンメタデータを wasm
 
 import datetime
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -24,64 +23,8 @@ def capture(cmd, cwd=None):
     return res.returncode, (res.stdout or "") + (res.stderr or "")
 
 
-def find_emscripten_ports():
-    """Emscripten の zlib / libpng ポートをビルドして sysroot パスを返す"""
-    run(["embuilder", "build", "zlib", "libpng"])
-    rc, cache_out = capture(["em-config", "CACHE"])
-    if rc != 0:
-        raise RuntimeError("em-config CACHE の取得に失敗しました")
-    cache_dir = Path(cache_out.strip().splitlines()[-1].strip())
-    sysroot = cache_dir / "sysroot"
-    inc_dir = sysroot / "include"
-    lib_dir = sysroot / "lib" / "wasm32-emscripten"
-    return inc_dir, lib_dir
-
-
-def build_via_cmake(src_dir: Path, build_dir: Path, out_js: Path, inc_dir: Path, lib_dir: Path):
-    """emcmake cmake で makeobj ターゲットのビルドを試行する"""
-    link_flags = " ".join([
-        "-sMODULARIZE=1",
-        "-sEXPORT_ES6=1",
-        "-sEXPORT_NAME=createMakeobjModule",
-        "-sINVOKE_RUN=0",
-        "-sEXIT_RUNTIME=0",
-        "-sALLOW_MEMORY_GROWTH=1",
-        "-sEXPORTED_RUNTIME_METHODS=['FS','callMain']",
-        "-sUSE_ZLIB=1",
-        "-sUSE_LIBPNG=1",
-    ])
-    cxx_flags = "-O2 -sUSE_ZLIB=1 -sUSE_LIBPNG=1"
-
-    cmake_args = [
-        "emcmake", "cmake",
-        "-S", str(src_dir),
-        "-B", str(build_dir),
-        "-DCMAKE_BUILD_TYPE=Release",
-        "-DSIMUTRANS_BACKEND=none",
-        f"-DZLIB_INCLUDE_DIR={inc_dir}",
-        f"-DZLIB_LIBRARY={lib_dir / 'libz.a'}",
-        f"-DPNG_PNG_INCLUDE_DIR={inc_dir}",
-        f"-DPNG_LIBRARY={lib_dir / 'libpng.a'}",
-        f"-DCMAKE_CXX_FLAGS={cxx_flags}",
-        f"-DCMAKE_C_FLAGS={cxx_flags}",
-        f"-DCMAKE_EXE_LINKER_FLAGS={link_flags}",
-        "-DCMAKE_EXECUTABLE_SUFFIX=.js",
-    ]
-    run(cmake_args)
-    run(["cmake", "--build", str(build_dir), "--target", "makeobj", "-j", str(os.cpu_count() or 2)])
-
-    # 生成された makeobj.js / makeobj.wasm を探索してコピー
-    built_js = next(build_dir.rglob("makeobj.js"), None)
-    built_wasm = next(build_dir.rglob("makeobj.wasm"), None)
-    if not built_js or not built_wasm:
-        raise FileNotFoundError("CMake ビルド後に makeobj.js / makeobj.wasm が見つかりません")
-    out_js.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(built_js, out_js)
-    shutil.copy2(built_wasm, out_js.with_suffix(".wasm"))
-
-
 def extract_cmake_sources(cmake_file: Path, base_dir: Path):
-    """CMakeLists.txt から .cc / .cpp / .c ソースパス一覧を抽出するフォールバック用パーサ"""
+    """src/makeobj/CMakeLists.txt から .cc / .cpp / .c ソースパス一覧を抽出する"""
     text = cmake_file.read_text(encoding="utf-8", errors="replace")
     sources = []
     for token in re.findall(r"[^\s()\"']+\.(?:cc|cpp|c)\b", text):
@@ -93,8 +36,20 @@ def extract_cmake_sources(cmake_file: Path, base_dir: Path):
     return sources
 
 
-def build_via_emxx_fallback(src_dir: Path, out_js: Path):
-    """ルート CMakeLists.txt が Emscripten 非対応オプションで失敗した場合の直接コンパイル"""
+def ensure_revision_header(src_dir: Path):
+    """simversion.h が参照する revision.h を生成する"""
+    rev_h = src_dir / "src" / "simutrans" / "revision.h"
+    if not rev_h.exists():
+        _, rev_count = capture(["git", "-C", str(src_dir), "rev-list", "--count", "HEAD"])
+        rev_num = rev_count.strip().splitlines()[-1] if rev_count.strip().isdigit() else "0"
+        rev_h.write_text(f"#define REVISION {rev_num}\n", encoding="utf-8")
+
+
+def build_makeobj_emxx(src_dir: Path, out_js: Path):
+    """Emscripten (em++) で src/makeobj/CMakeLists.txt のソース群から WASM を直接ビルドする"""
+    run(["embuilder", "build", "zlib", "libpng"])
+    ensure_revision_header(src_dir)
+
     makeobj_cmake = src_dir / "src" / "makeobj" / "CMakeLists.txt"
     if not makeobj_cmake.exists():
         makeobj_cmake = src_dir / "makeobj" / "CMakeLists.txt"
@@ -103,15 +58,21 @@ def build_via_emxx_fallback(src_dir: Path, out_js: Path):
         raise RuntimeError(f"ソース一覧を抽出できませんでした: {makeobj_cmake}")
 
     out_js.parent.mkdir(parents=True, exist_ok=True)
-    inc_root = src_dir / "src" / "simutrans"
+    inc_sim = src_dir / "src" / "simutrans"
+    inc_mk = src_dir / "src" / "makeobj"
+
     cmd = [
         "em++",
-        "-std=c++17",
+        "-std=c++14",
         "-O2",
+        "-fexceptions",
         "-DMAKEOBJ=1",
         "-DCOLOUR_DEPTH=0",
+        "-DMSG_LEVEL=3",
+        "-DNDEBUG=1",
         f"-I{src_dir / 'src'}",
-        f"-I{inc_root if inc_root.exists() else src_dir}",
+        f"-I{inc_sim if inc_sim.exists() else src_dir}",
+        f"-I{inc_mk if inc_mk.exists() else src_dir}",
         "-sUSE_ZLIB=1",
         "-sUSE_LIBPNG=1",
         "-sMODULARIZE=1",
@@ -120,7 +81,7 @@ def build_via_emxx_fallback(src_dir: Path, out_js: Path):
         "-sINVOKE_RUN=0",
         "-sEXIT_RUNTIME=0",
         "-sALLOW_MEMORY_GROWTH=1",
-        "-sEXPORTED_RUNTIME_METHODS=['FS','callMain']",
+        "-sEXPORTED_RUNTIME_METHODS=FS,callMain",
         *[str(s) for s in sources],
         "-o", str(out_js),
     ]
@@ -128,28 +89,32 @@ def build_via_emxx_fallback(src_dir: Path, out_js: Path):
 
 
 def parse_version_headers(src_dir: Path):
-    """simversion.h / makeobj.cc からバージョン定数を補助抽出する"""
+    """simversion.h からバージョン定数を補助抽出する"""
     makeobj_ver = ""
     sim_ver = ""
-    for p in src_dir.rglob("*.h"):
-        if p.name == "simversion.h":
-            txt = p.read_text(encoding="utf-8", errors="replace")
-            m1 = re.search(r'#define\s+MAKEOBJ_VERSION\s+"([^"]+)"', txt)
-            m2 = re.search(r'#define\s+VERSION_NUMBER\s+"([^"]+)"', txt)
-            if m1:
-                makeobj_ver = m1.group(1)
-            if m2:
-                sim_ver = m2.group(1)
+    ver_h = src_dir / "src" / "simutrans" / "simversion.h"
+    if ver_h.exists():
+        txt = ver_h.read_text(encoding="utf-8", errors="replace")
+        m1 = re.search(r'#define\s+MAKEOBJ_VERSION\s+"([^"]+)"', txt)
+        maj = re.search(r'#define\s+SIM_VERSION_MAJOR\s+(\d+)', txt)
+        min_v = re.search(r'#define\s+SIM_VERSION_MINOR\s+(\d+)', txt)
+        pat = re.search(r'#define\s+SIM_VERSION_PATCH\s+(\d+)', txt)
+        if m1:
+            makeobj_ver = m1.group(1)
+        if maj and min_v:
+            sim_ver = f"{maj.group(1)}.{min_v.group(1)}"
+            if pat and pat.group(1) != "0":
+                sim_ver += f".{pat.group(1)}"
     return makeobj_ver, sim_ver
 
 
 def probe_wasm_banner(out_js: Path):
-    """Node.js で生成した makeobj.js を実行してバナー文字列を取得する"""
+    """Node.js で生成した makeobj.js を実行してバナーと capabilities を検証する"""
     probe_code = (
         f"import createMakeobjModule from {json.dumps(out_js.resolve().as_uri())};\n"
         "const lines = [];\n"
         "const mod = await createMakeobjModule({ print: s => lines.push(s), printErr: s => lines.push(s) });\n"
-        "try { mod.callMain([]); } catch (e) {}\n"
+        "try { mod.callMain(['capabilities']); } catch (e) {}\n"
         "console.log(lines.join('\\n'));\n"
     )
     res = subprocess.run(
@@ -159,16 +124,19 @@ def probe_wasm_banner(out_js: Path):
         check=True,
     )
     output = (res.stdout or "") + (res.stderr or "")
+    print(output, flush=True)
     banner = ""
     makeobj_ver = ""
     sim_ver = ""
     for line in output.splitlines():
-        m = re.search(r"(Makeobj\s+version\s+([^\s]+)\s+for\s+Simutrans\s+([^\s]+).*)", line, re.I)
+        m = re.search(r"(Makeobj\s+version\s+([^\s]+)\s+for\s+Simutrans\s+(.+?)\s+and\s+higher.*)", line, re.I)
         if m:
             banner = m.group(1).strip()
             makeobj_ver = m.group(2).strip()
             sim_ver = m.group(3).strip()
             break
+    if "vehicle" not in output.lower() or "way" not in output.lower():
+        raise RuntimeError("makeobj capabilities 検証に失敗しました")
     return banner, makeobj_ver, sim_ver
 
 
@@ -178,14 +146,8 @@ def main():
     source_ref = sys.argv[2] if len(sys.argv) > 2 else "master"
     out_dir = repo_root / "wasm"
     out_js = out_dir / "makeobj.js"
-    build_dir = repo_root / ".build_makeobj_wasm"
 
-    inc_dir, lib_dir = find_emscripten_ports()
-    try:
-        build_via_cmake(src_dir, build_dir, out_js, inc_dir, lib_dir)
-    except Exception as err:
-        print(f"CMake ビルドからフォールバックへ切替: {err}", flush=True)
-        build_via_emxx_fallback(src_dir, out_js)
+    build_makeobj_emxx(src_dir, out_js)
 
     banner, makeobj_ver, sim_ver = probe_wasm_banner(out_js)
     hdr_mver, hdr_sver = parse_version_headers(src_dir)

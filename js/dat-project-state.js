@@ -32,6 +32,7 @@ export function cloneDatEntry(entry) {
 export function createDefaultDatCommon() {
   return {
     name: 'new_building',
+    jaName: '',
     copyright: '',
     includeImages: true,
     imageFormat: 'auto',
