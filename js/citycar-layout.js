@@ -11,10 +11,10 @@ const CITYCAR_ANCHORS = [
   { type: 'right_bottom', ax: 489, ay: 53 }
 ];
 
-// 512x64 標準配置画像を8スロットから切り出し、RGB=(0,0,0)の1px縦区切り線で圧縮配置化
-export function compressCityCarCanvas(srcImg, isBaseOrCombined = true) {
-  const w = srcImg.naturalWidth || srcImg.width;
-  const h = srcImg.naturalHeight || srcImg.height;
+// ベース画像(512x64)の8スロットから背景(#E7FFFF)を除いた切り出し領域を判定する
+export function detectCityCarCompressSegments(refImg) {
+  const w = refImg.naturalWidth || refImg.width;
+  const h = refImg.naturalHeight || refImg.height;
   if (w < 512 || h < 64) {
     throw new Error(`標準配置画像は 512×64px 以上である必要があります (現在: ${w}×${h}px)。`);
   }
@@ -24,16 +24,13 @@ export function compressCityCarCanvas(srcImg, isBaseOrCombined = true) {
   sCanvas.height = 64;
   const sCtx = sCanvas.getContext('2d');
   sCtx.imageSmoothingEnabled = false;
-  sCtx.drawImage(srcImg, 0, 0, 512, 64, 0, 0, 512, 64);
+  sCtx.drawImage(refImg, 0, 0, 512, 64, 0, 0, 512, 64);
   const d = sCtx.getImageData(0, 0, 512, 64).data;
-
-  const bgRgb = isBaseOrCombined ? [231, 255, 255] : [255, 255, 255];
-  const bgHex = isBaseOrCombined ? '#E7FFFF' : '#FFFFFF';
 
   const isBgPixel = (x, y) => {
     const idx = (y * 512 + x) * 4;
     if (d[idx + 3] === 0) return true;
-    return d[idx] === bgRgb[0] && d[idx + 1] === bgRgb[1] && d[idx + 2] === bgRgb[2];
+    return d[idx] === 231 && d[idx + 1] === 255 && d[idx + 2] === 255;
   };
 
   const segments = [];
@@ -91,7 +88,19 @@ export function compressCityCarCanvas(srcImg, isBaseOrCombined = true) {
       sh: Math.max(1, maxY - minY + 1)
     });
   }
+  return segments;
+}
 
+// 512x64 標準配置画像を8スロットから切り出し、RGB=(0,0,0)の1px縦区切り線で圧縮配置化
+export function compressCityCarCanvas(srcImg, isBaseOrCombined = true, precomputedSegments = null) {
+  const w = srcImg.naturalWidth || srcImg.width;
+  const h = srcImg.naturalHeight || srcImg.height;
+  if (w < 512 || h < 64) {
+    throw new Error(`標準配置画像は 512×64px 以上である必要があります (現在: ${w}×${h}px)。`);
+  }
+
+  const segments = precomputedSegments || detectCityCarCompressSegments(srcImg);
+  const bgHex = isBaseOrCombined ? '#E7FFFF' : '#FFFFFF';
   const outH = Math.max(...segments.map(s => s.sh));
   const outW = segments.reduce((acc, s) => acc + s.sw, 0) + 7;
 
@@ -112,24 +121,24 @@ export function compressCityCarCanvas(srcImg, isBaseOrCombined = true) {
     outCtx.fillRect(curX, 0, seg.sw, outH);
 
     const dyOffset = anc.type.endsWith('bottom') ? (outH - seg.sh) : 0;
-    outCtx.drawImage(sCanvas, seg.sx, seg.sy, seg.sw, seg.sh, curX, dyOffset, seg.sw, seg.sh);
+    outCtx.drawImage(srcImg, seg.sx, seg.sy, seg.sw, seg.sh, curX, dyOffset, seg.sw, seg.sh);
     curX += seg.sw + 1;
   }
 
   return outCanvas;
 }
 
-// 黒(0,0,0)縦区切りで8分割された圧縮画像を 512x64 標準配置へ展開
-export function expandCityCarCanvas(srcImg, isBaseOrCombined = true) {
-  const w = srcImg.naturalWidth || srcImg.width;
-  const h = srcImg.naturalHeight || srcImg.height;
+// 圧縮画像から RGB=(0,0,0) の1px縦区切り線を判定し、8領域座標を返す（ベース画像専用判定）
+export function detectCityCarBlackSegments(refImg) {
+  const w = refImg.naturalWidth || refImg.width;
+  const h = refImg.naturalHeight || refImg.height;
 
   const sCanvas = document.createElement('canvas');
   sCanvas.width = w;
   sCanvas.height = h;
   const sCtx = sCanvas.getContext('2d');
   sCtx.imageSmoothingEnabled = false;
-  sCtx.drawImage(srcImg, 0, 0);
+  sCtx.drawImage(refImg, 0, 0);
   const d = sCtx.getImageData(0, 0, w, h).data;
 
   const blackCols = new Uint8Array(w);
@@ -174,8 +183,14 @@ export function expandCityCarCanvas(srcImg, isBaseOrCombined = true) {
   }
 
   if (segments.length !== 8) {
-    throw new Error(`検出された領域数が8ではありません (${segments.length}領域検出)。RGB=(0,0,0)の縦区切り線を確認してください。`);
+    throw new Error(`検出された領域数が8ではありません (${segments.length}領域検出)。ベース画像の RGB=(0,0,0) 縦区切り線を確認してください。`);
   }
+  return segments;
+}
+
+// 黒(0,0,0)縦区切りで8分割された圧縮画像を 512x64 標準配置へ展開
+export function expandCityCarCanvas(srcImg, isBaseOrCombined = true, precomputedSegments = null) {
+  const segments = precomputedSegments || detectCityCarBlackSegments(srcImg);
 
   const outCanvas = document.createElement('canvas');
   outCanvas.width = 512;
@@ -205,7 +220,7 @@ export function expandCityCarCanvas(srcImg, isBaseOrCombined = true) {
       dy = anc.ay;
     }
 
-    outCtx.drawImage(sCanvas, seg.x0, 0, seg.w, seg.h, dx, dy, seg.w, seg.h);
+    outCtx.drawImage(srcImg, seg.x0, 0, seg.w, seg.h, dx, dy, seg.w, seg.h);
   }
 
   return outCanvas;
@@ -223,35 +238,47 @@ export class CityCarLayoutController {
 
   convertLoadedImages(mode) {
     const app = this.app;
-    if (!app.baseImage && !app.maskImage) {
-      alert('変換対象のベース画像またはマスク画像が読み込まれていません。');
+    if (!app.baseImage) {
+      alert('領域判定のため、先にトーンハイライトブレンド前のベース画像を読み込んでください。');
       return;
     }
 
     try {
-      let newBase = null;
-      let newMask = null;
+      // 判定(黒区切り線/切り出し範囲)はマスク画像を使わず、元のベース画像(app.baseImage)のみで実施する
+      const segments = mode === 'compress'
+        ? detectCityCarCompressSegments(app.baseImage)
+        : detectCityCarBlackSegments(app.baseImage);
+      const convFn = mode === 'compress' ? compressCityCarCanvas : expandCityCarCanvas;
+      const renameMask = (n) => mode === 'compress'
+        ? n.replace(/_spaint\.png$/i, '_paint.png')
+        : n.replace(/_paint\.png$/i, '_spaint.png');
 
-      if (mode === 'compress') {
-        if (app.baseImage) newBase = compressCityCarCanvas(app.baseImage, true);
-        if (app.maskImage) newMask = compressCityCarCanvas(app.maskImage, false);
-      } else {
-        if (app.baseImage) newBase = expandCityCarCanvas(app.baseImage, true);
-        if (app.maskImage) newMask = expandCityCarCanvas(app.maskImage, false);
-      }
-
+      const newBase = convFn(app.baseImage, true, segments);
       const nextBaseName = mode === 'compress'
         ? app.baseName.replace(/_s(def|combined)\.png$/i, '_$1.png')
         : app.baseName.replace(/_(def|combined)\.png$/i, '_s$1.png');
-      const nextMaskName = mode === 'compress'
-        ? app.maskName.replace(/_spaint\.png$/i, '_paint.png')
-        : app.maskName.replace(/_paint\.png$/i, '_spaint.png');
 
-      if (newBase) {
-        app.applyBaseImage(newBase, nextBaseName, { resetMask: false });
+      // 先に全登録マスク（または単体マスク）を同じ判定領域で変換しておく
+      const convertedMasks = [];
+      if (app.maskMgr && app.maskMgr.items.length > 0) {
+        app.maskMgr.saveActiveStateFromApp();
+        app.maskMgr.items.forEach((m, idx) => {
+          if (m.image) convertedMasks.push({ idx, canvas: convFn(m.image, false, segments), nextName: renameMask(m.name) });
+        });
+      } else if (app.maskImage) {
+        convertedMasks.push({ idx: -1, canvas: convFn(app.maskImage, false, segments), nextName: renameMask(app.maskName) });
       }
-      if (newMask) {
-        app.applyMaskImage(newMask, nextMaskName);
+
+      app.applyBaseImage(newBase, nextBaseName, { resetMask: false });
+      if (app.maskMgr && app.maskMgr.items.length > 0 && convertedMasks.length > 0) {
+        const origIdx = app.maskMgr.activeIndex;
+        convertedMasks.forEach(({ idx, canvas, nextName }) => {
+          app.maskMgr.selectMask(idx);
+          app.applyMaskImage(canvas, nextName);
+        });
+        if (origIdx >= 0) app.maskMgr.selectMask(origIdx);
+      } else if (convertedMasks.length > 0) {
+        app.applyMaskImage(convertedMasks[0].canvas, convertedMasks[0].nextName);
       }
 
       app.markDirty();

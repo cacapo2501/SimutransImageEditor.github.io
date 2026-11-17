@@ -117,7 +117,7 @@ export function renderSidebarToolAccordions() {
     <details class="accordion-panel">
       <summary>🚗 CityCar画像 圧縮・展開変換</summary>
       <div class="panel-body">
-        <p class="desc-text">CityCar用の512×64標準配置と黒(0,0,0)1px縦区切りの圧縮配置を相互変換します（ベース・マスク同時対応）。</p>
+        <p class="desc-text">CityCar用の512×64標準配置と黒(0,0,0)1px縦区切りの圧縮配置を相互変換します（トーン調整前のベース画像で判定し、ベース・マスク両方を変換）。</p>
         <div class="btn-group mt-05">
           <button id="btn-citycar-compress" class="btn-primary">🗜️ 圧縮配置に変換</button>
           <button id="btn-citycar-expand" class="btn-primary">📐 512×64へ展開</button>
