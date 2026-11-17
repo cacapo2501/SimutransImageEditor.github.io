@@ -63,6 +63,7 @@ export class ProjectIO {
       window_darken: app.windowDarken,
       special_colors: Array.from(app.specialColors),
       palette_data: app.paletteManager ? app.paletteManager.toDict() : null,
+      dat_generator: app.datGenerator ? app.datGenerator.exportProjectState() : null,
       layers: app.layers.map(l => ({
         name: l.name,
         layer_type: l.layerType,
@@ -173,6 +174,7 @@ export class ProjectIO {
     });
 
     if (app.layerManager) app.layerManager.onMaskCollectionChanged();
+    if (app.datGenerator) app.datGenerator.importProjectState(data.dat_generator || null);
     app.onToneTargetChanged('__ALL__');
     app.toneTintCtrl.updateMaskCombos();
     app.toneTintCtrl.updateTintTable();

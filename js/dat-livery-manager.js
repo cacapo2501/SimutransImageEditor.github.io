@@ -263,4 +263,55 @@ export class DatLiveryManager {
     this.gen.autoSync = false;
     this.gen._updateSyncBadge(`全${maskMgr.items.length}塗装 一括生成済み`);
   }
+
+  exportState() {
+    const maskItems = this.gen.app?.maskMgr?.items || [];
+    const liveries = maskItems.map((m, idx) => ({
+      index: idx,
+      name: m.name,
+      livery: this.liveryByMaskId.has(m.id) ? this.liveryByMaskId.get(m.id) : null
+    })).filter(e => e.livery !== null);
+
+    return {
+      liveries,
+      baseNameByKey: Array.from(this.baseNameByKey.entries()),
+      followMaskChange: this.followMaskChange,
+      useBatchImgNaming: this.useBatchImgNaming
+    };
+  }
+
+  importState(data) {
+    this.liveryByMaskId.clear();
+    this.baseNameByKey.clear();
+    if (!data) {
+      this.followMaskChange = true;
+      this.useBatchImgNaming = true;
+      return;
+    }
+
+    this.followMaskChange = data.followMaskChange !== undefined ? Boolean(data.followMaskChange) : true;
+    this.useBatchImgNaming = data.useBatchImgNaming !== undefined ? Boolean(data.useBatchImgNaming) : true;
+    if (Array.isArray(data.baseNameByKey)) {
+      this.baseNameByKey = new Map(data.baseNameByKey);
+    }
+
+    const maskItems = this.gen.app?.maskMgr?.items || [];
+    if (Array.isArray(data.liveries)) {
+      data.liveries.forEach((entry) => {
+        const byIdx = typeof entry.index === 'number' ? maskItems[entry.index] : null;
+        const target = (byIdx && byIdx.name === entry.name)
+          ? byIdx
+          : (maskItems.find(m => m.name === entry.name) || byIdx);
+        if (target && entry.livery !== undefined && entry.livery !== null) {
+          this.liveryByMaskId.set(target.id, String(entry.livery));
+        }
+      });
+    }
+
+    const chkFollow = document.getElementById('chk-dat-livery-follow');
+    if (chkFollow) chkFollow.checked = this.followMaskChange;
+    const chkBatch = document.getElementById('chk-dat-livery-batch-img');
+    if (chkBatch) chkBatch.checked = this.useBatchImgNaming;
+    this.refreshUI();
+  }
 }

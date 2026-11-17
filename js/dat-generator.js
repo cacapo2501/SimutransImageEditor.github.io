@@ -3,6 +3,12 @@ import { serializeDatObject } from './dat-serializer.js';
 import { renderDatModalUI, renderDynamicDatFields } from './ui-dat-modal.js';
 import { DatAiController } from './dat-ai-controller.js';
 import { DatCollectionManager, bindDatOutputActions } from './dat-collection-manager.js';
+import {
+  createDefaultDatCommon,
+  serializeDatProjectState,
+  restoreDatProjectState,
+  applyPendingDatProjectUi
+} from './dat-project-state.js';
 import { DatImagePicker } from './dat-image-picker.js';
 import { DatLiveryManager, buildMaskImagePrefix } from './dat-livery-manager.js';
 
@@ -27,22 +33,12 @@ export class DatGeneratorController {
     this.collectionMgr = new DatCollectionManager(this);
     this.imagePicker = new DatImagePicker(this);
     this.liveryMgr = new DatLiveryManager(this);
-
-    this.common = {
-      name: 'new_building',
-      copyright: '',
-      includeImages: true,
-      imageFormat: 'auto',
-      customImgFormat: 'EmptyImage[{dir}][0]={prefix}.{row}.{col}{offset}',
-      flipDirections: false,
-      imgPrefix: 'base_combined',
-      startRow: '0',
-      startCol: '0',
-      imgOffset: '',
-      customImageCoords: null,
-      extraLines: ''
-    };
+    this._pendingProjectUi = null;
+    this.common = createDefaultDatCommon();
   }
+
+  exportProjectState() { return serializeDatProjectState(this); }
+  importProjectState(data) { restoreDatProjectState(this, data); }
 
   bindEvents() {
     document.getElementById('btn-open-dat-generator')?.addEventListener('click', () => {
@@ -64,6 +60,7 @@ export class DatGeneratorController {
     this.liveryMgr.bindEvents();
     this.aiCtrl.syncInitialUI();
     this.initialized = true;
+    if (this._pendingProjectUi) applyPendingDatProjectUi(this);
   }
 
   _getObjState(objType) {
@@ -179,6 +176,7 @@ export class DatGeneratorController {
     this.common.customImageCoords = customImageCoords || null;
     this._syncCommonInputsFromState();
     if (this.autoSync) this.regenerateOutput();
+    this.app?.markDirty?.();
   }
 
   _updatePresetVisibility() {
@@ -209,6 +207,7 @@ export class DatGeneratorController {
     const state = this._getObjState(this.currentObjType);
     renderDynamicDatFields(container, tpl, state, () => {
       if (this.autoSync) this.regenerateOutput();
+      this.app?.markDirty?.();
     });
   }
 
@@ -253,6 +252,7 @@ export class DatGeneratorController {
     }
     this.liveryMgr.refreshUI();
     this.regenerateOutput();
+    this.app?.markDirty?.();
   }
 
   buildCurrentText() {
@@ -306,6 +306,7 @@ export class DatGeneratorController {
       this._renderDynamicFields();
       if (this.autoSync) this.regenerateOutput();
       this._updateSidebarStatus();
+      this.app?.markDirty?.();
     };
 
     document.getElementById('btn-dat-apply-preset').onclick = () => {
@@ -332,6 +333,7 @@ export class DatGeneratorController {
           }
         }
         if (this.autoSync) this.regenerateOutput();
+        this.app?.markDirty?.();
       };
       el.addEventListener(isCheckbox ? 'change' : 'input', handler);
     };
@@ -352,6 +354,7 @@ export class DatGeneratorController {
       const customWrap = document.getElementById('dat-custom-format-wrap');
       if (customWrap) customWrap.style.display = this.common.imageFormat === 'custom_template' ? '' : 'none';
       if (this.autoSync) this.regenerateOutput();
+      this.app?.markDirty?.();
     });
 
     document.getElementById('btn-dat-sync-img-name').onclick = () => {

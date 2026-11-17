@@ -25,7 +25,7 @@ function imgRef(prefix, row, col, offsetStr) {
 
 // オブジェクトが使用する画像キーと座標の一覧を生成（GUIピッカー・出力共通）
 export function collectImageEntries(objType, values, common) {
-  return buildFormattedImages(objType, values, common).entries;
+  return buildFormattedImages(objType, values, common).entries.filter(e => !e.metaLine);
 }
 
 function serializeImages(lines, objType, v, common) {
@@ -33,10 +33,11 @@ function serializeImages(lines, objType, v, common) {
   const prefix = String(common.imgPrefix || '').trim();
   if (!prefix || objType === 'good') return;
   const offsetStr = normalizeOffset(common.imgOffset);
-  const { metaLines, entries } = buildFormattedImages(objType, v, common);
-  metaLines.forEach(m => lines.push(m));
+  const { entries } = buildFormattedImages(objType, v, common);
   entries.forEach((e) => {
-    if (e.customValTpl) {
+    if (e.metaLine) {
+      lines.push(e.metaLine);
+    } else if (e.customValTpl) {
       const rendered = e.customValTpl
         .replace(/\{prefix\}/gi, prefix)
         .replace(/\{row\}/gi, String(e.row))
@@ -92,8 +93,6 @@ export function serializeDatObject(objType, values, common) {
     pushIfPresent(lines, 'freight', v.freight);
     pushIfPresent(lines, 'payload', v.payload);
     pushIfPresent(lines, 'loading_time', v.loading_time);
-    pushIfPresent(lines, 'bidirectional', v.bidirectional);
-    pushIfPresent(lines, 'can_lead_from_rear', v.can_lead_from_rear);
     pushIfPresent(lines, 'smoke', v.smoke);
     pushIfPresent(lines, 'sound', v.sound);
   } else if (objType === 'citycar') {

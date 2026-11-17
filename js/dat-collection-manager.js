@@ -1,5 +1,6 @@
 import { serializeDatObject, downloadDatText } from './dat-serializer.js';
 import { flipCustomImageCoords180 } from './dat-image-formats.js';
+import { cloneCommon, cloneDatEntry } from './dat-project-state.js';
 
 function addRevSuffixToName(rawName) {
   const s = String(rawName || 'obj').trim();
@@ -18,24 +19,6 @@ function remapConstraintLines(rawText, nameMap) {
     })
     .filter(Boolean)
     .join('\n');
-}
-
-function cloneCommon(c) {
-  const copy = { ...(c || {}) };
-  if (copy.customImageCoords) {
-    copy.customImageCoords = JSON.parse(JSON.stringify(copy.customImageCoords));
-  }
-  return copy;
-}
-
-function cloneEntry(entry) {
-  const values = { ...(entry.values || {}) };
-  if (Array.isArray(values.climates)) values.climates = [...values.climates];
-  return {
-    objType: entry.objType,
-    common: cloneCommon(entry.common),
-    values
-  };
 }
 
 export class DatCollectionManager {
@@ -74,7 +57,7 @@ export class DatCollectionManager {
 
   // 生成AI等から得た複数オブジェクトをコレクションとしてセット
   setItems(rawItems) {
-    this.items = (rawItems || []).map(cloneEntry);
+    this.items = (rawItems || []).map(cloneDatEntry);
     this.activeIndex = this.items.length > 0 ? 0 : -1;
     this.exportAll = true;
     const chk = document.getElementById('chk-dat-export-all-objects');
@@ -120,7 +103,7 @@ export class DatCollectionManager {
   duplicateActive() {
     if (this.items.length === 0) return;
     this.saveActiveFromController();
-    const cur = cloneEntry(this.items[this.activeIndex]);
+    const cur = cloneDatEntry(this.items[this.activeIndex]);
     cur.common.name = `${cur.common.name || 'obj'}_copy`;
     const nextRow = parseInt(cur.common.startRow, 10);
     if (!Number.isNaN(nextRow)) cur.common.startRow = String(nextRow + 1);
@@ -156,7 +139,7 @@ export class DatCollectionManager {
     if (this.items.length === 0) return;
     this.saveActiveFromController();
 
-    const revItems = [...this.items].reverse().map(cloneEntry);
+    const revItems = [...this.items].reverse().map(cloneDatEntry);
     let nameMap = null;
     if (appendAsNew) {
       nameMap = new Map();
@@ -253,6 +236,7 @@ export function bindDatOutputActions(gen) {
   };
 
   document.getElementById('txt-dat-output').oninput = () => {
+    gen.app?.markDirty?.();
     if (gen.autoSync) {
       gen.autoSync = false;
       gen._updateSyncBadge();

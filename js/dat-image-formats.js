@@ -130,6 +130,12 @@ function buildDirectionalSlots(prefixKey, dirs, row, startCol, flip180 = false) 
   });
 }
 
+function parseOptionalRow(rawVal, fallback) {
+  if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') return fallback;
+  const n = parseInt(rawVal, 10);
+  return Number.isFinite(n) ? Math.max(0, n) : fallback;
+}
+
 // 選択中の画像指定形式からメタ行と画像エントリ一覧を構築する
 export function buildFormattedImages(objType, values, common) {
   const v = values || {};
@@ -140,12 +146,22 @@ export function buildFormattedImages(objType, values, common) {
   const startRow = Math.max(0, parseInt(c.startRow, 10) || 0);
   const startCol = Math.max(0, parseInt(c.startCol, 10) || 0);
   const flipBase = Boolean(c.flipDirections);
-  const fRow = Math.max(0, parseInt(v.freightRow, 10) || (startRow + 1));
-  const revRow = Math.max(0, parseInt(v.reverseRow, 10) || startRow);
-  const revFlip = v.reverseFlipDir !== undefined ? Boolean(v.reverseFlipDir) : true;
+  const fRow = parseOptionalRow(v.freightRow, startRow + 1);
   const freightName = String(v.freightTypeName || v.freight || 'Passagiere').trim() || 'Passagiere';
 
-  const metaLines = [];
+  // OTRP 反転行と向き反転の解決
+  const revMode = v.reverseRowMode || 'same_row';
+  let revRow = startRow;
+  let revFlip = true;
+  if (revMode === 'next_row') {
+    revRow = startRow + 1;
+    revFlip = Boolean(v.reverseFlipDir);
+  } else if (revMode === 'custom_row') {
+    revRow = parseOptionalRow(v.reverseRow, startRow);
+    revFlip = Boolean(v.reverseFlipDir);
+  }
+  const actualRevFlip = flipBase ? !revFlip : revFlip;
+
   let entries = [];
 
   if (format === 'custom_template') {
@@ -174,21 +190,27 @@ export function buildFormattedImages(objType, values, common) {
       ...buildDirectionalSlots('FreightImage', dirs, fRow, startCol, flipBase)
     ];
   } else if (format === 'vehicle_freight_typed') {
-    metaLines.push(`FreightImageType[0]=${freightName}`);
-    entries = [
-      ...buildDirectionalSlots('EmptyImage', DIRS_8, startRow, startCol, flipBase),
-      ...buildDirectionalSlots('FreightImage[0]', DIRS_8, fRow, startCol, flipBase)
-    ];
+    entries = buildDirectionalSlots('EmptyImage', DIRS_8, startRow, startCol, flipBase);
+    entries.push({ metaLine: `FreightImageType[0]=${freightName}` });
+    entries.push(...buildDirectionalSlots('FreightImage[0]', DIRS_8, fRow, startCol, flipBase));
   } else if (format === 'vehicle_otrp_reverse') {
     entries = buildDirectionalSlots('EmptyImage', DIRS_8, startRow, startCol, flipBase);
+    let idx = 0;
     if (v.hasFreightImage) {
-      metaLines.push(`FreightImageType[0]=${freightName}`);
-      entries.push(...buildDirectionalSlots('FreightImage[0]', DIRS_8, fRow, startCol, flipBase));
-      metaLines.push('FreightImageType[1]=Reverse');
-      entries.push(...buildDirectionalSlots('FreightImage[1]', DIRS_8, revRow, startCol, flipBase ? !revFlip : revFlip));
-    } else {
-      metaLines.push('FreightImageType[0]=Reverse');
-      entries.push(...buildDirectionalSlots('FreightImage[0]', DIRS_8, revRow, startCol, flipBase ? !revFlip : revFlip));
+      entries.push({ metaLine: `FreightImageType[${idx}]=${freightName}` });
+      entries.push(...buildDirectionalSlots(`FreightImage[${idx}]`, DIRS_8, fRow, startCol, flipBase));
+      idx++;
+    }
+    entries.push({ metaLine: `FreightImageType[${idx}]=Reverse` });
+    entries.push(...buildDirectionalSlots(`FreightImage[${idx}]`, DIRS_8, revRow, startCol, actualRevFlip));
+    idx++;
+    if (v.includeNoElectric) {
+      const noElRow = parseOptionalRow(v.noElectricRow, startRow);
+      entries.push({ metaLine: `FreightImageType[${idx}]=No_Electric` });
+      entries.push(...buildDirectionalSlots(`FreightImage[${idx}]`, DIRS_8, noElRow, startCol, flipBase));
+      idx++;
+      entries.push({ metaLine: `FreightImageType[${idx}]=Reverse_No_Electric` });
+      entries.push(...buildDirectionalSlots(`FreightImage[${idx}]`, DIRS_8, revMode === 'same_row' ? noElRow : revRow, startCol, actualRevFlip));
     }
   } else if (format === 'vehicle_image_8' || (!format && objType === 'citycar')) {
     entries = buildDirectionalSlots('Image', DIRS_8, startRow, startCol, flipBase);
@@ -215,10 +237,14 @@ export function buildFormattedImages(objType, values, common) {
   }
 
   const custom = c.customImageCoords || null;
-  if (custom) {
-    entries = entries.map(e => (custom[e.key] ? { ...e, row: custom[e.key].row, col: custom[e.key].col } : e));
-  }
-  return { metaLines, entries };
+  const finalEntries = custom
+    ? entries.map(e => (!e.metaLine && custom[e.key] ? { ...e, row: custom[e.key].row, col: custom[e.key].col } : e))
+    : entries;
+
+  return {
+    metaLines: [],
+    entries: finalEntries
+  };
 }
 
 // customImageCoords 内の方向キー [S]〜[NE] を 180度反対方向へスワップする
