@@ -21,18 +21,20 @@ function renderCurrentCompositeBlob(app) {
     c.width = app.baseW;
     c.height = app.baseH;
     c.getContext('2d').putImageData(new ImageData(copy, app.baseW, app.baseH), 0, 0);
-    c.toBlob((blob) => {
+    const outCanvas = app.tileCutter?.shouldCutOnExport?.() ? app.tileCutter.cutCanvas(c) : c;
+    outCanvas.toBlob((blob) => {
       if (blob) resolve(blob);
       else reject(new Error('PNGエンコードに失敗しました。'));
     }, 'image/png');
   });
 }
 
-function buildOutputFilename(baseName, suffixTag) {
+function buildOutputFilename(baseName, suffixTag, useCut = false) {
   const cleanBase = (baseName || 'output.png').replace(/\.png$/i, '');
   const cleanTag = (suffixTag || '').replace(/\.png$/i, '').replace(/[\\/:*?"<>|]/g, '_');
-  if (!cleanTag) return `${cleanBase}_combined.png`;
-  return `${cleanBase}_${cleanTag}_combined.png`;
+  const end = useCut ? '_cut.png' : '_combined.png';
+  if (!cleanTag) return `${cleanBase}${end}`;
+  return `${cleanBase}_${cleanTag}${end}`;
 }
 
 function triggerBrowserDownload(blob, filename) {
@@ -119,7 +121,7 @@ export class BatchExporter {
         maskMgr.selectMask(i);
         const item = maskMgr.items[i];
         const blob = await renderCurrentCompositeBlob(app);
-        const filename = buildOutputFilename(app.baseName, item.name);
+        const filename = buildOutputFilename(app.baseName, item.name, app.tileCutter?.shouldCutOnExport?.());
         await this._saveBlob(blob, filename, dirHandle);
       }
       if (statusEl) statusEl.textContent = `連続出力完了: 全 ${total} 枚の結合画像を出力しました`;
@@ -159,7 +161,7 @@ export class BatchExporter {
         const seq = String(i + 1).padStart(2, '0');
         const maskTag = app.maskImage ? app.maskName.replace(/\.png$/i, '') : '';
         const tag = maskTag ? `${maskTag}_${seq}` : seq;
-        const filename = buildOutputFilename(app.baseName, tag);
+        const filename = buildOutputFilename(app.baseName, tag, app.tileCutter?.shouldCutOnExport?.());
         await this._saveBlob(blob, filename, dirHandle);
       }
       if (statusEl) statusEl.textContent = `連続出力完了: ${count} 枚の結合画像を出力しました`;

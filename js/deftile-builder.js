@@ -239,7 +239,13 @@ export class DeftileBuilder {
     document.getElementById('btn-deftile-apply-base').onclick = () => {
       if (!this.generatedCanvas) this.updatePreview();
       const baseName = this.deftileName.replace(/\.[^/.]+$/, '') + '_base.png';
-      this.app.applyBaseImage(this.generatedCanvas, baseName, { resetMask: true });
+      this.app.applyBaseImage(this.generatedCanvas, baseName, { resetMask: true, resetDat: true });
+      this.app.tileCutter?.applyFromDeftile(
+        this.deftileCanvas.width,
+        this.deftileCanvas.height,
+        this.getOptions(),
+        this.generatedCanvas.height
+      );
       this.app.isDirty = true;
       this.app.zoomFit();
       this.app.render();

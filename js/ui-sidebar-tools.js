@@ -146,29 +146,52 @@ export function renderSidebarToolAccordions() {
       </div>
     </details>
 
+    <!-- セクション10.5: 複数タイル建物 タイルカッター出力 -->
+    <details class="accordion-panel">
+      <summary>🧱 複数タイル建物 タイルカッター出力</summary>
+      <div class="panel-body">
+        <p class="desc-text">2×2等の複数タイル建物画像を、PNG出力時に pakサイズ単位のタイルシートへ切り出して並べ替えます。</p>
+        <label class="mt-05"><input type="checkbox" id="chk-tilecut-enable"> PNG出力・一括出力時にタイルカッターで分割する</label>
+        <div class="row mt-05">
+          <label style="min-width: 75px;">タイルサイズ:</label>
+          <select id="sel-tilecut-size" style="flex:1;">
+            <option value="64" selected>64px (pak64)</option>
+            <option value="96">96px (pak96)</option>
+            <option value="128">128px (pak128)</option>
+            <option value="192">192px (pak192)</option>
+            <option value="256">256px</option>
+          </select>
+        </div>
+        <div class="row mt-05" style="gap:4px;">
+          <label style="font-size:11px;">幅(W):</label>
+          <input type="number" id="inp-tilecut-w" value="1" min="1" max="16" style="width:44px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
+          <label style="font-size:11px;">奥(H):</label>
+          <input type="number" id="inp-tilecut-h" value="1" min="1" max="16" style="width:44px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
+          <label style="font-size:11px;">高:</label>
+          <input type="number" id="inp-tilecut-height" value="1" min="1" max="16" style="width:44px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
+        </div>
+        <div class="row mt-05" style="gap:4px;">
+          <label style="font-size:11px;">向き:</label>
+          <select id="sel-tilecut-views" style="width:65px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="4" selected>4</option>
+          </select>
+          <label style="font-size:11px;">ずらしX/Y:</label>
+          <input type="number" id="inp-tilecut-ox" value="0" style="width:44px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
+          <input type="number" id="inp-tilecut-oy" value="0" style="width:44px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
+        </div>
+        <label class="mt-05"><input type="checkbox" id="chk-tilecut-mask-v" checked> 底面菱形の下端外側を #E7FFFF で切り抜く</label>
+        <button type="button" id="btn-tilecut-sync-dat" class="w-100 mt-05">🔄 datの建物設定から取得</button>
+        <div class="info-text" id="lbl-tilecut-status">OFF (通常結合出力)</div>
+      </div>
+    </details>
+
     <!-- セクション11: Simutrans datファイル生成 -->
     <details class="accordion-panel">
       <summary>📄 datファイル生成 (makeobj用)</summary>
       <div class="panel-body">
         <p class="desc-text">建物・車両・CityCar・インフラ・自然物・工場等のテンプレートから pak 生成用の .dat ファイルを作成・編集します。</p>
-        <div class="row mt-05">
-          <label style="min-width: 70px;">種別:</label>
-          <select id="sel-dat-quick-obj" style="flex:1;">
-            <option value="building">建物・駅・車庫 (building)</option>
-            <option value="vehicle">車両・航空機・船舶 (vehicle)</option>
-            <option value="citycar">都市自動車 (citycar)</option>
-            <option value="way">軌道・道路 (way)</option>
-            <option value="way-object">架線・軌道設備 (way-object)</option>
-            <option value="bridge">橋梁 (bridge)</option>
-            <option value="tunnel">トンネル (tunnel)</option>
-            <option value="crossing">踏切 (crossing)</option>
-            <option value="roadsign">信号機・標識 (roadsign)</option>
-            <option value="tree">樹木 (tree)</option>
-            <option value="groundobj">地上オブジェクト (groundobj)</option>
-            <option value="factory">工場・産業 (factory)</option>
-            <option value="good">貨物定義 (good)</option>
-          </select>
-        </div>
         <button id="btn-open-dat-generator" class="btn-primary w-100 mt-05">📝 dat生成・編集エディタを開く</button>
         <div class="info-text" id="lbl-dat-sidebar-status">選択中: 未起動</div>
       </div>

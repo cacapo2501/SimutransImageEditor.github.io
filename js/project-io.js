@@ -63,6 +63,7 @@ export class ProjectIO {
       window_darken: app.windowDarken,
       special_colors: Array.from(app.specialColors),
       palette_data: app.paletteManager ? app.paletteManager.toDict() : null,
+      tile_cutter: app.tileCutter ? app.tileCutter.exportProjectState() : null,
       dat_generator: app.datGenerator ? app.datGenerator.exportProjectState() : null,
       layers: app.layers.map(l => ({
         name: l.name,
@@ -174,6 +175,7 @@ export class ProjectIO {
     });
 
     if (app.layerManager) app.layerManager.onMaskCollectionChanged();
+    if (app.tileCutter) app.tileCutter.importProjectState(data.tile_cutter || null);
     if (app.datGenerator) app.datGenerator.importProjectState(data.dat_generator || null);
     app.onToneTargetChanged('__ALL__');
     app.toneTintCtrl.updateMaskCombos();
@@ -221,7 +223,9 @@ export class ProjectIO {
     c.getContext('2d').putImageData(new ImageData(copy, app.baseW, app.baseH), 0, 0);
 
     const basePrefix = app.baseName.replace(/\.png$/i, '');
-    const outName = `${basePrefix}_combined.png`;
-    c.toBlob(blob => downloadBlob(blob, outName), 'image/png');
+    const useCut = app.tileCutter?.shouldCutOnExport?.();
+    const outCanvas = useCut ? app.tileCutter.cutCanvas(c) : c;
+    const outName = useCut ? `${basePrefix}_cut.png` : `${basePrefix}_combined.png`;
+    outCanvas.toBlob(blob => downloadBlob(blob, outName), 'image/png');
   }
 }

@@ -45,7 +45,7 @@ export class DatImagePicker {
   }
 
   open() {
-    const src = buildPickerSourceCanvas(this.gen.app);
+    const src = buildPickerSourceCanvas(this.gen.app, this.gen.currentObjType);
     if (!src) {
       alert('先にベース画像を開くか、新規作成してください。');
       return;
@@ -53,7 +53,7 @@ export class DatImagePicker {
     this._ensureInitialized();
     this.srcCanvas = src;
 
-    const [gw, gh] = guessInitialTileSize(src.width, src.height, this.gen.currentObjType);
+    const [gw, gh] = guessInitialTileSize(src.width, src.height, this.gen.currentObjType, this.gen.app.tileCutter);
     this.tileW = gw;
     this.tileH = gh;
     const inpTw = document.getElementById('inp-dat-picker-tw');

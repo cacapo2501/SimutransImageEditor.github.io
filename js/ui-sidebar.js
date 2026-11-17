@@ -271,6 +271,11 @@ export function renderSidebarUI() {
     ${renderSidebarToolAccordions()}
 
     <div class="sidebar-footer">
+      <label style="display:flex; align-items:center; gap:6px; font-size:11px; margin-bottom:4px; cursor:pointer;">
+        <input type="checkbox" id="chk-quick-tilecut">
+        <span>🧱 出力時にタイルカッターで分割する</span>
+      </label>
+      <div class="info-text" id="lbl-quick-tilecut-info" style="margin-bottom:4px;"></div>
       <button id="btn-save-png" class="btn-primary w-100" style="padding:10px 0;">合成結果をPNG保存</button>
     </div>
   `;

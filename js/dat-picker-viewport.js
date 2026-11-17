@@ -1,6 +1,6 @@
 // DAT画像ピッカーのキャンバス描画・ズーム・パン操作ヘルパー
 
-export function buildPickerSourceCanvas(app) {
+export function buildPickerSourceCanvas(app, objType = null) {
   if (!app || !app.baseImage || !app.baseW || !app.baseH) return null;
   const c = document.createElement('canvas');
   c.width = app.baseW;
@@ -12,10 +12,18 @@ export function buildPickerSourceCanvas(app) {
   } else {
     ctx.drawImage(app.baseImage, 0, 0, app.baseW, app.baseH);
   }
+  const isBld = objType === 'building' || objType === 'factory';
+  if (isBld && app.tileCutter?.shouldCutOnExport?.()) {
+    return app.tileCutter.cutCanvas(c);
+  }
   return c;
 }
 
-export function guessInitialTileSize(w, h, objType) {
+export function guessInitialTileSize(w, h, objType, tileCutter = null) {
+  const isBld = objType === 'building' || objType === 'factory';
+  if (isBld && tileCutter?.shouldCutOnExport?.()) {
+    return [tileCutter.tileSize, tileCutter.tileSize];
+  }
   if (w === 768 && h % 96 === 0) return [96, 96];
   if (w >= 1024 && w % 128 === 0 && h % 128 === 0) return [128, 128];
   if (w % 64 === 0 && h % 64 === 0) return [64, 64];

@@ -34,9 +34,10 @@ export function applyLiveryToName(rawName, liveryName, objType, baseNameHint = '
 // BatchExporter と同一規則でマスクごとの画像ファイル名プレフィックスを生成
 export function buildMaskImagePrefix(app, maskItem, useBatchNaming = true) {
   const cleanBase = String(app?.baseName || 'base.png').replace(/\.png$/i, '');
-  if (!useBatchNaming || !maskItem) return `${cleanBase}_combined`;
+  const suffix = app?.tileCutter?.shouldCutOnExport?.() ? '_cut' : '_combined';
+  if (!useBatchNaming || !maskItem) return `${cleanBase}${suffix}`;
   const cleanTag = sanitizeTag(maskItem.name);
-  return cleanTag ? `${cleanBase}_${cleanTag}_combined` : `${cleanBase}_combined`;
+  return cleanTag ? `${cleanBase}_${cleanTag}${suffix}` : `${cleanBase}${suffix}`;
 }
 
 function replaceConstraintNames(rawText, nameMap) {

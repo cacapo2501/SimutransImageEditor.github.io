@@ -43,12 +43,15 @@ function buildBuildingEntries(objType, v, startRow, startCol, forcedLayer = null
     for (let s = 0; s < seasons; s++) {
       for (let a = 0; a < frames; a++) {
         for (let view = 0; view < views; view++) {
-          for (let y = 0; y < dimsH; y++) {
-            for (let x = 0; x < dimsW; x++) {
+          // 奇数ビュー(90°/270°回転)では東西(W)と南北(H)のタイル数を入れ替える
+          const viewW = (view % 2 === 1) ? dimsH : dimsW;
+          const viewH = (view % 2 === 1) ? dimsW : dimsH;
+          for (let y = 0; y < viewH; y++) {
+            for (let x = 0; x < viewW; x++) {
               for (let h = 0; h < heightTiles; h++) {
                 // 下段(h=0)が画像の下行になるよう逆順に割り当て
                 const row = startRow + s * (heightTiles * frames) + a * heightTiles + (heightTiles - 1 - h);
-                const col = startCol + view * (dimsW * dimsH) + y * dimsW + x;
+                const col = startCol + view * (dimsW * dimsH) + y * viewW + x;
                 entries.push({ key: `${layerPrefix}[${view}][${y}][${x}][${h}][${a}][${s}]`, row, col });
               }
             }

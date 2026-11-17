@@ -42,22 +42,27 @@ export class DatGeneratorController {
   exportProjectState() { return serializeDatProjectState(this); }
   importProjectState(data) { restoreDatProjectState(this, data); }
 
+  // ベース画像を開き直した際にdat編集状態と出力を初期化する
+  resetState() {
+    this._pendingProjectUi = null;
+    this.liveryMgr.clearBaseNameCache();
+    const inpFile = document.getElementById('inp-dat-filename');
+    if (inpFile) delete inpFile.dataset.userEdited;
+    restoreDatProjectState(this, null);
+    if (this.initialized) {
+      this.common.imgPrefix = this._deriveImagePrefixFromApp();
+      this.common.name = this._deriveAddonNameFromApp(this.currentObjType);
+      this._applyControllerStateToForm();
+      this.regenerateOutput();
+    }
+    const lbl = document.getElementById('lbl-dat-sidebar-status');
+    if (lbl) lbl.textContent = '選択中: 未起動';
+  }
+
   bindEvents() {
     // サイドバーから開く際は現在保持している currentObjType を維持する
     document.getElementById('btn-open-dat-generator')?.addEventListener('click', () => {
       this.open();
-    });
-    document.getElementById('sel-dat-quick-obj')?.addEventListener('change', (e) => {
-      const next = e.target.value;
-      if (DAT_OBJECT_TEMPLATES[next]) {
-        this.currentObjType = next;
-        if (this.initialized) {
-          this._applyControllerStateToForm();
-          if (this.autoSync) this.regenerateOutput();
-        }
-        this._updateSidebarStatus();
-        this.app?.markDirty?.();
-      }
     });
   }
 
@@ -87,7 +92,8 @@ export class DatGeneratorController {
     }
     const raw = (this.app && this.app.baseName) ? this.app.baseName : 'base.png';
     const noExt = raw.replace(/\.png$/i, '');
-    return /_combined$/i.test(noExt) ? noExt : `${noExt}_combined`;
+    const suffix = this.app?.tileCutter?.shouldCutOnExport?.() ? '_cut' : '_combined';
+    return /(_combined|_cut)$/i.test(noExt) ? noExt.replace(/(_combined|_cut)$/i, suffix) : `${noExt}${suffix}`;
   }
 
   _deriveAddonNameFromApp(objType) {
@@ -220,6 +226,10 @@ export class DatGeneratorController {
     if (presetRow) {
       presetRow.style.display = this.currentObjType === 'building' ? '' : 'none';
     }
+    const tileCutRow = document.getElementById('dat-tilecut-row');
+    if (tileCutRow) {
+      tileCutRow.style.display = (this.currentObjType === 'building' || this.currentObjType === 'factory') ? '' : 'none';
+    }
     const imgFieldset = document.getElementById('fs-dat-image-settings');
     if (imgFieldset && tpl) {
       imgFieldset.style.display = tpl.supportsImages === false ? 'none' : '';
@@ -241,6 +251,15 @@ export class DatGeneratorController {
     if (!container || !tpl) return;
     const state = this._getObjState(this.currentObjType);
     renderDynamicDatFields(container, tpl, state, () => {
+      if (this.currentObjType === 'building' || this.currentObjType === 'factory') {
+        const prevCut = this.app?.tileCutter?.shouldCutOnExport?.();
+        this.app?.tileCutter?.syncFromDat(this.currentObjType, state);
+        const nextCut = this.app?.tileCutter?.shouldCutOnExport?.();
+        if (prevCut !== nextCut && (!this.common.imgPrefix || /(_combined|_cut)$/i.test(this.common.imgPrefix))) {
+          this.common.imgPrefix = this._deriveImagePrefixFromApp();
+          this._syncCommonInputsFromState();
+        }
+      }
       if (this.autoSync) this.regenerateOutput();
       this.app?.markDirty?.();
     });
@@ -249,13 +268,12 @@ export class DatGeneratorController {
   _applyControllerStateToForm() {
     const selObj = document.getElementById('sel-dat-obj-type');
     if (selObj) selObj.value = this.currentObjType;
-    const quickSel = document.getElementById('sel-dat-quick-obj');
-    if (quickSel) quickSel.value = this.currentObjType;
     this._syncCommonInputsFromState();
     this._updatePresetVisibility();
     this.aiCtrl.updateObjTypeVisibility(this.currentObjType);
     this._renderMainFormatOptions();
     this._renderDynamicFields();
+    this.app?.tileCutter?.syncUI?.();
   }
 
   // 生成AIの解析結果（単体または編成・形式複数件）をフォーム＆コレクションに適用する
@@ -292,6 +310,13 @@ export class DatGeneratorController {
       this.stateByObj[item.objType] = item.values;
       this._applyControllerStateToForm();
     }
+    if (this.currentObjType === 'building' || this.currentObjType === 'factory') {
+      this.app?.tileCutter?.syncFromDat(this.currentObjType, this._getObjState(this.currentObjType));
+      if (this.app?.tileCutter?.shouldCutOnExport?.() && (!this.common.imgPrefix || /(_combined|_cut)$/i.test(this.common.imgPrefix))) {
+        this.common.imgPrefix = this._deriveImagePrefixFromApp();
+        this._syncCommonInputsFromState();
+      }
+    }
     this.liveryMgr.refreshUI();
     this.regenerateOutput();
     this.app?.markDirty?.();
@@ -323,10 +348,6 @@ export class DatGeneratorController {
   }
 
   _updateSidebarStatus() {
-    const quickSel = document.getElementById('sel-dat-quick-obj');
-    if (quickSel && quickSel.value !== this.currentObjType && DAT_OBJECT_TEMPLATES[this.currentObjType]) {
-      quickSel.value = this.currentObjType;
-    }
     const lbl = document.getElementById('lbl-dat-sidebar-status');
     if (lbl) {
       const tpl = DAT_OBJECT_TEMPLATES[this.currentObjType];

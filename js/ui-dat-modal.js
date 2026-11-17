@@ -1,6 +1,7 @@
 import { DAT_OBJECT_CATEGORIES, DAT_OBJECT_TEMPLATES, BUILDING_PRESETS, CLIMATE_OPTIONS } from './dat-templates.js';
 import { IMAGE_FORMAT_OPTIONS } from './dat-image-formats.js';
 import { renderDatAiSectionHtml } from './ui-dat-ai.js';
+import { ProjectIO } from './project-io.js';
 
 function buildImageFormatOptions() {
   return IMAGE_FORMAT_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
@@ -103,6 +104,22 @@ export function renderDatModalUI() {
                 <div class="dat-field">
                   <label>開始列 (X)</label>
                   <input type="number" id="inp-dat-start-col" value="0" min="0">
+                </div>
+                <div class="dat-field full-width" id="dat-tilecut-row" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;">
+                  <label class="dat-check-item">
+                    <input type="checkbox" id="chk-dat-tilecut-enable"> 🧱 複数タイル建物: PNG出力時にタイルカッターで分割 (`_cut`)
+                  </label>
+                  <div class="row mt-05" style="gap:6px;">
+                    <label style="font-size:11px; white-space:nowrap;">タイルサイズ:</label>
+                    <select id="sel-dat-tilecut-size" style="width:110px;">
+                      <option value="64">64px (pak64)</option>
+                      <option value="96">96px (pak96)</option>
+                      <option value="128">128px (pak128)</option>
+                      <option value="192">192px (pak192)</option>
+                      <option value="256">256px</option>
+                    </select>
+                    <button type="button" id="btn-dat-tilecut-export" style="margin-left:auto;">✂️ カットPNG保存</button>
+                  </div>
                 </div>
                 <div class="dat-field full-width">
                   <div class="btn-group">
@@ -344,6 +361,33 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
     gen._syncCustomImageStatus();
     if (gen.autoSync) gen.regenerateOutput();
   };
+
+  document.getElementById('chk-dat-tilecut-enable')?.addEventListener('change', (e) => {
+    const tc = gen.app?.tileCutter;
+    if (!tc) return;
+    tc.enabled = Boolean(e.target.checked);
+    tc.manualOverride = tc.enabled;
+    tc.pushToDatState(gen.currentObjType);
+    tc.syncUI();
+    gen.app?.markDirty?.();
+  });
+  document.getElementById('sel-dat-tilecut-size')?.addEventListener('change', (e) => {
+    const tc = gen.app?.tileCutter;
+    if (!tc) return;
+    tc.tileSize = parseInt(e.target.value, 10) || 64;
+    tc.syncUI();
+    gen.app?.markDirty?.();
+  });
+  document.getElementById('btn-dat-tilecut-export')?.addEventListener('click', () => {
+    const tc = gen.app?.tileCutter;
+    if (tc && !tc.enabled) {
+      tc.enabled = true;
+      tc.manualOverride = true;
+      tc.pushToDatState(gen.currentObjType);
+      tc.syncUI();
+    }
+    ProjectIO.exportPng(gen.app);
+  });
 
   bindDatOutputActions(gen);
 }

@@ -17,6 +17,7 @@ import { AircraftMapperController } from './aircraft-mapper.js';
 import { GradientGeneratorController } from './gradient-generator.js';
 import { CityCarLayoutController } from './citycar-layout.js';
 import { DatGeneratorController } from './dat-generator.js';
+import { TileCutterController } from './tile-cutter.js';
 import { drawSimutransIsoTiles } from './paint-algorithms.js';
 import { renderSidebarUI } from './ui-sidebar.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
@@ -104,6 +105,7 @@ class AdvancedMultiplyApp {
     this.aircraftCtrl = new AircraftMapperController(this, safePickFile);
     this.gradientCtrl = new GradientGeneratorController(this);
     this.citycarCtrl = new CityCarLayoutController(this);
+    this.tileCutter = new TileCutterController(this);
     this.datGenerator = new DatGeneratorController(this, safePickFile);
 
     this._bindBaseNameEvents();
@@ -117,6 +119,7 @@ class AdvancedMultiplyApp {
     this.aircraftCtrl.bindEvents();
     this.gradientCtrl.bindEvents();
     this.citycarCtrl.bindEvents();
+    this.tileCutter.bindEvents();
     this.datGenerator.bindEvents();
     this.imageIOCtrl.loadDefaultSpecialColors();
     const verEl = document.getElementById('app-version');
@@ -189,7 +192,7 @@ class AdvancedMultiplyApp {
     return generated;
   }
 
-  applyBaseImage(img, name, { resetMask = true } = {}) {
+  applyBaseImage(img, name, { resetMask = true, resetDat = false } = {}) {
     if (resetMask) this.resetMaskState();
     if (this.vehicleCtrl) this.vehicleCtrl.syncLengthFromFilename(name);
     MaskGenerator.analyzeBaseImage(this, img, name);
@@ -202,12 +205,13 @@ class AdvancedMultiplyApp {
         this.maskMgr.registerAnalyzedMask(generated, autoName, { addAsNew: true });
       }
     }
+    if (resetDat) { this.datGenerator?.resetState?.(); this.tileCutter?.reset?.(); }
   }
 
   async loadBaseFromFile(file) {
     if (!file) return;
     const img = await loadImageAsync(URL.createObjectURL(file));
-    this.applyBaseImage(img, file.name, { resetMask: true });
+    this.applyBaseImage(img, file.name, { resetMask: true, resetDat: true });
     this.isDirty = false;
     this.zoomFit();
   }
@@ -222,7 +226,7 @@ class AdvancedMultiplyApp {
     ctx.fillStyle = '#E7FFFF';
     ctx.fillRect(0, 0, w, h);
 
-    this.applyBaseImage(c, `new_${w}x${h}.png`, { resetMask: true });
+    this.applyBaseImage(c, `new_${w}x${h}.png`, { resetMask: true, resetDat: true });
     this.isDirty = false;
     this.zoomFit();
     this.render();
