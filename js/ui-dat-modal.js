@@ -148,6 +148,7 @@ export function renderDatModalUI() {
             <fieldset class="sub-panel">
               <legend>オブジェクト固有パラメータ</legend>
               <div id="dat-dynamic-fields" class="dat-field-grid"></div>
+              <div id="dat-tunnel-way-box" class="dat-field full-width mt-05" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
               <div id="dat-factory-fields-box" class="dat-field full-width mt-05" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
             </fieldset>
 

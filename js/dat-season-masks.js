@@ -29,7 +29,9 @@ export function computeSeasonPrefixes(app, values) {
 export function renderSeasonMaskPanel(container, app, objType, state, onChanged) {
   if (!container) return;
   const seasons = Math.max(1, parseInt(state?.seasons, 10) || 1);
-  if (!SEASON_SUPPORTED_OBJS.has(objType) || seasons <= 1) {
+  const isFieldWithSnow = objType === 'field' && Boolean(state?.has_snow);
+  const totalSlots = isFieldWithSnow ? seasons + 1 : seasons;
+  if (!SEASON_SUPPORTED_OBJS.has(objType) || totalSlots <= 1) {
     container.style.display = 'none';
     container.innerHTML = '';
     return;
@@ -47,15 +49,21 @@ export function renderSeasonMaskPanel(container, app, objType, state, onChanged)
   }
   const maskItems = app?.maskMgr?.items || [];
 
-  for (let s = 0; s < seasons; s++) {
+  for (let s = 0; s < totalSlots; s++) {
     const row = document.createElement('div');
     row.className = 'row mt-05';
     row.style.gap = '6px';
     const lbl = document.createElement('label');
-    lbl.style.cssText = 'min-width:95px; font-size:11px; color:#ccc;';
-    lbl.textContent = seasons === 2
-      ? (s === 0 ? '季節[0] (通常):' : '季節[1] (雪):')
-      : (SEASON_LABELS_4[s] || `季節[${s}]:`);
+    lbl.style.cssText = 'min-width:110px; font-size:11px; color:#ccc;';
+    if (isFieldWithSnow && s === totalSlots - 1) {
+      lbl.textContent = `雪画像 [${s}] (has_snow):`;
+    } else if (totalSlots === 2 && !isFieldWithSnow) {
+      lbl.textContent = s === 0 ? '季節[0] (通常):' : '季節[1] (雪):';
+    } else if (isFieldWithSnow && seasons === 1) {
+      lbl.textContent = '季節[0] (通常):';
+    } else {
+      lbl.textContent = SEASON_LABELS_4[s] || `季節[${s}]:`;
+    }
 
     const sel = document.createElement('select');
     sel.style.flex = '1';

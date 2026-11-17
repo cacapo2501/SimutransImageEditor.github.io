@@ -89,6 +89,25 @@ export function renderPaintModalUI() {
             <input type="color" id="inp-paint-iso-color" class="color-input-mini" value="#FFAA00" title="タイル菱形の色を選択">
           </div>
 
+          <div class="paint-tool-group guide-control-group" title="塗潰し以外の描画ツールと選択ツールを指定グリッドにスナップします">
+            <label class="inline-chk-lbl">
+              <input type="checkbox" id="chk-paint-snap-grid"> 🧲 スナップ:
+            </label>
+            <select id="sel-paint-snap-preset" class="snap-select-mini" title="スナップグリッドサイズ プリセット">
+              <option value="8x8">8×8</option>
+              <option value="16x16" selected>16×16</option>
+              <option value="32x32">32×32</option>
+              <option value="64x32">64×32</option>
+              <option value="64x64">64×64</option>
+              <option value="128x128">128×128</option>
+              <option value="custom">カスタム</option>
+            </select>
+            <input type="number" id="inp-paint-snap-w" class="num-input-mini" value="16" min="1" max="512" title="スナップ幅(px)">
+            <span style="font-size:10px; color:#aaa;">×</span>
+            <input type="number" id="inp-paint-snap-h" class="num-input-mini" value="16" min="1" max="512" title="スナップ高さ(px)">
+            <span style="font-size:10px; color:#aaa;">px</span>
+          </div>
+
           <div class="paint-tool-group">
             <button id="btn-paint-undo" title="元に戻す (Ctrl+Z)">↩ Undo</button>
             <button id="btn-paint-redo" title="やり直し (Ctrl+Y)">↪ Redo</button>
@@ -103,91 +122,105 @@ export function renderPaintModalUI() {
 
         <div id="paint-main-body">
           <aside id="paint-sidebar">
-            <div class="sub-panel">
-              <legend>描画色</legend>
+            <details class="accordion-panel paint-accordion">
+              <summary>🧅 オニオンスキン (位置目安)</summary>
+              <div class="paint-accordion-body">
+                <div class="btn-group">
+                  <button id="btn-onion-add" class="btn-primary">＋ 画像重ね(複数可)</button>
+                  <button id="btn-onion-clear">全削除</button>
+                </div>
+                <div id="onion-skin-list" style="max-height:95px; overflow-y:auto; display:flex; flex-direction:column; gap:3px;">
+                  <div class="info-text" style="text-align:center; padding:4px 0;">未登録（保存時には出力されません）</div>
+                </div>
+                <div id="onion-selected-controls" style="display:none; border-top:1px solid #3a3a3a; padding-top:5px;">
+                  <div class="step-row">
+                    <span style="font-size:11px; width:20px;">X:</span>
+                    <button type="button" id="btn-onion-x-minus" style="padding:2px 6px;">-1</button>
+                    <input type="number" id="inp-onion-x" class="num-input-mini" value="0" style="width:52px;">
+                    <button type="button" id="btn-onion-x-plus" style="padding:2px 6px;">+1</button>
+                  </div>
+                  <div class="step-row mt-05">
+                    <span style="font-size:11px; width:20px;">Y:</span>
+                    <button type="button" id="btn-onion-y-minus" style="padding:2px 6px;">-1</button>
+                    <input type="number" id="inp-onion-y" class="num-input-mini" value="0" style="width:52px;">
+                    <button type="button" id="btn-onion-y-plus" style="padding:2px 6px;">+1</button>
+                  </div>
+                  <div class="row mt-05">
+                    <span style="font-size:11px;">濃さ:</span>
+                    <span id="lbl-onion-opacity" class="val-badge" style="min-width:36px;">45%</span>
+                    <input type="range" id="slider-onion-opacity" min="0.05" max="1" step="0.05" value="0.45">
+                  </div>
+                  <label class="mt-05"><input type="checkbox" id="chk-onion-trans-e7ffff" checked> #E7FFFF を透過</label>
+                </div>
+              </div>
+            </details>
+
+            <details class="accordion-panel paint-accordion" id="base-palette-tools">
+              <summary>グレースケール生成設定</summary>
+              <div class="paint-accordion-body">
+                <div class="row">
+                  <span>明色:</span>
+                  <input type="text" id="inp-gray-max" value="#FEFEFE" style="width:70px;">
+                </div>
+                <div class="row mt-05">
+                  <span>暗色:</span>
+                  <input type="text" id="inp-gray-min" value="#404040" style="width:70px;">
+                </div>
+                <div class="row mt-05">
+                  <span>段階:</span>
+                  <input type="number" id="inp-gray-steps" value="16" min="2" max="64" style="width:50px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px;">
+                </div>
+                <button id="btn-gen-base-palette" class="w-100 mt-05">パレット再生成 (SpecialColor回避)</button>
+              </div>
+            </details>
+
+            <details class="accordion-panel paint-accordion" id="mask-palette-tools" style="display:none;">
+              <summary>マスクパレット設定</summary>
+              <div class="paint-accordion-body">
+                <div class="btn-group">
+                  <button id="btn-add-mask-custom-color" class="btn-primary">＋ 任意色を追加</button>
+                  <button id="btn-open-image-sampler">🖼️ 画像からスポイト</button>
+                </div>
+                <button id="btn-paint-regen-mask" class="w-100 mt-05" title="現在のベース画像からマスク画像を再生成してキャンバスへ反映します">🔄 ベースからマスク再生成</button>
+                <span class="info-text">※右クリックでパレットから色を削除</span>
+              </div>
+            </details>
+
+            <details class="accordion-panel paint-accordion" id="aircraft-palette-tools" style="display:none;">
+              <summary>✈️ 平面定義図パレット設定</summary>
+              <div class="paint-accordion-body">
+                <p class="desc-text">色相(H)＝部品グループ、明度(V)＝高さ(100%=全高, 0%=0m)</p>
+                <div class="btn-group mt-05">
+                  <button id="btn-add-aircraft-custom-color" class="btn-primary">＋ 任意色追加</button>
+                  <button id="btn-gen-aircraft-height-ramp" class="btn-primary" title="現在選択中の色の色相で高さ(明度)段階パレットを生成">🌈 高さ段階生成</button>
+                </div>
+                <span class="info-text">※白(#FFFFFF)は余白扱い / 右クリックで削除</span>
+              </div>
+            </details>
+
+            <details class="accordion-panel paint-accordion" id="palette-io-tools">
+              <summary>🎨 中間色生成・パレット入出力</summary>
+              <div class="paint-accordion-body">
+                <div class="btn-group">
+                  <button id="btn-open-palette-blend" class="btn-primary" title="パレットの2色から中間色を作成して追加">🎨 中間色作成</button>
+                </div>
+                <div class="btn-group mt-05">
+                  <button id="btn-export-palette" title="現在のパレットをJSONファイルに出力">💾 パレット出力</button>
+                  <button id="btn-import-palette" title="パレットJSONファイルを読み込み（置換/追加）">📂 パレット入力</button>
+                </div>
+              </div>
+            </details>
+
+            <fieldset class="sub-panel" id="paint-current-color-panel">
+              <legend>現在の描画色</legend>
               <div class="color-preview-row">
                 <span id="paint-current-color-swatch" class="color-swatch"></span>
                 <strong id="paint-current-color-hex">#FFFFFF</strong>
               </div>
-            </div>
-
-            <fieldset class="sub-panel">
-              <legend>🧅 オニオンスキン (位置目安)</legend>
-              <div class="btn-group">
-                <button id="btn-onion-add" class="btn-primary">＋ 画像重ね(複数可)</button>
-                <button id="btn-onion-clear">全削除</button>
-              </div>
-              <div id="onion-skin-list" style="max-height:95px; overflow-y:auto; display:flex; flex-direction:column; gap:3px;">
-                <div class="info-text" style="text-align:center; padding:4px 0;">未登録（保存時には出力されません）</div>
-              </div>
-              <div id="onion-selected-controls" style="display:none; border-top:1px solid #3a3a3a; padding-top:5px;">
-                <div class="step-row">
-                  <span style="font-size:11px; width:20px;">X:</span>
-                  <button type="button" id="btn-onion-x-minus" style="padding:2px 6px;">-1</button>
-                  <input type="number" id="inp-onion-x" class="num-input-mini" value="0" style="width:52px;">
-                  <button type="button" id="btn-onion-x-plus" style="padding:2px 6px;">+1</button>
-                </div>
-                <div class="step-row mt-05">
-                  <span style="font-size:11px; width:20px;">Y:</span>
-                  <button type="button" id="btn-onion-y-minus" style="padding:2px 6px;">-1</button>
-                  <input type="number" id="inp-onion-y" class="num-input-mini" value="0" style="width:52px;">
-                  <button type="button" id="btn-onion-y-plus" style="padding:2px 6px;">+1</button>
-                </div>
-                <div class="row mt-05">
-                  <span style="font-size:11px;">濃さ:</span>
-                  <span id="lbl-onion-opacity" class="val-badge" style="min-width:36px;">45%</span>
-                  <input type="range" id="slider-onion-opacity" min="0.05" max="1" step="0.05" value="0.45">
-                </div>
-                <label class="mt-05"><input type="checkbox" id="chk-onion-trans-e7ffff" checked> #E7FFFF を透過</label>
-              </div>
             </fieldset>
 
-            <fieldset class="sub-panel" id="base-palette-tools">
-              <legend>グレースケール生成設定</legend>
-              <div class="row">
-                <span>明色:</span>
-                <input type="text" id="inp-gray-max" value="#FEFEFE" style="width:70px;">
-              </div>
-              <div class="row mt-05">
-                <span>暗色:</span>
-                <input type="text" id="inp-gray-min" value="#404040" style="width:70px;">
-              </div>
-              <div class="row mt-05">
-                <span>段階:</span>
-                <input type="number" id="inp-gray-steps" value="16" min="2" max="64" style="width:50px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px;">
-              </div>
-              <button id="btn-gen-base-palette" class="w-100 mt-05">パレット再生成 (SpecialColor回避)</button>
-            </fieldset>
-
-            <fieldset class="sub-panel" id="mask-palette-tools" style="display:none;">
-              <legend>マスクパレット設定</legend>
-              <div class="btn-group">
-                <button id="btn-add-mask-custom-color" class="btn-primary">＋ 任意色を追加</button>
-                <button id="btn-open-image-sampler">🖼️ 画像からスポイト</button>
-              </div>
-              <button id="btn-paint-regen-mask" class="w-100 mt-05" title="現在のベース画像からマスク画像を再生成してキャンバスへ反映します">🔄 ベースからマスク再生成</button>
-              <span class="info-text">※右クリックでパレットから色を削除</span>
-            </fieldset>
-
-            <fieldset class="sub-panel" id="aircraft-palette-tools" style="display:none;">
-              <legend>✈️ 平面定義図パレット設定</legend>
-              <p class="desc-text">色相(H)＝部品グループ、明度(V)＝高さ(100%=全高, 0%=0m)</p>
-              <div class="btn-group mt-05">
-                <button id="btn-add-aircraft-custom-color" class="btn-primary">＋ 任意色追加</button>
-                <button id="btn-gen-aircraft-height-ramp" class="btn-primary" title="現在選択中の色の色相で高さ(明度)段階パレットを生成">🌈 高さ段階生成</button>
-              </div>
-              <span class="info-text">※白(#FFFFFF)は余白扱い / 右クリックで削除</span>
-            </fieldset>
-
-            <fieldset class="sub-panel">
+            <fieldset class="sub-panel" id="paint-palette-list-panel">
               <legend>カラーパレット一覧</legend>
-              <div class="btn-group">
-                <button id="btn-open-palette-blend" class="btn-primary" title="パレットの2色から中間色を作成して追加">🎨 中間色作成</button>
-              </div>
-              <div class="btn-group mt-05">
-                <button id="btn-export-palette" title="現在のパレットをJSONファイルに出力">💾 パレット出力</button>
-                <button id="btn-import-palette" title="パレットJSONファイルを読み込み（置換/追加）">📂 パレット入力</button>
-              </div>
               <span class="info-text">※ダブルクリック/長タップで色編集</span>
               <div id="paint-palette-slots"></div>
               <div id="paint-palette-empty-msg" class="info-text" style="display:none; text-align:center; padding:10px 0;">
@@ -200,6 +233,12 @@ export function renderPaintModalUI() {
             <div id="paint-canvas-wrapper">
               <canvas id="paint-canvas"></canvas>
               <canvas id="paint-overlay-canvas"></canvas>
+            </div>
+            <div id="paint-rect-handles" style="display:none;">
+              <div class="paint-rect-handle" data-corner="tl"></div>
+              <div class="paint-rect-handle" data-corner="tr"></div>
+              <div class="paint-rect-handle" data-corner="bl"></div>
+              <div class="paint-rect-handle" data-corner="br"></div>
             </div>
           </div>
         </div>

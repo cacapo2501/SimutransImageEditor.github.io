@@ -7,6 +7,7 @@ import {
   rasterizePolygonMask,
   renderTextPixels,
   drawSelectionOverlay,
+  drawRectSelectionOverlay,
   drawGuidesOverlay
 } from './paint-algorithms.js';
 
@@ -76,14 +77,16 @@ export class PaintToolHandler {
       return;
     }
 
+    const [spx, spy] = ed.gridSnap ? ed.gridSnap.snapForTool(ed.currentTool, px, py) : [px, py];
+
     ed.isDrawing = true;
-    ed.lastDrawPos = [px, py];
+    ed.lastDrawPos = [spx, spy];
 
     if (ed.currentTool === 'pencil') {
       ed._pushHistory();
-      ed._drawPixel(px, py);
+      ed._drawPixel(spx, spy);
     } else if (ed.currentTool === 'line') {
-      ed.lineStart = [px, py];
+      ed.lineStart = [spx, spy];
     } else if (ed.currentTool === 'rectFill') {
       ed.rectFillStart = [px, py];
       this.drawOverlay([px, py]);
@@ -95,27 +98,28 @@ export class PaintToolHandler {
       ed.isDrawing = false;
     } else if (ed.currentTool === 'rectSelect') {
       ed.selStart = [px, py];
+      this.drawOverlay([px, py]);
     } else if (ed.currentTool === 'polySelect') {
-      if (ed.polyPoints.length >= 3 && Math.hypot(px - ed.polyPoints[0][0], py - ed.polyPoints[0][1]) <= 1.5) {
+      if (ed.polyPoints.length >= 3 && Math.hypot(spx - ed.polyPoints[0][0], spy - ed.polyPoints[0][1]) <= 1.5) {
         this.finalizePolySelect();
       } else {
         const last = ed.polyPoints[ed.polyPoints.length - 1];
-        if (!last || last[0] !== px || last[1] !== py) ed.polyPoints.push([px, py]);
-        this.drawOverlay([px, py]);
+        if (!last || last[0] !== spx || last[1] !== spy) ed.polyPoints.push([spx, spy]);
+        this.drawOverlay([spx, spy]);
       }
       ed.isDrawing = false;
     } else if (ed.currentTool === 'wand') {
-      ed.clipMgr.applySelectionMask(magicWandMask(ed.ctx, ed.width, ed.height, px, py));
+      ed.clipMgr.applySelectionMask(magicWandMask(ed.ctx, ed.width, ed.height, spx, spy));
       ed.isDrawing = false;
     } else if (ed.currentTool === 'colorSelect') {
-      ed.clipMgr.applySelectionMask(colorSelectMask(ed.ctx, ed.width, ed.height, px, py));
+      ed.clipMgr.applySelectionMask(colorSelectMask(ed.ctx, ed.width, ed.height, spx, spy));
       ed.isDrawing = false;
     } else if (ed.currentTool === 'text') {
       const text = prompt('挿入するテキストを入力してください:');
       if (text) {
         const fontSize = parseInt(prompt('フォントサイズ (px):', '10'), 10) || 10;
         ed._pushHistory();
-        renderTextPixels(ed.width, ed.height, text, fontSize, px, py, (tx, ty) => ed._drawPixel(tx, ty));
+        renderTextPixels(ed.width, ed.height, text, fontSize, spx, spy, (tx, ty) => ed._drawPixel(tx, ty));
       }
       ed.isDrawing = false;
     }
@@ -127,17 +131,24 @@ export class PaintToolHandler {
     if (ed.clipMgr.handlePointerMove(px, py)) return;
     if (ed.selMover && ed.selMover.handlePointerMove(px, py)) return;
 
+    const [spx, spy] = ed.gridSnap ? ed.gridSnap.snapForTool(ed.currentTool, px, py) : [px, py];
+
     if (ed.isDrawing) {
       if (ed.currentTool === 'pencil') {
         const [lx, ly] = ed.lastDrawPos;
-        drawLineContinuous(lx, ly, px, py, (x, y) => ed._drawPixel(x, y));
-        ed.lastDrawPos = [px, py];
-      } else if (ed.currentTool === 'line' || ed.currentTool === 'rectFill' || ed.currentTool === 'rectSelect') {
+        drawLineContinuous(lx, ly, spx, spy, (x, y) => ed._drawPixel(x, y));
+        ed.lastDrawPos = [spx, spy];
+      } else if (ed.currentTool === 'line') {
+        this.drawOverlay([spx, spy]);
+      } else if (ed.currentTool === 'rectFill' || ed.currentTool === 'rectSelect') {
         this.drawOverlay([px, py]);
       }
     } else if (ed.currentTool === 'polySelect' && ed.polyPoints.length > 0) {
-      this.drawOverlay([px, py]);
+      this.drawOverlay([spx, spy]);
     } else {
+      if (ed.gridSnap && ed.gridSnap.isPointSnapTool(ed.currentTool)) {
+        this.drawOverlay([spx, spy]);
+      }
       ed.updateCursor(px, py);
     }
   }
@@ -150,34 +161,42 @@ export class PaintToolHandler {
     if (!ed.isDrawing) return;
     ed.isDrawing = false;
 
+    const [spx, spy] = ed.gridSnap ? ed.gridSnap.snapForTool(ed.currentTool, px, py) : [px, py];
+
     if (ed.currentTool === 'line' && ed.lineStart) {
       ed._pushHistory();
-      drawLineContinuous(ed.lineStart[0], ed.lineStart[1], px, py, (x, y) => ed._drawPixel(x, y));
+      drawLineContinuous(ed.lineStart[0], ed.lineStart[1], spx, spy, (x, y) => ed._drawPixel(x, y));
       ed.lineStart = null;
       this.drawOverlay();
     } else if (ed.currentTool === 'rectFill' && ed.rectFillStart) {
       ed._pushHistory();
-      const x0 = Math.max(0, Math.min(ed.rectFillStart[0], px));
-      const x1 = Math.min(ed.width - 1, Math.max(ed.rectFillStart[0], px));
-      const y0 = Math.max(0, Math.min(ed.rectFillStart[1], py));
-      const y1 = Math.min(ed.height - 1, Math.max(ed.rectFillStart[1], py));
-      for (let y = y0; y <= y1; y++) {
-        for (let x = x0; x <= x1; x++) ed._drawPixel(x, y);
+      const b = this._resolveRectBounds(ed.rectFillStart, [px, py]);
+      for (let y = b.y0; y <= b.y1; y++) {
+        for (let x = b.x0; x <= b.x1; x++) ed._drawPixel(x, y);
       }
       ed.rectFillStart = null;
       this.drawOverlay();
     } else if (ed.currentTool === 'rectSelect' && ed.selStart) {
-      const x0 = Math.max(0, Math.min(ed.selStart[0], px));
-      const x1 = Math.min(ed.width - 1, Math.max(ed.selStart[0], px));
-      const y0 = Math.max(0, Math.min(ed.selStart[1], py));
-      const y1 = Math.min(ed.height - 1, Math.max(ed.selStart[1], py));
+      const b = this._resolveRectBounds(ed.selStart, [px, py]);
       const newMask = new Uint8Array(ed.width * ed.height);
-      for (let sy = y0; sy <= y1; sy++) {
-        for (let sx = x0; sx <= x1; sx++) newMask[sy * ed.width + sx] = 1;
+      for (let sy = b.y0; sy <= b.y1; sy++) {
+        for (let sx = b.x0; sx <= b.x1; sx++) newMask[sy * ed.width + sx] = 1;
       }
       ed.selStart = null;
       ed.clipMgr.applySelectionMask(newMask);
     }
+  }
+
+  // 矩形範囲をスナップ設定に応じて計算
+  _resolveRectBounds(startPos, endPos) {
+    const ed = this.editor;
+    if (ed.gridSnap) return ed.gridSnap.computeRectBounds(startPos, endPos);
+    return {
+      x0: Math.max(0, Math.min(startPos[0], endPos[0])),
+      x1: Math.min(ed.width - 1, Math.max(startPos[0], endPos[0])),
+      y0: Math.max(0, Math.min(startPos[1], endPos[1])),
+      y1: Math.min(ed.height - 1, Math.max(startPos[1], endPos[1]))
+    };
   }
 
   finalizePolySelect() {
@@ -196,7 +215,10 @@ export class PaintToolHandler {
     if (ed.onionSkinMgr) ed.onionSkinMgr.drawOverlay(oCtx, ed.zoomLevel);
     ed.clipMgr.drawFloatingOverlay(oCtx, ed.zoomLevel);
 
-    if (ed.selMover && ed.selMover.isMoving) {
+    if (ed.rectHandles && ed.rectHandles.isResizing && ed.rectHandles.previewBounds) {
+      const b = ed.rectHandles.previewBounds;
+      drawRectSelectionOverlay(oCtx, b.minX, b.minY, b.maxX, b.maxY);
+    } else if (ed.selMover && ed.selMover.isMoving) {
       ed.selMover.drawMovingOverlay(oCtx);
     } else {
       drawSelectionOverlay(oCtx, ed.width, ed.height, ed.selectionMask);
@@ -207,21 +229,17 @@ export class PaintToolHandler {
       oCtx.fillStyle = ed.currentColor;
       drawLineContinuous(ed.lineStart[0], ed.lineStart[1], curPos[0], curPos[1], (x, y) => oCtx.fillRect(x, y, 1, 1));
     } else if (ed.currentTool === 'rectFill' && ed.rectFillStart && curPos) {
-      const x0 = Math.min(ed.rectFillStart[0], curPos[0]);
-      const y0 = Math.min(ed.rectFillStart[1], curPos[1]);
-      const w = Math.abs(curPos[0] - ed.rectFillStart[0]) + 1;
-      const h = Math.abs(curPos[1] - ed.rectFillStart[1]) + 1;
+      const b = this._resolveRectBounds(ed.rectFillStart, curPos);
       oCtx.fillStyle = ed.currentColor;
       oCtx.globalAlpha = 0.7;
-      oCtx.fillRect(x0, y0, w, h);
+      oCtx.fillRect(b.x0, b.y0, b.x1 - b.x0 + 1, b.y1 - b.y0 + 1);
       oCtx.globalAlpha = 1.0;
     } else if (ed.currentTool === 'rectSelect' && ed.selStart && curPos) {
-      const x = Math.min(ed.selStart[0], curPos[0]);
-      const y = Math.min(ed.selStart[1], curPos[1]);
-      const w = Math.abs(curPos[0] - ed.selStart[0]) + 1;
-      const h = Math.abs(curPos[1] - ed.selStart[1]) + 1;
-      oCtx.fillStyle = 'rgba(255, 255, 0, 0.25)';
-      oCtx.fillRect(x, y, w, h);
+      const b = this._resolveRectBounds(ed.selStart, curPos);
+      drawRectSelectionOverlay(oCtx, b.x0, b.y0, b.x1, b.y1);
+    } else if (!ed.isDrawing && curPos && ed.gridSnap && ed.gridSnap.isPointSnapTool(ed.currentTool)) {
+      oCtx.fillStyle = 'rgba(255, 235, 0, 0.85)';
+      oCtx.fillRect(curPos[0], curPos[1], 1, 1);
     }
 
     if (ed.polyPoints.length > 0) {
@@ -258,7 +276,43 @@ export class PaintToolHandler {
       showIsoTile: ed.showIsoTile,
       isoTileW: ed.isoTileW,
       isoTileH: ed.isoTileH,
-      isoColor: ed.isoColor
+      isoColor: ed.isoColor,
+      snapGridEnabled: Boolean(ed.gridSnap && ed.gridSnap.enabled),
+      snapGridW: ed.gridSnap ? ed.gridSnap.stepW : 16,
+      snapGridH: ed.gridSnap ? ed.gridSnap.stepH : 16
     });
+  }
+}
+
+// ペイントエディタ下部のツール状態・ヒント表示を更新
+export function updatePaintStatus(ed) {
+  ed.updateCursor();
+  const modeNames = { replace: '新規', add: '＋追加', subtract: '－一部削除', intersect: '×乗算(交差)' };
+  const toolLbl = document.getElementById('paint-lbl-tool');
+  if (toolLbl) {
+    const snapText = (ed.gridSnap && ed.gridSnap.enabled) ? ` | 🧲スナップ: ${ed.gridSnap.stepW}×${ed.gridSnap.stepH}` : '';
+    toolLbl.textContent = `ツール: ${ed.currentTool} | 選択モード: ${modeNames[ed.selectionMode] || ed.selectionMode}${snapText} (${ed.width}×${ed.height}px)`;
+  }
+
+  if (ed.currentTool === 'hand') {
+    ed._showHint('✋ ハンドスクロールモード: 1本指または左ドラッグでキャンバスをスクロール移動できます');
+  } else if (ed.currentTool === 'picker') {
+    ed._showHint(`🎯 スポイト: 色をクリックで取得し、自動的に「${ed.previousTool}」へ戻ります`);
+  } else if (ed.currentTool === 'rectSelect' && ed.selectionMode === 'replace' && ed.selectionMask && ed.isTouchMode) {
+    ed._showHint('矩形選択(新規): 四隅の制御点で範囲変更 / 範囲内ドラッグで移動 / 範囲外タップで解除');
+  } else if (SELECT_TOOLS.has(ed.currentTool) && ed.selectionMode === 'replace' && ed.selectionMask) {
+    ed._showHint('選択範囲(新規): 範囲内をドラッグで移動 / 範囲外をクリックで選択解除');
+  } else if (ed.currentTool === 'moveSel') {
+    ed._showHint(ed.selectionMask ? '↔️ 選択範囲の移動: 範囲内ドラッグまたは矢印キーで移動' : '⚠️ 先に選択ツールで範囲を指定してください');
+  } else if (ed.repeatMgr && ed.repeatMgr.enabled && !ed.selectionMask) {
+    ed._showHint('🔁 上方リピートON中: 先に選択範囲を指定してその中を描画すると上方へ反復されます');
+  } else if (ed.repeatMgr && ed.repeatMgr.isActive()) {
+    ed._showHint(`🔁 上方リピート有効: 選択範囲内の編集を上方 ${ed.repeatMgr.stepY}px おきに ${ed.repeatMgr.count} 回反復`);
+  } else if (ed.currentTool === 'polySelect') {
+    ed._showHint('クリックで頂点追加 / 始点クリック・ダブルクリック・Enterで確定 / Escで取消');
+  } else if (ed.isDrawingTool()) {
+    ed._showHint('ドラッグで描画 / 右クリックでスポイト(色取得)');
+  } else {
+    ed._showHint('');
   }
 }

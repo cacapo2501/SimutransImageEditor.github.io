@@ -1,4 +1,5 @@
 // インフラ・施設系・自然物・工場・貨物系オブジェクトの dat テンプレート定義
+import { INDUSTRY_DAT_TEMPLATES } from './dat-templates-industry.js';
 
 export const WAYTYPE_OPTIONS = [
   { value: 'track', label: 'track (鉄道)' },
@@ -148,11 +149,13 @@ export const EXTRA_DAT_TEMPLATES = {
     defaults: {
       name: 'new_tunnel',
       waytype: 'track',
+      way: '',
       topspeed: '160',
       max_weight: '30',
       cost: '100000',
       maintenance: '2000',
       way_is_clipped: true,
+      tunnelPortalMode: 'single',
       intro_year: '1950',
       intro_month: '1',
       retire_year: '',
@@ -161,6 +164,13 @@ export const EXTRA_DAT_TEMPLATES = {
     },
     fields: [
       { key: 'waytype', label: '軌道種別 (waytype)', type: 'select', options: WAYTYPE_OPTIONS },
+      { key: 'way', label: 'トンネル内軌道名 (way / 省略時自動)', type: 'text', placeholder: '例: wooden_sleeper_track' },
+      { key: 'tunnelPortalMode', label: '坑口パターン (単線 / Nl,Nm,Nr複線以上)', type: 'select', options: [
+        { value: 'single', label: '単線のみ (N, S, E, W)' },
+        { value: 'double', label: '単線 + 複線 (N..W + Nl,Nr等)' },
+        { value: 'multi', label: '単線 + 3線以上 (N..W + Nl,Nm,Nr等)' },
+        { value: 'wide_only', label: '複線・3線以上のみ (Nl,Nm,Nr等)' }
+      ] },
       { key: 'topspeed', label: '最高速度 (topspeed)', type: 'number', min: 1 },
       { key: 'max_weight', label: '最大軸重 (max_weight)', type: 'number', min: 0 },
       { key: 'cost', label: '建設費 (cost)', type: 'number', min: 0 },
@@ -211,6 +221,8 @@ export const EXTRA_DAT_TEMPLATES = {
       is_longblocksignal: false,
       is_prioritysignal: false,
       is_choose_signal: false,
+      free_route: false,
+      end_of_choose: false,
       single_way: false,
       min_speed: '0',
       cost: '5000',
@@ -220,6 +232,9 @@ export const EXTRA_DAT_TEMPLATES = {
       retire_year: '',
       retire_month: '',
       signalStates: '4',
+      includeDiagonal: false,
+      diagonalStates: '4',
+      frontdiagonal: false,
       includeCursorIcon: true
     },
     fields: [
@@ -228,6 +243,7 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'maintenance', label: '維持費 (maintenance)', type: 'number', min: 0 },
       { key: 'min_speed', label: '最低速度 (min_speed)', type: 'number', min: 0 },
       { key: 'signalStates', label: '画像コマ数 (Image[0..N-1])', type: 'number', min: 1, max: 32 },
+      { key: 'diagonalStates', label: '斜め画像コマ数 (Diagonal[0..N-1])', type: 'number', min: 1, max: 32 },
       { key: 'intro_year', label: '登場年 (intro_year)', type: 'number', min: 1 },
       { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
       { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },
@@ -237,149 +253,14 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'is_longblocksignal', label: '長区間信号 (is_longblocksignal=1)', type: 'checkbox' },
       { key: 'is_prioritysignal', label: '優先信号 (is_prioritysignal=1)', type: 'checkbox' },
       { key: 'is_choose_signal', label: '番線選択 (is_choose_signal=1)', type: 'checkbox' },
+      { key: 'free_route', label: 'チューズ / 経路選択 (free_route=1)', type: 'checkbox' },
+      { key: 'end_of_choose', label: '選択終了 / 振分無効 (end_of_choose=1)', type: 'checkbox' },
       { key: 'single_way', label: '一方通行 (single_way=1)', type: 'checkbox' },
+      { key: 'includeDiagonal', label: '斜め画像 (Diagonal[0..N-1]) を出力', type: 'checkbox' },
+      { key: 'frontdiagonal', label: '斜め前面描画 (frontdiagonal=1)', type: 'checkbox' },
       { key: 'includeCursorIcon', label: 'Cursor / Icon を出力', type: 'checkbox' }
     ]
   },
 
-  tree: {
-    obj: 'tree',
-    label: '樹木 (tree)',
-    supportsImages: true,
-    defaults: {
-      name: 'new_tree',
-      DistributionWeight: '10',
-      seasons: '4',
-      ageCount: '5',
-      climates: ['temperate', 'mediterran']
-    },
-    fields: [
-      { key: 'DistributionWeight', label: '出現重み (DistributionWeight)', type: 'number', min: 0 },
-      { key: 'seasons', label: '季節数 (seasons)', type: 'number', min: 1, max: 5 },
-      { key: 'ageCount', label: '成長段階数 (Image[age])', type: 'number', min: 1, max: 5 },
-      { key: 'climates', label: '気候 (climates)', type: 'climates', fullWidth: true }
-    ]
-  },
-
-  groundobj: {
-    obj: 'groundobj',
-    label: '地上オブジェクト (groundobj)',
-    supportsImages: true,
-    defaults: {
-      name: 'new_groundobj',
-      DistributionWeight: '10',
-      cost: '500',
-      seasons: '1',
-      trees_on_top: false,
-      waytype: '',
-      climates: ['temperate']
-    },
-    fields: [
-      { key: 'DistributionWeight', label: '出現重み (DistributionWeight)', type: 'number', min: 0 },
-      { key: 'cost', label: '撤去費 (cost)', type: 'number', min: 0 },
-      { key: 'seasons', label: '季節数 (seasons)', type: 'number', min: 1, max: 4 },
-      { key: 'waytype', label: '通行不可判定 (waytype)', type: 'select', options: [{ value: '', label: '(なし)' }, ...WAYTYPE_OPTIONS] },
-      { key: 'trees_on_top', label: '上に木を生やす (trees_on_top=1)', type: 'checkbox' },
-      { key: 'climates', label: '気候 (climates)', type: 'climates', fullWidth: true }
-    ]
-  },
-
-  factory: {
-    obj: 'factory',
-    label: '工場・産業 (factory)',
-    supportsImages: true,
-    defaults: {
-      name: 'new_factory',
-      Location: 'Land',
-      DistributionWeight: '10',
-      Productivity: '100',
-      Range: '20',
-      pax_level: '12',
-      MapColor: '240',
-      dimsW: '2',
-      dimsH: '2',
-      dimsViews: '1',
-      heightTiles: '1',
-      seasons: '1',
-      climates: ['temperate', 'mediterran', 'tropic'],
-      inputGood0: '',
-      inputCapacity0: '',
-      inputFactor0: '',
-      outputGood0: 'Kohle',
-      outputCapacity0: '100',
-      outputFactor0: '100',
-      min_fields: '',
-      max_fields: '',
-      probability_to_spawn: '',
-      fieldRefs: []
-    },
-    fields: [
-      { key: 'Location', label: '立地 (Location)', type: 'select', options: [
-        { value: 'Land', label: 'Land (郊外)' },
-        { value: 'City', label: 'City (都市内)' },
-        { value: 'Water', label: 'Water (海上)' }
-      ] },
-      { key: 'DistributionWeight', label: '出現重み (DistributionWeight)', type: 'number', min: 0 },
-      { key: 'Productivity', label: '基本生産力 (Productivity)', type: 'number', min: 1 },
-      { key: 'Range', label: '生産力振れ幅 (Range)', type: 'number', min: 0 },
-      { key: 'pax_level', label: '旅客発生度 (pax_level)', type: 'number', min: 0 },
-      { key: 'MapColor', label: 'マップ色番号 (MapColor)', type: 'number', min: 0, max: 255 },
-      { key: 'dimsW', label: '幅タイル (dims W)', type: 'number', min: 1, max: 16 },
-      { key: 'dimsH', label: '奥行タイル (dims H)', type: 'number', min: 1, max: 16 },
-      { key: 'dimsViews', label: '向き数 (dims Views)', type: 'select', options: [
-        { value: '1', label: '1方向' },
-        { value: '2', label: '2方向' },
-        { value: '4', label: '4方向' }
-      ] },
-      { key: 'heightTiles', label: '高さ段数 (H)', type: 'number', min: 1, max: 16 },
-      { key: 'seasons', label: '季節数 (1:通常 / 2:通常+雪)', type: 'select', options: [
-        { value: '1', label: '1 (通常のみ)' },
-        { value: '2', label: '2 (通常 + 雪)' }
-      ] },
-      { key: 'inputGood0', label: '入力貨物0 (InputGood[0])', type: 'text', placeholder: '例: Eisenerz' },
-      { key: 'inputCapacity0', label: '入力容量0 (InputCapacity[0])', type: 'number', min: 0 },
-      { key: 'inputFactor0', label: '入力消費率0 (InputFactor[0])', type: 'number', min: 0 },
-      { key: 'outputGood0', label: '出力貨物0 (OutputGood[0])', type: 'text', placeholder: '例: Stahl' },
-      { key: 'outputCapacity0', label: '出力容量0 (OutputCapacity[0])', type: 'number', min: 0 },
-      { key: 'outputFactor0', label: '出力生産率0 (OutputFactor[0])', type: 'number', min: 0 },
-      { key: 'min_fields', label: '最小フィールド数 (min_fields)', type: 'number', min: 0 },
-      { key: 'max_fields', label: '最大フィールド数 (max_fields)', type: 'number', min: 0 },
-      { key: 'probability_to_spawn', label: 'フィールド生成確率 (probability_to_spawn)', type: 'number', min: 0, max: 10000 },
-      { key: 'climates', label: '気候 (climates)', type: 'climates', fullWidth: true }
-    ]
-  },
-
-  field: {
-    obj: 'field',
-    label: '畑・周辺フィールド (field)',
-    supportsImages: true,
-    defaults: { name: 'new_field', seasons: '1', has_snow: false },
-    fields: [
-      { key: 'seasons', label: '季節・パターン数 (Image[0..N-1])', type: 'number', min: 1, max: 4 },
-      { key: 'has_snow', label: '雪画像あり (has_snow=1)', type: 'checkbox' }
-    ]
-  },
-
-  good: {
-    obj: 'good',
-    label: '貨物定義 (good)',
-    supportsImages: false,
-    defaults: {
-      name: 'new_good',
-      metric: 't',
-      catg: '1',
-      value: '100',
-      weight_per_unit: '1000',
-      speed_bonus: '0',
-      color: '12'
-    },
-    fields: [
-      { key: 'metric', label: '単位 (metric)', type: 'text', placeholder: 't / kg / l / Sack / Paletten' },
-      { key: 'catg', label: 'カテゴリ (catg: 0=特殊, 1=ばら, 2=梱包等)', type: 'number', min: 0 },
-      { key: 'value', label: '基本運賃 (value)', type: 'number', min: 0 },
-      { key: 'weight_per_unit', label: '単位重量 kg (weight_per_unit)', type: 'number', min: 0 },
-      { key: 'speed_bonus', label: '速度ボーナス (speed_bonus)', type: 'number', min: 0 },
-      { key: 'color', label: 'グラフ色番号 (color)', type: 'number', min: 0, max: 255 }
-    ]
-  }
+  ...INDUSTRY_DAT_TEMPLATES(WAYTYPE_OPTIONS)
 };

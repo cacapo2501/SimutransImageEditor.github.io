@@ -74,9 +74,9 @@ export function serializeDatProjectState(gen) {
       carCount: document.getElementById('inp-dat-ai-car-count')?.value ?? pending.aiOptions?.carCount ?? '',
       userPrompt: document.getElementById('inp-dat-ai-prompt')?.value ?? pending.aiOptions?.userPrompt ?? '',
       autoSeqRows: document.getElementById('chk-dat-ai-seq-rows')?.checked ?? pending.aiOptions?.autoSeqRows ?? true,
-      buildCostMode: document.getElementById('sel-dat-ai-build-cost')?.value ?? pending.aiOptions?.buildCostMode ?? 'standard',
-      maintCostMode: document.getElementById('sel-dat-ai-maint-cost')?.value ?? pending.aiOptions?.maintCostMode ?? 'standard',
-      payloadMode: document.getElementById('sel-dat-ai-payload-eff')?.value ?? pending.aiOptions?.payloadMode ?? 'standard'
+      buildCostPct: document.getElementById('rng-dat-ai-build-cost')?.value ?? pending.aiOptions?.buildCostPct ?? '100',
+      maintCostPct: document.getElementById('rng-dat-ai-maint-cost')?.value ?? pending.aiOptions?.maintCostPct ?? '100',
+      payloadPct: document.getElementById('rng-dat-ai-payload-eff')?.value ?? pending.aiOptions?.payloadPct ?? '100'
     }
   };
 }
@@ -101,9 +101,11 @@ export function applyPendingDatProjectUi(gen) {
       setV('sel-dat-ai-vehicle-mode', p.aiOptions.vehicleMode);
       setV('inp-dat-ai-car-count', p.aiOptions.carCount);
       setV('inp-dat-ai-prompt', p.aiOptions.userPrompt);
-      setV('sel-dat-ai-build-cost', p.aiOptions.buildCostMode);
-      setV('sel-dat-ai-maint-cost', p.aiOptions.maintCostMode);
-      setV('sel-dat-ai-payload-eff', p.aiOptions.payloadMode);
+      const legacyPct = { standard: '100', cheap: '65', budget: '35', expensive: '150', luxury: '250', high_eff: '65', ultra_eff: '35', heavy: '150', high_cap: '135', express: '75' };
+      setV('rng-dat-ai-build-cost', p.aiOptions.buildCostPct ?? legacyPct[p.aiOptions.buildCostMode] ?? '100');
+      setV('rng-dat-ai-maint-cost', p.aiOptions.maintCostPct ?? legacyPct[p.aiOptions.maintCostMode] ?? '100');
+      setV('rng-dat-ai-payload-eff', p.aiOptions.payloadPct ?? legacyPct[p.aiOptions.payloadMode] ?? '100');
+      gen.aiCtrl?.syncBalanceSliderLabels?.();
       const chk = document.getElementById('chk-dat-ai-seq-rows');
       if (chk && p.aiOptions.autoSeqRows !== undefined) chk.checked = Boolean(p.aiOptions.autoSeqRows);
     }
@@ -114,8 +116,13 @@ export function applyPendingDatProjectUi(gen) {
       gen.regenerateOutput();
     }
     gen._pendingProjectUi = null;
-  } else if (gen.autoSync) {
-    gen.regenerateOutput();
+  } else {
+    ['rng-dat-ai-build-cost', 'rng-dat-ai-maint-cost', 'rng-dat-ai-payload-eff'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '100';
+    });
+    gen.aiCtrl?.syncBalanceSliderLabels?.();
+    if (gen.autoSync) gen.regenerateOutput();
   }
   gen._updateSidebarStatus();
 }

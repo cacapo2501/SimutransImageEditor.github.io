@@ -17,7 +17,7 @@ import { DatImagePicker } from './dat-image-picker.js';
 import { DatLiveryManager, buildMaskImagePrefix } from './dat-livery-manager.js';
 import { computeSeasonPrefixes, renderSeasonMaskPanel } from './dat-season-masks.js';
 import { populateImageFormatSelect } from './dat-image-formats.js';
-import { renderFactoryFieldsPanel } from './dat-factory-fields.js';
+import { renderDatAuxPanels } from './dat-factory-fields.js';
 import { buildCompositeImagePrefix } from './composite-naming.js';
 import { MakeobjDatBridge } from './makeobj-dat-bridge.js';
 import { MakeobjModalController } from './makeobj-modal-controller.js';
@@ -198,8 +198,9 @@ export class DatGeneratorController {
       common: this.common,
       values: this._getObjState(this.currentObjType),
       onChange: () => {
-        if (this.currentObjType === 'way' || this.currentObjType === 'way-object') {
+        if (['way', 'way-object', 'tunnel', 'roadsign', 'field'].includes(this.currentObjType)) {
           this._renderDynamicFields();
+          this._renderSeasonMaskPanel();
         }
         if (this.autoSync) this.regenerateOutput();
         this.app?.markDirty?.();
@@ -275,13 +276,18 @@ export class DatGeneratorController {
           this._syncCommonInputsFromState();
         }
       }
-      if (this.currentObjType === 'way' || this.currentObjType === 'way-object') {
+      if (['way', 'way-object', 'tunnel', 'roadsign', 'field'].includes(this.currentObjType)) {
         this._renderMainFormatOptions();
       }
+      if (this.currentObjType === 'field') this._renderAuxPanels();
       this._renderSeasonMaskPanel();
       if (this.autoSync) this.regenerateOutput();
       this.app?.markDirty?.();
     });
+  }
+
+  _renderAuxPanels() {
+    renderDatAuxPanels(this, () => { if (this.autoSync) this.regenerateOutput(); this.app?.markDirty?.(); });
   }
 
   _renderSeasonMaskPanel() {
@@ -303,12 +309,7 @@ export class DatGeneratorController {
     this._renderMainFormatOptions();
     this._renderDynamicFields();
     this._renderSeasonMaskPanel();
-    renderFactoryFieldsPanel(
-      document.getElementById('dat-factory-fields-box'),
-      this,
-      this._getObjState(this.currentObjType),
-      () => { if (this.autoSync) this.regenerateOutput(); this.app?.markDirty?.(); }
-    );
+    this._renderAuxPanels();
     this.app?.tileCutter?.syncUI?.();
   }
 

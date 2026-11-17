@@ -1,3 +1,5 @@
+import { getSelectionOverlayStyle } from './paint-algorithms.js';
+
 export class PaintSelectionMover {
   constructor(editor) {
     this.editor = editor;
@@ -78,9 +80,12 @@ export class PaintSelectionMover {
 
   handlePointerMove(px, py) {
     if (!this.isMoving) return false;
-    this.delta = [px - this.startPx[0], py - this.startPx[1]];
-    this.editor._drawOverlay();
-    this.editor._showHint(`↔️ 選択範囲を移動中: ΔX=${this.delta[0]}px, ΔY=${this.delta[1]}px`);
+    const rawDx = px - this.startPx[0];
+    const rawDy = py - this.startPx[1];
+    const ed = this.editor;
+    this.delta = ed.gridSnap ? ed.gridSnap.snapDelta(rawDx, rawDy) : [rawDx, rawDy];
+    ed._drawOverlay();
+    ed._showHint(`↔️ 選択範囲を移動中: ΔX=${this.delta[0]}px, ΔY=${this.delta[1]}px`);
     return true;
   }
 
@@ -172,6 +177,7 @@ export class PaintSelectionMover {
     oCtx.imageSmoothingEnabled = false;
     oCtx.drawImage(this.floatingPreview, dx, dy);
 
+    let lastStyle = '';
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const srcPos = y * w + x;
@@ -186,7 +192,11 @@ export class PaintSelectionMover {
           y === 0 || !this.origMask[srcPos - w] ||
           y === h - 1 || !this.origMask[srcPos + w];
 
-        oCtx.fillStyle = isEdge ? 'rgba(0, 255, 136, 0.9)' : 'rgba(0, 200, 255, 0.25)';
+        const style = getSelectionOverlayStyle(nx, ny, isEdge);
+        if (style !== lastStyle) {
+          oCtx.fillStyle = style;
+          lastStyle = style;
+        }
         oCtx.fillRect(nx, ny, 1, 1);
       }
     }

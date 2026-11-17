@@ -2,10 +2,12 @@ import { PaintClipboardManager } from './paint-clipboard.js';
 import { PaintDialogs } from './paint-dialogs.js';
 import { PaintResizeController, cloneCanvasFromSource } from './paint-resize.js';
 import { PaintInputController } from './paint-input.js';
-import { PaintToolHandler } from './paint-tools.js';
+import { PaintToolHandler, updatePaintStatus } from './paint-tools.js';
 import { PaintOnionSkinManager } from './paint-onion-skin.js';
 import { PaintRepeatManager } from './paint-repeat.js';
 import { PaintSelectionMover } from './paint-selection-move.js';
+import { PaintGridSnapManager } from './paint-grid-snap.js';
+import { PaintRectHandlesController } from './paint-rect-handles.js';
 import { renderEditorPaletteUI, updateEditorCurrentColorUI } from './paint-palette-ui.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
@@ -37,6 +39,9 @@ export class PaintEditor {
     this.onionSkinMgr = null;
     this.repeatMgr = null;
     this.selMover = null;
+    this.gridSnap = null;
+    this.rectHandles = null;
+    this.isTouchMode = typeof window !== 'undefined' && Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 
     this.currentColor = '#FFFFFF';
     this.currentTool = 'pencil';
@@ -93,11 +98,14 @@ export class PaintEditor {
     this.onionSkinMgr = new PaintOnionSkinManager(this);
     this.repeatMgr = new PaintRepeatManager(this);
     this.selMover = new PaintSelectionMover(this);
+    this.gridSnap = new PaintGridSnapManager(this);
+    this.rectHandles = new PaintRectHandlesController(this);
 
     this.resizeCtrl.bindEvents();
     this.inputCtrl.bindAll();
     this.onionSkinMgr.bindEvents();
     this.repeatMgr.bindEvents();
+    this.gridSnap.bindEvents();
 
     const btnToggleLive = document.getElementById('btn-toggle-live-preview-size');
     if (btnToggleLive) {
@@ -142,6 +150,7 @@ export class PaintEditor {
       this.selectionMask = null;
       if (this.selMover) this.selMover.reset();
     }
+    if (this.rectHandles) this.rectHandles.reset();
 
     this._drawOverlay();
     this._updateStatus();
@@ -204,7 +213,9 @@ export class PaintEditor {
     this.selStart = null;
     this.clipMgr.reset();
     this.selMover.reset();
+    this.rectHandles.reset();
     this.onionSkinMgr.clearAll();
+    document.querySelectorAll('#paint-sidebar details.paint-accordion').forEach(d => { d.open = false; });
 
     this.undoStack = [];
     this.redoStack = [];
@@ -338,6 +349,7 @@ export class PaintEditor {
     this.overlayCanvas.style.transform = tStr;
     const lbl = document.getElementById('paint-lbl-zoom');
     if (lbl) lbl.textContent = `${Math.round(s * 100)}%`;
+    if (this.rectHandles) this.rectHandles.updateUI();
   }
 
   _showHint(msg) {
@@ -353,34 +365,13 @@ export class PaintEditor {
   }
   _handlePointerUp(px, py) { this.toolHandler.handlePointerUp(px, py); this._refreshDeftileLivePreview(); }
   _finalizePolySelect() { this.toolHandler.finalizePolySelect(); }
-  _drawOverlay(curPos = null) { this.toolHandler.drawOverlay(curPos); this._refreshDeftileLivePreview(); }
+  _drawOverlay(curPos = null) {
+    this.toolHandler.drawOverlay(curPos);
+    if (this.rectHandles) this.rectHandles.updateUI();
+    this._refreshDeftileLivePreview();
+  }
 
   _updateStatus() {
-    this.updateCursor();
-    const modeNames = { replace: '新規', add: '＋追加', subtract: '－一部削除', intersect: '×乗算(交差)' };
-    const toolLbl = document.getElementById('paint-lbl-tool');
-    if (toolLbl) {
-      toolLbl.textContent = `ツール: ${this.currentTool} | 選択モード: ${modeNames[this.selectionMode] || this.selectionMode} (${this.width}×${this.height}px)`;
-    }
-
-    if (this.currentTool === 'hand') {
-      this._showHint('✋ ハンドスクロールモード: 1本指または左ドラッグでキャンバスをスクロール移動できます');
-    } else if (this.currentTool === 'picker') {
-      this._showHint(`🎯 スポイト: 色をクリックで取得し、自動的に「${this.previousTool}」へ戻ります`);
-    } else if (SELECT_TOOLS.has(this.currentTool) && this.selectionMode === 'replace' && this.selectionMask) {
-      this._showHint('選択範囲(新規): 範囲内をドラッグで移動 / 範囲外をクリックで選択解除');
-    } else if (this.currentTool === 'moveSel') {
-      this._showHint(this.selectionMask ? '↔️ 選択範囲の移動: 範囲内ドラッグまたは矢印キーで移動' : '⚠️ 先に選択ツールで範囲を指定してください');
-    } else if (this.repeatMgr && this.repeatMgr.enabled && !this.selectionMask) {
-      this._showHint('🔁 上方リピートON中: 先に選択範囲を指定してその中を描画すると上方へ反復されます');
-    } else if (this.repeatMgr && this.repeatMgr.isActive()) {
-      this._showHint(`🔁 上方リピート有効: 選択範囲内の編集を上方 ${this.repeatMgr.stepY}px おきに ${this.repeatMgr.count} 回反復`);
-    } else if (this.currentTool === 'polySelect') {
-      this._showHint('クリックで頂点追加 / 始点クリック・ダブルクリック・Enterで確定 / Escで取消');
-    } else if (this.isDrawingTool()) {
-      this._showHint('ドラッグで描画 / 右クリックでスポイト(色取得)');
-    } else {
-      this._showHint('');
-    }
+    updatePaintStatus(this);
   }
 }

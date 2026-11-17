@@ -9,7 +9,7 @@ import {
 import { cloneDatEntry } from './dat-project-state.js';
 import { populateImageFormatSelect } from './dat-image-formats.js';
 import { RenderEngine } from './render-engine.js';
-import { getWayKeyHint } from './dat-way-hints.js';
+import { getImageKeyHint } from './dat-infra-hints.js';
 import { bindPatternFileButtons } from './dat-image-pattern-io.js';
 import {
   buildPickerSourceCanvas,
@@ -189,12 +189,11 @@ export class DatImagePicker {
     }
 
     const customCoords = active.common.customImageCoords || {};
-    const isWayLike = active.objType === 'way' || active.objType === 'way-object';
     entries.forEach((entry, idx) => {
       const rowEl = document.createElement('div');
       const isSelected = idx === this.selectedKeyIdx;
       const isCustom = Boolean(customCoords[entry.key]);
-      const hint = isWayLike ? getWayKeyHint(entry.key, { large: false }) : null;
+      const hint = getImageKeyHint(active.objType, entry.key, { large: false });
       rowEl.className = 'dat-picker-key-item' + (isSelected ? ' active' : '') + (isCustom ? ' custom' : '');
       if (hint) rowEl.title = hint.label;
       rowEl.innerHTML = `<span class="k-left">${hint ? hint.svg : ''}<span class="k-name">${entry.key}</span></span><span class="k-coord">.${entry.row}.${entry.col}${isCustom ? ' ★' : ''}</span>`;

@@ -10,6 +10,7 @@ export class PaintInputController {
     this.touchStartZoom = 1.0;
     this.touchStartPan = [0, 0];
     this.touchStartCenter = [0, 0];
+    this.lastTouchTime = 0;
   }
 
   bindAll() {
@@ -28,6 +29,7 @@ export class PaintInputController {
         document.querySelectorAll('.sel-mode-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         ed.selectionMode = btn.dataset.selMode;
+        ed._drawOverlay();
         ed._updateStatus();
       };
     });
@@ -174,7 +176,23 @@ export class PaintInputController {
       return { px, py };
     };
 
+    const updateCoordLabel = (px, py) => {
+      const coordLbl = document.getElementById('paint-lbl-coord');
+      if (!coordLbl) return;
+      if (ed.gridSnap && ed.gridSnap.isPointSnapTool(ed.currentTool)) {
+        const [sx, sy] = ed.gridSnap.snapPoint(px, py);
+        coordLbl.textContent = `X: ${px}, Y: ${py} → スナップ(${sx},${sy}) (${ed.width}×${ed.height})`;
+      } else {
+        coordLbl.textContent = `X: ${px}, Y: ${py} (${ed.width}×${ed.height})`;
+      }
+    };
+
     vp.onmousedown = (e) => {
+      if (Date.now() - this.lastTouchTime < 800) return;
+      if (ed.isTouchMode) {
+        ed.isTouchMode = false;
+        if (ed.rectHandles) ed.rectHandles.updateUI();
+      }
       const { px, py } = getPixelCoords(e.clientX, e.clientY);
 
       // 描画系ツール使用時は右クリックをスポイトにする
@@ -210,8 +228,7 @@ export class PaintInputController {
       }
       if (!ed.modal || !ed.modal.open) return;
       const { px, py } = getPixelCoords(e.clientX, e.clientY);
-      const coordLbl = document.getElementById('paint-lbl-coord');
-      if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py} (${ed.width}×${ed.height})`;
+      updateCoordLabel(px, py);
       if (this.isRightPicking) return;
       ed._handlePointerMove(px, py);
     });
@@ -233,6 +250,11 @@ export class PaintInputController {
     vp.addEventListener('touchstart', (e) => {
       if (!ed.modal || !ed.modal.open) return;
       e.preventDefault();
+      this.lastTouchTime = Date.now();
+      if (!ed.isTouchMode) {
+        ed.isTouchMode = true;
+        if (ed.rectHandles) ed.rectHandles.updateUI();
+      }
       if (e.touches.length === 1) {
         const t = e.touches[0];
         const isReplaceHand = ed.dialogs?.colorReplace?.isHandMode();
@@ -241,6 +263,7 @@ export class PaintInputController {
           this.panStart = [t.clientX - ed.panX, t.clientY - ed.panY];
           return;
         }
+        if (ed.rectHandles && ed.rectHandles.handleTouchStart(t.clientX, t.clientY)) return;
         const { px, py } = getPixelCoords(t.clientX, t.clientY);
         ed._handlePointerDown(px, py);
       } else if (e.touches.length === 2) {
@@ -248,6 +271,7 @@ export class PaintInputController {
         ed.isDrawing = false;
         ed.clipMgr.isDraggingFloating = false;
         if (ed.onionSkinMgr) ed.onionSkinMgr.isDragging = false;
+        if (ed.rectHandles && ed.rectHandles.isResizing) ed.rectHandles.reset();
         const t1 = e.touches[0], t2 = e.touches[1];
         this.touchStartDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
         this.touchStartZoom = ed.zoomLevel;
@@ -269,8 +293,8 @@ export class PaintInputController {
           return;
         }
         const { px, py } = getPixelCoords(t.clientX, t.clientY);
-        const coordLbl = document.getElementById('paint-lbl-coord');
-        if (coordLbl) coordLbl.textContent = `X: ${px}, Y: ${py} (${ed.width}×${ed.height})`;
+        updateCoordLabel(px, py);
+        if (ed.rectHandles && ed.rectHandles.handleTouchMove(px, py)) return;
         ed._handlePointerMove(px, py);
       } else if (e.touches.length === 2 && this.touchStartDist) {
         const t1 = e.touches[0], t2 = e.touches[1];
@@ -293,6 +317,10 @@ export class PaintInputController {
       if (e.touches.length === 0) {
         if (this.isPanning) {
           this.isPanning = false;
+          this.touchStartDist = null;
+          return;
+        }
+        if (ed.rectHandles && ed.rectHandles.handleTouchEnd()) {
           this.touchStartDist = null;
           return;
         }

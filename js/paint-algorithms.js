@@ -156,9 +156,37 @@ export function renderTextPixels(width, height, text, fontSize, x, y, drawPixelF
   }
 }
 
+// 高視認性の選択範囲ハッチ・境界スタイルを返す（背景が#E7FFFFや黒でも判別可能）
+export function getSelectionOverlayStyle(x, y, isEdge) {
+  if (isEdge) {
+    return ((x + y) & 1) === 0 ? 'rgba(0, 0, 0, 0.92)' : 'rgba(255, 235, 0, 0.95)';
+  }
+  const mod = (x + y) & 3;
+  if (mod === 0) return 'rgba(0, 0, 0, 0.36)';
+  if (mod === 2) return 'rgba(255, 235, 0, 0.34)';
+  return 'rgba(255, 0, 140, 0.16)';
+}
+
+// 矩形範囲の選択プレビューを高視認性ハッチで描画
+export function drawRectSelectionOverlay(oCtx, x0, y0, x1, y1) {
+  let lastStyle = '';
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const isEdge = x === x0 || x === x1 || y === y0 || y === y1;
+      const style = getSelectionOverlayStyle(x, y, isEdge);
+      if (style !== lastStyle) {
+        oCtx.fillStyle = style;
+        lastStyle = style;
+      }
+      oCtx.fillRect(x, y, 1, 1);
+    }
+  }
+}
+
 // 選択範囲ハイライトと境界エッジ描画
 export function drawSelectionOverlay(oCtx, width, height, selectionMask) {
   if (!selectionMask) return;
+  let lastStyle = '';
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
@@ -170,7 +198,11 @@ export function drawSelectionOverlay(oCtx, width, height, selectionMask) {
         y === 0 || !selectionMask[idx - width] ||
         y === height - 1 || !selectionMask[idx + width];
 
-      oCtx.fillStyle = isEdge ? 'rgba(0, 230, 255, 0.85)' : 'rgba(0, 150, 255, 0.25)';
+      const style = getSelectionOverlayStyle(x, y, isEdge);
+      if (style !== lastStyle) {
+        oCtx.fillStyle = style;
+        lastStyle = style;
+      }
       oCtx.fillRect(x, y, 1, 1);
     }
   }
@@ -264,8 +296,24 @@ export function drawSimutransIsoTiles(ctx, width, height, isoTileW, isoTileH, is
   }
 }
 
-// ピクセルパーフェクト補助線（直交グリッド）＆ 画像左下基準Simutransタイル敷き詰め描画
+// ピクセルパーフェクト補助線（直交グリッド）・スナップグリッド・Simutransタイル敷き詰め描画
 export function drawGuidesOverlay(oCtx, width, height, zoomLevel, opts) {
+  if (opts.snapGridEnabled) {
+    const sw = Math.max(1, Math.floor(opts.snapGridW || 16));
+    const sh = Math.max(1, Math.floor(opts.snapGridH || 16));
+    oCtx.fillStyle = 'rgba(85, 181, 255, 0.32)';
+    if (sw >= 2) {
+      for (let x = sw; x < width; x += sw) {
+        oCtx.fillRect(x, 0, 1, height);
+      }
+    }
+    if (sh >= 2) {
+      for (let y = sh; y < height; y += sh) {
+        oCtx.fillRect(0, y, width, 1);
+      }
+    }
+  }
+
   if (opts.showGrid && opts.gridStep >= 1) {
     oCtx.fillStyle = hexToRgba(opts.gridColor || '#00FF66', 0.75);
     const step = Math.max(1, Math.floor(opts.gridStep));

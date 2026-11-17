@@ -104,6 +104,7 @@ export function serializeDatObject(objType, values, common) {
     pushIfPresent(lines, 'speed', v.speed);
   } else if (objType === 'way' || objType === 'way-object' || objType === 'bridge' || objType === 'tunnel') {
     pushIfPresent(lines, 'waytype', v.waytype);
+    if (objType === 'tunnel') pushIfPresent(lines, 'way', v.way);
     if (objType === 'way') pushIfPresent(lines, 'system_type', v.system_type);
     if (objType === 'way-object') pushIfPresent(lines, 'own_waytype', v.own_waytype);
     pushIfPresent(lines, 'topspeed', v.topspeed);
@@ -134,7 +135,10 @@ export function serializeDatObject(objType, values, common) {
     pushFlagIfTrue(lines, 'is_longblocksignal', v.is_longblocksignal);
     pushFlagIfTrue(lines, 'is_prioritysignal', v.is_prioritysignal);
     pushFlagIfTrue(lines, 'is_choose_signal', v.is_choose_signal);
+    pushFlagIfTrue(lines, 'free_route', v.free_route);
+    pushFlagIfTrue(lines, 'end_of_choose', v.end_of_choose);
     pushFlagIfTrue(lines, 'single_way', v.single_way);
+    pushFlagIfTrue(lines, 'frontdiagonal', v.frontdiagonal);
   } else if (objType === 'tree') {
     pushIfPresent(lines, 'DistributionWeight', v.DistributionWeight);
     pushIfPresent(lines, 'seasons', v.seasons);
@@ -142,6 +146,7 @@ export function serializeDatObject(objType, values, common) {
     pushIfPresent(lines, 'DistributionWeight', v.DistributionWeight);
     pushIfPresent(lines, 'cost', v.cost);
     pushIfPresent(lines, 'seasons', v.seasons);
+    pushIfPresent(lines, 'speed', v.speed);
     pushIfPresent(lines, 'waytype', v.waytype);
     pushFlagIfTrue(lines, 'trees_on_top', v.trees_on_top);
   } else if (objType === 'factory') {
@@ -160,6 +165,7 @@ export function serializeDatObject(objType, values, common) {
     pushIfPresent(lines, 'OutputFactor[0]', v.outputFactor0);
     pushIfPresent(lines, 'min_fields', v.min_fields);
     pushIfPresent(lines, 'max_fields', v.max_fields);
+    pushIfPresent(lines, 'start_fields', v.start_fields);
     pushIfPresent(lines, 'probability_to_spawn', v.probability_to_spawn);
     if (Array.isArray(v.fieldRefs)) {
       v.fieldRefs.filter(f => f && String(f.name || '').trim()).forEach((f, idx) => {
@@ -167,10 +173,13 @@ export function serializeDatObject(objType, values, common) {
         pushIfPresent(lines, `production_per_field[${idx}]`, f.production);
         pushIfPresent(lines, `spawn_weight[${idx}]`, f.weight);
         pushIfPresent(lines, `storage_capacity[${idx}]`, f.capacity);
+        if (f.has_snow !== undefined) {
+          lines.push(`has_snow[${idx}]=${f.has_snow ? 1 : 0}`);
+        }
       });
     }
   } else if (objType === 'field') {
-    pushFlagIfTrue(lines, 'has_snow', v.has_snow);
+    lines.push(`has_snow=${v.has_snow ? 1 : 0}`);
   } else if (objType === 'good') {
     pushIfPresent(lines, 'metric', v.metric);
     pushIfPresent(lines, 'catg', v.catg);

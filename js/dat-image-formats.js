@@ -152,11 +152,24 @@ function buildInfraEntries(objType, v, startRow, startCol) {
       entries.push({ key: 'Icon', row: startRow + 3, col: startCol + 3, isIcon: true });
     }
   } else if (objType === 'tunnel') {
-    DIRS_4.forEach((d, i) => entries.push({ key: `BackImage[${d}]`, row: startRow, col: startCol + i }));
-    DIRS_4.forEach((d, i) => entries.push({ key: `FrontImage[${d}]`, row: startRow + 1, col: startCol + i }));
+    const portalMode = v.tunnelPortalMode || 'single';
+    let nextRow = startRow;
+    if (portalMode !== 'wide_only') {
+      DIRS_4.forEach((d, i) => entries.push({ key: `BackImage[${d}]`, row: nextRow, col: startCol + i }));
+      DIRS_4.forEach((d, i) => entries.push({ key: `FrontImage[${d}]`, row: nextRow + 1, col: startCol + i }));
+      nextRow += 2;
+    }
+    if (portalMode !== 'single') {
+      const suffixes = portalMode === 'double' ? ['l', 'r'] : ['l', 'm', 'r'];
+      const wideDirs = [];
+      DIRS_4.forEach(d => suffixes.forEach(sf => wideDirs.push(`${d}${sf}`)));
+      wideDirs.forEach((wd, i) => entries.push({ key: `BackImage[${wd}]`, row: nextRow, col: startCol + i }));
+      wideDirs.forEach((wd, i) => entries.push({ key: `FrontImage[${wd}]`, row: nextRow + 1, col: startCol + i }));
+      nextRow += 2;
+    }
     if (v.includeCursorIcon) {
-      entries.push({ key: 'Cursor', row: startRow + 2, col: startCol });
-      entries.push({ key: 'Icon', row: startRow + 2, col: startCol + 1, isIcon: true });
+      entries.push({ key: 'Cursor', row: nextRow, col: startCol });
+      entries.push({ key: 'Icon', row: nextRow, col: startCol + 1, isIcon: true });
     }
   } else if (objType === 'crossing') {
     entries.push({ key: 'openimage[NS][0]', row: startRow, col: startCol });
@@ -168,9 +181,17 @@ function buildInfraEntries(objType, v, startRow, startCol) {
     for (let i = 0; i < count; i++) {
       entries.push({ key: `Image[${i}]`, row: startRow, col: startCol + i });
     }
+    let nextRow = startRow + 1;
+    if (v.includeDiagonal) {
+      const diagCount = Math.max(1, Math.min(32, parseInt(v.diagonalStates, 10) || count));
+      for (let i = 0; i < diagCount; i++) {
+        entries.push({ key: `Diagonal[${i}]`, row: nextRow, col: startCol + i });
+      }
+      nextRow += 1;
+    }
     if (v.includeCursorIcon) {
-      entries.push({ key: 'Cursor', row: startRow + 1, col: startCol });
-      entries.push({ key: 'Icon', row: startRow + 1, col: startCol + 1, isIcon: true });
+      entries.push({ key: 'Cursor', row: nextRow, col: startCol });
+      entries.push({ key: 'Icon', row: nextRow, col: startCol + 1, isIcon: true });
     }
   }
   return entries;
@@ -295,7 +316,8 @@ export function buildFormattedImages(objType, values, common) {
     }
   } else if (objType === 'groundobj' || objType === 'field') {
     const seasons = Math.max(1, parseInt(v.seasons, 10) || 1);
-    for (let s = 0; s < seasons; s++) {
+    const total = objType === 'field' ? seasons + (v.has_snow ? 1 : 0) : seasons;
+    for (let s = 0; s < total; s++) {
       const colSeason = hasExternalSeason(v, s) ? 0 : s;
       const key = objType === 'field' ? `Image[${s}]` : `Image[0][${s}]`;
       entries.push({ key, row: startRow, col: startCol + colSeason, season: s });

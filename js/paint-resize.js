@@ -50,8 +50,11 @@ export class PaintResizeController {
 
     document.querySelectorAll('input[name="resize-mode"]').forEach(r => {
       r.onchange = (e) => {
+        const showCanvasOpts = e.target.value === 'canvas' ? 'flex' : 'none';
         const anchorRow = document.getElementById('row-resize-anchor');
-        if (anchorRow) anchorRow.style.display = e.target.value === 'canvas' ? 'flex' : 'none';
+        const fillRow = document.getElementById('row-resize-fill');
+        if (anchorRow) anchorRow.style.display = showCanvasOpts;
+        if (fillRow) fillRow.style.display = showCanvasOpts;
       };
     });
 
@@ -62,10 +65,11 @@ export class PaintResizeController {
       const modeEl = document.querySelector('input[name="resize-mode"]:checked');
       const mode = modeEl ? modeEl.value : 'canvas';
       const anchor = document.getElementById('sel-resize-anchor').value || 'bottom-center';
+      const fillHex = document.getElementById('sel-resize-fill')?.value || '#E7FFFF';
 
       modal.close();
       if (newW === ed.width && newH === ed.height) return;
-      this.resizeBaseAndMask(newW, newH, mode, anchor);
+      this.resizeBaseAndMask(newW, newH, mode, anchor, fillHex);
     };
 
     document.getElementById('btn-resize-cancel').onclick = () => modal.close();
@@ -85,12 +89,12 @@ export class PaintResizeController {
     modal.showModal();
   }
 
-  resizeBaseAndMask(newW, newH, mode, anchor) {
+  resizeBaseAndMask(newW, newH, mode, anchor, fillHex = '#E7FFFF') {
     const ed = this.editor;
     const oldW = ed.width;
     const oldH = ed.height;
 
-    const resizedBase = resizeSourceCanvas(ed.canvas, oldW, oldH, newW, newH, mode, anchor, '#E7FFFF');
+    const resizedBase = resizeSourceCanvas(ed.canvas, oldW, oldH, newW, newH, mode, anchor, fillHex);
     ed.width = newW;
     ed.height = newH;
     ed.canvas.width = newW;
@@ -103,7 +107,7 @@ export class PaintResizeController {
     if (ed.app.maskImage) {
       const mOldW = ed.app.maskImage.naturalWidth || ed.app.maskImage.width || oldW;
       const mOldH = ed.app.maskImage.naturalHeight || ed.app.maskImage.height || oldH;
-      const resizedMask = resizeSourceCanvas(ed.app.maskImage, mOldW, mOldH, newW, newH, mode, anchor, '#E7FFFF');
+      const resizedMask = resizeSourceCanvas(ed.app.maskImage, mOldW, mOldH, newW, newH, mode, anchor, fillHex);
       ed.app.baseW = newW;
       ed.app.baseH = newH;
       ed.app.applyMaskImage(resizedMask, ed.app.maskName);

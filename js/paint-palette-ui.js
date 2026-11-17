@@ -83,7 +83,7 @@ export function renderEditorPaletteUI(editor) {
   const maskTools = document.getElementById('mask-palette-tools');
   const aircraftTools = document.getElementById('aircraft-palette-tools');
 
-  if (baseTools) baseTools.style.display = (editor.targetType === 'base' || editor.targetType === 'deftile') ? 'block' : 'none';
+  if (baseTools) baseTools.style.display = editor.targetType === 'base' ? 'block' : 'none';
   if (maskTools) maskTools.style.display = editor.targetType === 'mask' ? 'block' : 'none';
   if (aircraftTools) aircraftTools.style.display = editor.targetType === 'aircraftPlan' ? 'block' : 'none';
 

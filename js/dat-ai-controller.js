@@ -39,6 +39,23 @@ export class DatAiController {
     }
 
     this.updateObjTypeVisibility(this.gen.currentObjType);
+    this.syncBalanceSliderLabels();
+  }
+
+  // コスト・バランス調整スライダーの表示ラベルを更新する
+  syncBalanceSliderLabels() {
+    const syncOne = (rngId, lblId, lowText, highText) => {
+      const rng = document.getElementById(rngId);
+      const lbl = document.getElementById(lblId);
+      if (!rng || !lbl) return;
+      const pct = parseInt(rng.value, 10) || 100;
+      const mult = (pct / 100).toFixed(2);
+      const tag = pct === 100 ? '標準' : (pct < 100 ? lowText : highText);
+      lbl.textContent = `${pct}% (${mult}倍 / ${tag})`;
+    };
+    syncOne('rng-dat-ai-build-cost', 'lbl-dat-ai-build-cost', '低コスト', '高コスト');
+    syncOne('rng-dat-ai-maint-cost', 'lbl-dat-ai-maint-cost', '省エネ', '高維持費');
+    syncOne('rng-dat-ai-payload-eff', 'lbl-dat-ai-payload-eff', '快適少', '高収容');
   }
 
   updateObjTypeVisibility(objType) {
@@ -72,9 +89,9 @@ export class DatAiController {
     const vehicleMode = document.getElementById('sel-dat-ai-vehicle-mode')?.value || 'consist';
     const carCount = (document.getElementById('inp-dat-ai-car-count')?.value || '').trim();
     const autoSeqRows = Boolean(document.getElementById('chk-dat-ai-seq-rows')?.checked);
-    const buildCostMode = document.getElementById('sel-dat-ai-build-cost')?.value || 'standard';
-    const maintCostMode = document.getElementById('sel-dat-ai-maint-cost')?.value || 'standard';
-    const payloadMode = document.getElementById('sel-dat-ai-payload-eff')?.value || 'standard';
+    const buildCostPct = parseInt(document.getElementById('rng-dat-ai-build-cost')?.value, 10) || 100;
+    const maintCostPct = parseInt(document.getElementById('rng-dat-ai-maint-cost')?.value, 10) || 100;
+    const payloadPct = parseInt(document.getElementById('rng-dat-ai-payload-eff')?.value, 10) || 100;
     const liveryName = this.gen.liveryMgr ? this.gen.liveryMgr.getActiveLiveryName() : '';
 
     return {
@@ -83,9 +100,9 @@ export class DatAiController {
       pakset,
       vehicleMode,
       carCount,
-      buildCostMode,
-      maintCostMode,
-      payloadMode,
+      buildCostPct,
+      maintCostPct,
+      payloadPct,
       liveryName,
       imgPrefix: this.gen.common.imgPrefix,
       copyright: this.gen.common.copyright,
@@ -117,6 +134,17 @@ export class DatAiController {
     document.getElementById('btn-dat-ai-fetch-models')?.addEventListener('click', () => this.refreshAvailableModels());
     document.getElementById('btn-dat-ai-generate')?.addEventListener('click', () => this.executeGeminiGenerate());
     document.getElementById('btn-dat-ai-copy-prompt')?.addEventListener('click', () => this.copyPromptToClipboard());
+
+    ['rng-dat-ai-build-cost', 'rng-dat-ai-maint-cost', 'rng-dat-ai-payload-eff'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => this.syncBalanceSliderLabels());
+    });
+    document.getElementById('btn-dat-ai-reset-balance')?.addEventListener('click', () => {
+      ['rng-dat-ai-build-cost', 'rng-dat-ai-maint-cost', 'rng-dat-ai-payload-eff'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '100';
+      });
+      this.syncBalanceSliderLabels();
+    });
 
     const jsonWrap = document.getElementById('dat-ai-manual-json-wrap');
     const jsonInp = document.getElementById('inp-dat-ai-manual-json');

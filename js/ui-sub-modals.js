@@ -127,7 +127,7 @@ export function renderSubModalsUI() {
           </div>
           <fieldset class="sub-panel mt-05">
             <legend>変更方法</legend>
-            <label><input type="radio" name="resize-mode" value="canvas" checked> キャンバス拡張・切抜（ドット等倍維持 / 余白は #E7FFFF）</label>
+            <label><input type="radio" name="resize-mode" value="canvas" checked> キャンバス拡張・切抜（ドット等倍維持）</label>
             <label><input type="radio" name="resize-mode" value="scale"> 画像全体を拡大・縮小（ニアレストネイバー補間）</label>
             <div class="row mt-05" id="row-resize-anchor">
               <label style="width:80px;">配置基準:</label>
@@ -135,6 +135,13 @@ export function renderSubModalsUI() {
                 <option value="bottom-center" selected>下中央 (Simutrans建物基準)</option>
                 <option value="center">中央</option>
                 <option value="top-left">左上</option>
+              </select>
+            </div>
+            <div class="row mt-05" id="row-resize-fill">
+              <label style="width:80px;">余白の色:</label>
+              <select id="sel-resize-fill">
+                <option value="#E7FFFF" selected>#E7FFFF (透過色)</option>
+                <option value="#000000">#000000 (黒)</option>
               </select>
             </div>
           </fieldset>
