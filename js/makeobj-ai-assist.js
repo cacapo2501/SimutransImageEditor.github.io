@@ -1,18 +1,8 @@
 // makeobj (.pak コンパイル設定) ＆ ja.tab 日本語翻訳の AI 設定支援モジュール
-import { loadGeminiConfig, requestDatFromGemini } from './dat-ai-service.js';
+import { loadGeminiConfig, requestDatFromGemini, extractJsonText, pasteClipboardIntoTextarea } from './dat-ai-service.js';
 import { parseDatObjectsSummary, collectJaTabEntries, buildJaTabText } from './ja-tab-helper.js';
 
 const VALID_PAK_ARGS = new Set(['pak', 'pak32', 'pak48', 'pak64', 'pak96', 'pak128', 'pak192', 'pak256']);
-
-function extractJsonBlock(rawText) {
-  const trimmed = String(rawText || '').trim();
-  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fence) return fence[1].trim();
-  const first = trimmed.indexOf('{');
-  const last = trimmed.lastIndexOf('}');
-  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
-  return trimmed;
-}
 
 export function buildMakeobjAssistPrompt({
   datText,
@@ -66,7 +56,7 @@ ${datPreview}
 }
 
 export function parseMakeobjAssistResponse(rawText) {
-  const jsonStr = extractJsonBlock(rawText);
+  const jsonStr = extractJsonText(rawText);
   let parsed;
   try {
     parsed = JSON.parse(jsonStr);
@@ -77,7 +67,8 @@ export function parseMakeobjAssistResponse(rawText) {
     throw new Error('AIの応答が空または不正です。');
   }
 
-  const rawPak = String(parsed.recommendedPakArg || 'pak').trim();
+  let rawPak = String(parsed.recommendedPakArg || 'pak').trim().toLowerCase();
+  if (/^\d+$/.test(rawPak)) rawPak = `pak${rawPak}`;
   const recommendedPakArg = VALID_PAK_ARGS.has(rawPak) ? rawPak : 'pak';
 
   let recommendedPakFilename = String(parsed.recommendedPakFilename || '').trim();
@@ -200,8 +191,22 @@ export function bindMakeobjModalAiEvents(ctrl) {
   });
 
   const jsonWrap = document.getElementById('mk-ai-json-wrap');
+  const jsonInp = document.getElementById('inp-mk-ai-json');
+  const adviceEl = document.getElementById('lbl-mk-ai-advice');
   document.getElementById('btn-mk-ai-toggle-json')?.addEventListener('click', () => {
-    if (jsonWrap) jsonWrap.style.display = jsonWrap.style.display === 'none' ? '' : 'none';
+    if (!jsonWrap) return;
+    const opening = jsonWrap.style.display === 'none';
+    jsonWrap.style.display = opening ? '' : 'none';
+    if (opening && jsonInp) {
+      if (!jsonInp.value.trim()) {
+        pasteClipboardIntoTextarea(jsonInp, (msg) => { if (adviceEl) adviceEl.textContent = msg; });
+      } else {
+        jsonInp.focus();
+      }
+    }
+  });
+  document.getElementById('btn-mk-ai-paste-clip')?.addEventListener('click', () => {
+    pasteClipboardIntoTextarea(jsonInp, (msg) => { if (adviceEl) adviceEl.textContent = msg; });
   });
   document.getElementById('btn-mk-ai-cancel-json')?.addEventListener('click', () => {
     if (jsonWrap) jsonWrap.style.display = 'none';

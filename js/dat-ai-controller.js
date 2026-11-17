@@ -6,7 +6,8 @@ import {
   buildDatAiPrompt,
   parseAiDatResponse,
   fetchAvailableGeminiModels,
-  requestDatFromGemini
+  requestDatFromGemini,
+  pasteClipboardIntoTextarea
 } from './dat-ai-service.js';
 
 export class DatAiController {
@@ -118,10 +119,21 @@ export class DatAiController {
     document.getElementById('btn-dat-ai-copy-prompt')?.addEventListener('click', () => this.copyPromptToClipboard());
 
     const jsonWrap = document.getElementById('dat-ai-manual-json-wrap');
+    const jsonInp = document.getElementById('inp-dat-ai-manual-json');
     document.getElementById('btn-dat-ai-toggle-json')?.addEventListener('click', () => {
-      if (jsonWrap) {
-        jsonWrap.style.display = jsonWrap.style.display === 'none' ? '' : 'none';
+      if (!jsonWrap) return;
+      const opening = jsonWrap.style.display === 'none';
+      jsonWrap.style.display = opening ? '' : 'none';
+      if (opening && jsonInp) {
+        if (!jsonInp.value.trim()) {
+          pasteClipboardIntoTextarea(jsonInp, (msg) => this._setStatus(msg));
+        } else {
+          jsonInp.focus();
+        }
       }
+    });
+    document.getElementById('btn-dat-ai-paste-clip')?.addEventListener('click', () => {
+      pasteClipboardIntoTextarea(jsonInp, (msg) => this._setStatus(msg));
     });
     document.getElementById('btn-dat-ai-cancel-json')?.addEventListener('click', () => {
       if (jsonWrap) jsonWrap.style.display = 'none';

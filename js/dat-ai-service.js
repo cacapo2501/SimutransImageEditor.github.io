@@ -195,16 +195,52 @@ ${schemaText}
 ${userPrompt}`;
 }
 
-function extractJsonText(rawText) {
-  const trimmed = String(rawText || '').trim();
+export function extractJsonText(rawText) {
+  const trimmed = String(rawText || '').replace(/^\uFEFF/, '').trim();
+  if (!trimmed) return '';
+  try {
+    JSON.parse(trimmed);
+    return trimmed;
+  } catch (e) { /* 抽出へ進む */ }
+
   const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (fenceMatch) return fenceMatch[1].trim();
-  const firstBrace = trimmed.indexOf('{');
-  const lastBrace = trimmed.lastIndexOf('}');
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    return trimmed.slice(firstBrace, lastBrace + 1);
+
+  const firstObj = trimmed.indexOf('{');
+  const firstArr = trimmed.indexOf('[');
+  if (firstArr >= 0 && (firstObj < 0 || firstArr < firstObj)) {
+    const lastArr = trimmed.lastIndexOf(']');
+    if (lastArr > firstArr) {
+      const candidate = trimmed.slice(firstArr, lastArr + 1);
+      try { JSON.parse(candidate); return candidate; } catch (e) { /* 次へ */ }
+    }
+  }
+  const lastObj = trimmed.lastIndexOf('}');
+  if (firstObj >= 0 && lastObj > firstObj) {
+    return trimmed.slice(firstObj, lastObj + 1);
   }
   return trimmed;
+}
+
+export async function pasteClipboardIntoTextarea(textarea, onStatus) {
+  if (!textarea) return false;
+  textarea.focus();
+  textarea.scrollIntoView?.({ block: 'nearest' });
+  try {
+    if (navigator.clipboard?.readText) {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        textarea.value = text;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        onStatus?.('クリップボードからJSONを貼り付けました');
+        return true;
+      }
+    }
+  } catch (e) {
+    // 権限拒否時等は手動ペースト案内へフォールバック
+  }
+  onStatus?.('入力欄にJSONを貼り付けてください (Ctrl+V / 長押し貼付)');
+  return false;
 }
 
 function normalizeStringList(val) {
@@ -223,7 +259,9 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
     throw new Error('AIの応答をJSONとして解析できませんでした: ' + err.message);
   }
 
-  const rawObjects = Array.isArray(parsed.objects) ? parsed.objects : (parsed.obj ? [parsed] : []);
+  const rawObjects = Array.isArray(parsed)
+    ? parsed
+    : (Array.isArray(parsed.objects) ? parsed.objects : (parsed.obj ? [parsed] : []));
   if (rawObjects.length === 0) {
     throw new Error('AIの応答に有効な objects 配列が含まれていません。');
   }

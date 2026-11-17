@@ -115,6 +115,7 @@ export function renderDatAiSectionHtml() {
             <textarea id="inp-dat-ai-manual-json" placeholder='{"summary":"...","objects":[...]}'></textarea>
           </div>
           <div class="btn-group mt-05">
+            <button type="button" id="btn-dat-ai-paste-clip" title="クリップボードから貼り付け">📋 貼付</button>
             <button type="button" id="btn-dat-ai-apply-json" class="btn-primary">✓ JSONをフォームに反映</button>
             <button type="button" id="btn-dat-ai-cancel-json">閉じる</button>
           </div>

@@ -57,23 +57,29 @@ export function renderMakeobjCompileModalUI() {
 
             <fieldset class="sub-panel dat-ai-panel">
               <legend>✨ AIによる設定支援 (pak診断・ja.tab日本語名生成)</legend>
-              <div class="dat-field">
-                <label>補足メモ・車種/建物名などのヒント (任意)</label>
-                <input type="text" id="inp-mk-ai-hint" placeholder="例: JR東日本 E233系0番台 中央線 / pak128向け">
-              </div>
-              <div class="btn-group mt-05">
-                <button type="button" id="btn-mk-ai-assist" class="btn-primary">✨ AIで設定支援</button>
-                <button type="button" id="btn-mk-ai-copy-prompt" title="Gemini以外のAIにも使えるプロンプトをコピー">📋 プロンプト</button>
-                <button type="button" id="btn-mk-ai-toggle-json" title="AIから取得したJSONを貼付">📥 JSON貼付</button>
-              </div>
-              <div id="mk-ai-json-wrap" style="display:none;" class="mt-05">
-                <textarea id="inp-mk-ai-json" placeholder='{"recommendedPakArg":"pak128","translations":{...}}'></textarea>
-                <div class="btn-group mt-05">
-                  <button type="button" id="btn-mk-ai-apply-json" class="btn-primary">✓ JSONを反映</button>
-                  <button type="button" id="btn-mk-ai-cancel-json">閉じる</button>
+              <div class="dat-ai-body">
+                <div class="dat-field">
+                  <label>補足メモ・車種/建物名などのヒント (任意)</label>
+                  <input type="text" id="inp-mk-ai-hint" placeholder="例: JR東日本 E233系0番台 中央線 / pak128向け">
                 </div>
+                <div class="btn-group mt-05">
+                  <button type="button" id="btn-mk-ai-assist" class="btn-primary">✨ AIで設定支援</button>
+                  <button type="button" id="btn-mk-ai-copy-prompt" title="Gemini以外のAIにも使えるプロンプトをコピー">📋 プロンプト</button>
+                  <button type="button" id="btn-mk-ai-toggle-json" title="AIから取得したJSONを貼付">📥 JSON貼付</button>
+                </div>
+                <div id="mk-ai-json-wrap" style="display:none;" class="mt-05">
+                  <div class="dat-field">
+                    <label>AIが出力したJSONを貼り付けて「反映」を押してください</label>
+                    <textarea id="inp-mk-ai-json" placeholder='{"recommendedPakArg":"pak128","translations":{...}}'></textarea>
+                  </div>
+                  <div class="btn-group mt-05">
+                    <button type="button" id="btn-mk-ai-paste-clip" title="クリップボードから貼り付け">📋 貼付</button>
+                    <button type="button" id="btn-mk-ai-apply-json" class="btn-primary">✓ JSONを反映</button>
+                    <button type="button" id="btn-mk-ai-cancel-json">閉じる</button>
+                  </div>
+                </div>
+                <div class="info-text mt-05" id="lbl-mk-ai-advice" style="white-space:pre-wrap; line-height:1.4;">AI設定支援: 待機中（APIキーは「dat編集」内のGemini設定を共用）</div>
               </div>
-              <div class="info-text mt-05" id="lbl-mk-ai-advice" style="white-space:pre-wrap; line-height:1.4;">AI設定支援: 待機中（APIキーは「dat編集」内のGemini設定を共用）</div>
             </fieldset>
 
             <fieldset class="sub-panel">

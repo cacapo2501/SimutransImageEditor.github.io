@@ -31,8 +31,8 @@ export const APP_VERSION = '5.0.0';
 class AdvancedMultiplyApp {
   constructor() {
     document.addEventListener('selectstart', (e) => {
-      const tag = e.target && e.target.tagName;
-      if (tag !== 'INPUT' && tag !== 'TEXTAREA') e.preventDefault();
+      const el = e.target?.nodeType === 3 ? e.target.parentElement : e.target;
+      if (!el?.closest?.('input, textarea, [contenteditable]')) e.preventDefault();
     });
 
     renderSidebarUI();

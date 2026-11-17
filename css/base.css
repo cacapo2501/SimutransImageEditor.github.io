@@ -8,9 +8,9 @@
   -webkit-touch-callout: none;
 }
 
-input[type="text"],
-input[type="number"],
-textarea {
+input,
+textarea,
+[contenteditable] {
   -webkit-user-select: text !important;
   user-select: text !important;
   -webkit-touch-callout: default !important;
