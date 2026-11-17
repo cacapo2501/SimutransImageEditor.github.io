@@ -107,7 +107,7 @@ export function renderDatModalUI() {
                 </div>
                 <div class="dat-field full-width" id="dat-tilecut-row" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;">
                   <label class="dat-check-item">
-                    <input type="checkbox" id="chk-dat-tilecut-enable"> 🧱 複数タイル建物: PNG出力時にタイルカッターで分割 (`_cut`)
+                    <input type="checkbox" id="chk-dat-tilecut-enable"> 🧱 複数タイル建物: PNG出力時にタイルカッターで分割 (_cut.png)
                   </label>
                   <div class="row mt-05" style="gap:6px;">
                     <label style="font-size:11px; white-space:nowrap;">タイルサイズ:</label>
