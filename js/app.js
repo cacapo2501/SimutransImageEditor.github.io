@@ -25,7 +25,7 @@ import { renderSubModalsUI } from './ui-sub-modals.js';
 import { renderDeftileModalUI } from './ui-deftile-modal.js';
 
 // アプリケーションバージョン
-export const APP_VERSION = '3.3.0';
+export const APP_VERSION = '4.0.0';
 
 class AdvancedMultiplyApp {
   constructor() {
@@ -211,8 +211,9 @@ class AdvancedMultiplyApp {
   async loadBaseFromFile(file) {
     if (!file) return;
     const img = await loadImageAsync(URL.createObjectURL(file));
-    this.applyBaseImage(img, file.name, { resetMask: true, resetDat: true });
-    this.isDirty = false;
+    const reset = !document.getElementById('chk-keep-state-on-base-load')?.checked;
+    this.applyBaseImage(img, file.name, { resetMask: reset, resetDat: reset });
+    this.isDirty = !reset;
     this.zoomFit();
   }
 

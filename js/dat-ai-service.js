@@ -3,10 +3,10 @@ import { DAT_OBJECT_TEMPLATES } from './dat-templates.js';
 const STORAGE_KEY = 'simutrans_editor_gemini_cfg_v1';
 
 export const PAKSET_OPTIONS = [
-  { value: 'pak64', label: 'pak64 (標準バランス)', guide: 'pak64基準: 鉄道旅客車payload=40〜120, speed=80〜300, power=300〜5000, weight=20〜80, cost=50000〜500000, runningcost=30〜250, length=4〜10(標準8)。建物level=1〜40。' },
-  { value: 'pak128', label: 'pak128', guide: 'pak128基準: 鉄道旅客車payload=60〜200, cost=150000〜1500000, runningcost=80〜600, power=500〜8000, length=6〜16(標準8〜12)。建物level=2〜80。' },
-  { value: 'pak128.japan', label: 'pak128.japan (日本向け)', guide: 'pak128.japan基準: 実車に近い定員(通勤電車1両payload=120〜160, 新幹線60〜100), speedは実車km/h, powerは実車kW(電車の電動車は400〜600kW, 制御車は0), weightは実車t, length=6〜14(20m級=8〜10, 新幹線25m級=10〜12), cost=100000〜2000000, runningcost=50〜500。' },
-  { value: 'pak96', label: 'pak96 / pak96.comic', guide: 'pak96基準: pak64とpak128の中間スケール。建物level=2〜50, 車両payload=50〜140。' }
+  { value: 'pak64', label: 'pak64 (標準バランス)', guide: 'pak64基準: 鉄道旅客車payload=40〜120(立席定員がある車両は座席+立席を含めた定員を基準), speed=80〜300, power=300〜5000, weight=20〜80, cost=50000〜500000, runningcost=30〜250, length=4〜10(標準8)。建物level=1〜40。' },
+  { value: 'pak128', label: 'pak128', guide: 'pak128基準: 鉄道旅客車payload=60〜200(立席定員がある車両は座席+立席を含めた定員を基準), cost=150000〜1500000, runningcost=80〜600, power=500〜8000, length=6〜16(標準8〜12)。建物level=2〜80。' },
+  { value: 'pak128.japan', label: 'pak128.japan (日本向け)', guide: 'pak128.japan基準: 実車に近い定員(立席定員がある通勤・近郊・路線バス等は座席+立席の総定員を含めた値を採用し1両payload=120〜160, 新幹線は60〜100), speedは実車km/h, powerは実車kW(電車の電動車は400〜600kW, 制御車は0), weightは実車t, length=6〜14(20m級=8〜10, 新幹線25m級=10〜12), cost=100000〜2000000, runningcost=50〜500。' },
+  { value: 'pak96', label: 'pak96 / pak96.comic', guide: 'pak96基準: pak64とpak128の中間スケール。旅客車payload=50〜140(立席定員込み基準), 建物level=2〜50。' }
 ];
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-4-hydrogen';
@@ -82,9 +82,9 @@ const MAINT_COST_GUIDES = {
 };
 
 const PAYLOAD_EFF_GUIDES = {
-  standard: '積載量・容量・生産性 (payload / capacity / Productivity) は実車/標準に準拠',
-  high_cap: '収容効率を重視し、payload / capacity / Productivity を標準の約 1.3〜1.5 倍に設定',
-  express: '快適性・ゆとり重視とし、payload / capacity を標準の約 0.7〜0.8 倍に設定'
+  standard: '積載量・容量・生産性 (payload / capacity / Productivity) は実車/標準に準拠（旅客車両に立席定員がある場合は座席+立席の合計定員を含めた値を基準とする）',
+  high_cap: '収容効率を重視し、payload / capacity / Productivity を標準（立席定員込み基準）の約 1.3〜1.5 倍に設定',
+  express: '快適性・ゆとり重視とし、payload / capacity を標準（立席定員込み基準）の約 0.7〜0.8 倍に設定'
 };
 
 // 生成AI向けプロンプトを構築する
@@ -137,6 +137,7 @@ ${namingRule}
 ${namingRule}
 - その車両の特性に合わせて "constraintsPrev" と "constraintsNext"（例: 単行可能なら "none", 連結相手があれば "none" 等）を適切に設定してください。`;
     }
+    vehicleRules += '\n- 【旅客定員 (payload) ルール】実車に立席定員がある旅客車両（通勤電車・近郊型・一般形気動車・路面電車・路線バス等）は、座席定員のみではなく「座席定員＋立席定員（合計定員）」を含めた値を採用して payload を算出してください。';
   }
 
   const rowRule = autoSeqRows

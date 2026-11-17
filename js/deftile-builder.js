@@ -239,13 +239,16 @@ export class DeftileBuilder {
     document.getElementById('btn-deftile-apply-base').onclick = () => {
       if (!this.generatedCanvas) this.updatePreview();
       const baseName = this.deftileName.replace(/\.[^/.]+$/, '') + '_base.png';
-      this.app.applyBaseImage(this.generatedCanvas, baseName, { resetMask: true, resetDat: true });
-      this.app.tileCutter?.applyFromDeftile(
-        this.deftileCanvas.width,
-        this.deftileCanvas.height,
-        this.getOptions(),
-        this.generatedCanvas.height
-      );
+      const reset = !document.getElementById('chk-keep-state-on-base-load')?.checked;
+      this.app.applyBaseImage(this.generatedCanvas, baseName, { resetMask: reset, resetDat: reset });
+      if (reset) {
+        this.app.tileCutter?.applyFromDeftile(
+          this.deftileCanvas.width,
+          this.deftileCanvas.height,
+          this.getOptions(),
+          this.generatedCanvas.height
+        );
+      }
       this.app.isDirty = true;
       this.app.zoomFit();
       this.app.render();

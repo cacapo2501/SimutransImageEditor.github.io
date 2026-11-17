@@ -17,6 +17,9 @@ export function renderSidebarUI() {
           <button id="btn-load-base">ベースPNGを開く</button>
           <button id="btn-load-mask">マスク画像を開く</button>
         </div>
+        <label class="mt-05" title="オンにすると、別のベースPNGやDEFTILEを読み込んだ際にも現在のマスク画像・レイヤー割当・dat編集内容をリセットせず維持します">
+          <input type="checkbox" id="chk-keep-state-on-base-load"> ベース読込時にマスク・dat設定をリセットしない
+        </label>
         <div class="btn-group mt-05">
           <button id="btn-save-base">💾 ベースPNG保存</button>
           <button id="btn-save-mask">💾 マスクPNG保存</button>
