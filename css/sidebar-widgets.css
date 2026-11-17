@@ -194,3 +194,25 @@ fieldset.sub-panel label input[type="checkbox"] {
   border-radius: 3px;
   flex-shrink: 0;
 }
+
+.footer-version-btn {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  color: #b7e8b7;
+  background: #1c2c22;
+  border: 1px solid #355e43;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.footer-version-btn:hover {
+  background: #263d2e;
+}
+
+.footer-version-btn.unbuilt {
+  color: #ffe08a;
+  background: #2f2818;
+  border-color: #665226;
+}

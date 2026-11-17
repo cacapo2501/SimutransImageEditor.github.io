@@ -1,5 +1,14 @@
 // dat生成設定・編成データ・出力内容のプロジェクト保存・復元モジュール
 
+export function cloneObjDefaults(templates, objType) {
+  const tpl = templates[objType];
+  if (!tpl) return {};
+  const copy = { ...tpl.defaults };
+  if (Array.isArray(copy.climates)) copy.climates = [...copy.climates];
+  if (Array.isArray(copy.fieldRefs)) copy.fieldRefs = copy.fieldRefs.map(f => ({ ...f }));
+  return copy;
+}
+
 export function cloneCommon(c) {
   const copy = { ...(c || {}) };
   if (copy.customImageCoords) {

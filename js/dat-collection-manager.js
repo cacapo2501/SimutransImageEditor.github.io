@@ -231,6 +231,7 @@ export class DatCollectionManager {
 export function bindDatOutputActions(gen) {
   document.getElementById('inp-dat-filename').oninput = (e) => {
     e.target.dataset.userEdited = '1';
+    gen.makeobjBridge?.syncPakFilename?.(e.target.value);
   };
 
   document.getElementById('chk-dat-auto-sync').onchange = (e) => {

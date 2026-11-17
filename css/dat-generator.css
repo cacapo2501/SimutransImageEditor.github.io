@@ -259,3 +259,115 @@ details.dat-ai-panel {
   border-top: 1px dashed #3d4b59;
   padding-top: 6px;
 }
+
+/* makeobj .pak コンパイルパネル・ライセンスモーダル */
+.dat-makeobj-panel {
+  border-top: 1px solid #383838;
+  background: #1b2026;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.dat-makeobj-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.dat-makeobj-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: #b7e8b7;
+}
+
+.dat-makeobj-row select,
+.dat-makeobj-row input[type="text"] {
+  background: #14181d;
+  border: 1px solid #3f4e5e;
+  color: #eee;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.dat-makeobj-log {
+  margin: 0;
+  max-height: 92px;
+  overflow: auto;
+  background: #101317;
+  border: 1px solid #2e3844;
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#modal-makeobj-license {
+  width: 90vw;
+  max-width: 760px;
+  max-height: 85vh;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #1e1e1e;
+  color: #eee;
+  padding: 0;
+  margin: auto;
+  overflow: hidden;
+}
+
+#modal-makeobj-license::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.makeobj-lic-box {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.makeobj-lic-body {
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.makeobj-lic-summary {
+  background: #232a32;
+  border: 1px solid #394859;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.makeobj-lic-label {
+  font-size: 11px;
+  font-weight: bold;
+  color: #9cdcfe;
+  margin-bottom: 4px;
+}
+
+.makeobj-lic-pre {
+  margin: 0;
+  max-height: 190px;
+  overflow: auto;
+  background: #14171a;
+  border: 1px solid #333c47;
+  border-radius: 4px;
+  padding: 8px;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #ddd;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

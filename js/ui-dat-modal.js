@@ -167,6 +167,28 @@ export function renderDatModalUI() {
               <button type="button" id="btn-dat-clear" style="margin-left:auto;">🗑️ クリア</button>
             </div>
             <textarea id="txt-dat-output" spellcheck="false" placeholder="ここに生成された .dat の内容が表示されます"></textarea>
+            <div class="dat-makeobj-panel" id="dat-makeobj-panel">
+              <div class="dat-makeobj-row">
+                <span class="dat-makeobj-title">⚙️ makeobj (.pak コンパイル)</span>
+                <select id="sel-dat-makeobj-pak" title="コンパイル対象のタイルサイズ (pak)">
+                  <option value="pak">pak (64px標準)</option>
+                  <option value="pak32">pak32</option>
+                  <option value="pak48">pak48</option>
+                  <option value="pak64">pak64</option>
+                  <option value="pak96">pak96</option>
+                  <option value="pak128">pak128</option>
+                  <option value="pak192">pak192</option>
+                  <option value="pak256">pak256</option>
+                </select>
+                <input type="text" id="inp-dat-pak-filename" value="new_building.pak" placeholder="出力.pak名" style="width:145px;">
+                <button type="button" id="btn-dat-makeobj-add-png" title="datが参照する別PNG画像があれば追加添付">📎 追加PNG</button>
+                <button type="button" id="btn-dat-makeobj-clear-png" style="display:none;" title="追加PNG添付をクリア">✕</button>
+                <button type="button" id="btn-dat-makeobj-compile" class="btn-primary">⚙️ .pak コンパイル</button>
+                <button type="button" id="btn-dat-makeobj-license" title="makeobjのバージョンとArtistic License 1.0情報を表示">📜 ライセンス</button>
+              </div>
+              <div class="info-text" id="lbl-dat-makeobj-extra-png">追加PNG: なし（編集中画像は自動添付）</div>
+              <pre id="pre-dat-makeobj-log" class="dat-makeobj-log" style="display:none;"></pre>
+            </div>
           </div>
         </div>
 
@@ -225,6 +247,7 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
         if (inpFilename && !inpFilename.dataset.userEdited) {
           const base = (gen.common.name || 'addon').trim();
           inpFilename.value = base.toLowerCase().endsWith('.dat') ? base : `${base}.dat`;
+          gen.makeobjBridge?.syncPakFilename?.(inpFilename.value);
         }
       }
       if (gen.autoSync) gen.regenerateOutput();

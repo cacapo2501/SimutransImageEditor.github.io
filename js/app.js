@@ -23,6 +23,7 @@ import { renderSidebarUI } from './ui-sidebar.js';
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 import { renderDeftileModalUI } from './ui-deftile-modal.js';
+import { initMakeobjStatus } from './makeobj-service.js';
 
 // アプリケーションバージョン
 export const APP_VERSION = '4.1.0';
@@ -122,8 +123,8 @@ class AdvancedMultiplyApp {
     this.tileCutter.bindEvents();
     this.datGenerator.bindEvents();
     this.imageIOCtrl.loadDefaultSpecialColors();
-    const verEl = document.getElementById('app-version');
-    if (verEl) verEl.textContent = `v${APP_VERSION}`;
+    document.getElementById('app-version')?.replaceChildren(document.createTextNode(`v${APP_VERSION}`));
+    initMakeobjStatus();
     this.render();
   }
 

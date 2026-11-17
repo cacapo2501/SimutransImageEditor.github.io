@@ -7,6 +7,7 @@ import { DatAiController } from './dat-ai-controller.js';
 import { DatCollectionManager, bindDatOutputActions } from './dat-collection-manager.js';
 import {
   createDefaultDatCommon,
+  cloneObjDefaults,
   serializeDatProjectState,
   restoreDatProjectState,
   applyPendingDatProjectUi,
@@ -18,15 +19,7 @@ import { computeSeasonPrefixes, renderSeasonMaskPanel } from './dat-season-masks
 import { populateImageFormatSelect } from './dat-image-formats.js';
 import { renderFactoryFieldsPanel } from './dat-factory-fields.js';
 import { buildCompositeImagePrefix } from './composite-naming.js';
-
-function cloneDefaults(objType) {
-  const tpl = DAT_OBJECT_TEMPLATES[objType];
-  if (!tpl) return {};
-  const copy = { ...tpl.defaults };
-  if (Array.isArray(copy.climates)) copy.climates = [...copy.climates];
-  if (Array.isArray(copy.fieldRefs)) copy.fieldRefs = copy.fieldRefs.map(f => ({ ...f }));
-  return copy;
-}
+import { MakeobjDatBridge } from './makeobj-dat-bridge.js';
 
 export class DatGeneratorController {
   constructor(app, pickFileFn) {
@@ -41,6 +34,7 @@ export class DatGeneratorController {
     this.collectionMgr = new DatCollectionManager(this);
     this.imagePicker = new DatImagePicker(this);
     this.liveryMgr = new DatLiveryManager(this);
+    this.makeobjBridge = new MakeobjDatBridge(this);
     this._pendingProjectUi = null;
     this.common = createDefaultDatCommon();
   }
@@ -79,6 +73,7 @@ export class DatGeneratorController {
     this.aiCtrl.bindEvents();
     this.collectionMgr.bindEvents();
     this.liveryMgr.bindEvents();
+    this.makeobjBridge.bindEvents();
     this.aiCtrl.syncInitialUI();
     this.initialized = true;
     if (this._pendingProjectUi) applyPendingDatProjectUi(this);
@@ -86,7 +81,7 @@ export class DatGeneratorController {
 
   _getObjState(objType) {
     if (!this.stateByObj[objType]) {
-      this.stateByObj[objType] = cloneDefaults(objType);
+      this.stateByObj[objType] = cloneObjDefaults(DAT_OBJECT_TEMPLATES, objType);
     }
     return this.stateByObj[objType];
   }
@@ -174,6 +169,7 @@ export class DatGeneratorController {
     if (inpFilename && !inpFilename.dataset.userEdited) {
       const base = (this.common.name || 'addon').trim();
       inpFilename.value = base.toLowerCase().endsWith('.dat') ? base : `${base}.dat`;
+      this.makeobjBridge?.syncPakFilename?.(inpFilename.value);
     }
     this._syncCustomImageStatus();
   }
