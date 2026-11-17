@@ -46,7 +46,7 @@ export class ProjectIO {
     }));
 
     const projData = {
-      version: '3.2',
+      version: '3.3',
       base_name: app.baseName,
       base_data_url: canvasToDataUrl(app.baseImage),
       active_mask_index: app.maskMgr ? app.maskMgr.activeIndex : -1,

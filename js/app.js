@@ -23,6 +23,9 @@ import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 import { renderDeftileModalUI } from './ui-deftile-modal.js';
 
+// アプリケーションバージョン
+export const APP_VERSION = '3.3.0';
+
 class AdvancedMultiplyApp {
   constructor() {
     document.addEventListener('selectstart', (e) => {
@@ -116,6 +119,8 @@ class AdvancedMultiplyApp {
     this.citycarCtrl.bindEvents();
     this.datGenerator.bindEvents();
     this.imageIOCtrl.loadDefaultSpecialColors();
+    const verEl = document.getElementById('app-version');
+    if (verEl) verEl.textContent = `v${APP_VERSION}`;
     this.render();
   }
 

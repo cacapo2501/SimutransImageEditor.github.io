@@ -164,7 +164,7 @@ fieldset.sub-panel label input[type="checkbox"] {
   touch-action: none;
 }
 
-#status-bar {
+#status-footer {
   height: 24px;
   background: #1e1e1e;
   border-top: 1px solid #333;
@@ -173,4 +173,24 @@ fieldset.sub-panel label input[type="checkbox"] {
   display: flex;
   align-items: center;
   padding: 0 8px;
+  gap: 8px;
+}
+
+#status-bar {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#app-version {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  color: #9cdcfe;
+  background: #1c2c3a;
+  border: 1px solid #2f5270;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
 }
