@@ -1,6 +1,7 @@
 import { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS } from './dat-templates.js';
 import { serializeDatObject } from './dat-serializer.js';
 import { renderDatModalUI, renderDynamicDatFields } from './ui-dat-modal.js';
+import { renderFormatOptionsPanel } from './ui-dat-image-picker.js';
 import { DatAiController } from './dat-ai-controller.js';
 import { DatCollectionManager, bindDatOutputActions } from './dat-collection-manager.js';
 import {
@@ -134,7 +135,6 @@ export class DatGeneratorController {
     setVal('inp-dat-name', this.common.name);
     setVal('inp-dat-copyright', this.common.copyright);
     setVal('sel-dat-image-format', this.common.imageFormat || 'auto');
-    setVal('inp-dat-custom-format', this.common.customImgFormat || '');
     setVal('inp-dat-img-prefix', this.common.imgPrefix);
     setVal('inp-dat-start-row', this.common.startRow);
     setVal('inp-dat-start-col', this.common.startCol);
@@ -145,8 +145,7 @@ export class DatGeneratorController {
     if (chkImg) chkImg.checked = Boolean(this.common.includeImages);
     const chkFlip = document.getElementById('chk-dat-flip-directions');
     if (chkFlip) chkFlip.checked = Boolean(this.common.flipDirections);
-    const customWrap = document.getElementById('dat-custom-format-wrap');
-    if (customWrap) customWrap.style.display = this.common.imageFormat === 'custom_template' ? '' : 'none';
+    this._renderMainFormatOptions();
 
     const inpFilename = document.getElementById('inp-dat-filename');
     if (inpFilename && !inpFilename.dataset.userEdited) {
@@ -169,11 +168,22 @@ export class DatGeneratorController {
     if (btnClear) btnClear.style.display = count > 0 ? '' : 'none';
   }
 
-  applyImagePickerResult({ imageFormat, startRow, startCol, customImageCoords }) {
-    if (imageFormat) this.common.imageFormat = imageFormat;
-    this.common.startRow = startRow;
-    this.common.startCol = startCol;
-    this.common.customImageCoords = customImageCoords || null;
+  _renderMainFormatOptions() {
+    const box = document.getElementById('dat-main-format-options');
+    renderFormatOptionsPanel(box, {
+      objType: this.currentObjType,
+      common: this.common,
+      values: this._getObjState(this.currentObjType),
+      onChange: () => {
+        if (this.autoSync) this.regenerateOutput();
+        this.app?.markDirty?.();
+      }
+    });
+  }
+
+  applyImagePickerResult({ commonPatch, valuesPatch }) {
+    if (commonPatch) Object.assign(this.common, commonPatch);
+    if (valuesPatch) Object.assign(this._getObjState(this.currentObjType), valuesPatch);
     this._syncCommonInputsFromState();
     if (this.autoSync) this.regenerateOutput();
     this.app?.markDirty?.();
@@ -217,6 +227,7 @@ export class DatGeneratorController {
     this._syncCommonInputsFromState();
     this._updatePresetVisibility();
     this.aiCtrl.updateObjTypeVisibility(this.currentObjType);
+    this._renderMainFormatOptions();
     this._renderDynamicFields();
   }
 
@@ -303,6 +314,7 @@ export class DatGeneratorController {
       }
       this._updatePresetVisibility();
       this.aiCtrl.updateObjTypeVisibility(this.currentObjType);
+      this._renderMainFormatOptions();
       this._renderDynamicFields();
       if (this.autoSync) this.regenerateOutput();
       this._updateSidebarStatus();
@@ -342,7 +354,6 @@ export class DatGeneratorController {
     bindCommon('inp-dat-copyright', 'copyright');
     bindCommon('chk-dat-include-images', 'includeImages', true);
     bindCommon('chk-dat-flip-directions', 'flipDirections', true);
-    bindCommon('inp-dat-custom-format', 'customImgFormat');
     bindCommon('inp-dat-img-prefix', 'imgPrefix');
     bindCommon('inp-dat-start-row', 'startRow');
     bindCommon('inp-dat-start-col', 'startCol');
@@ -351,8 +362,7 @@ export class DatGeneratorController {
 
     document.getElementById('sel-dat-image-format')?.addEventListener('change', (e) => {
       this.common.imageFormat = e.target.value;
-      const customWrap = document.getElementById('dat-custom-format-wrap');
-      if (customWrap) customWrap.style.display = this.common.imageFormat === 'custom_template' ? '' : 'none';
+      this._renderMainFormatOptions();
       if (this.autoSync) this.regenerateOutput();
       this.app?.markDirty?.();
     });

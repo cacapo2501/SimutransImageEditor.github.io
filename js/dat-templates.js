@@ -172,22 +172,6 @@ export const CORE_DAT_TEMPLATES = {
       { key: 'freight', label: '積載貨物 (freight)', type: 'text', placeholder: 'None / Passagiere / Post / Kohle 等' },
       { key: 'payload', label: '積載量 (payload)', type: 'number', min: 0 },
       { key: 'loading_time', label: '積載時間 ms (loading_time)', type: 'number', min: 0 },
-      { key: 'directions', label: '画像方向数', type: 'select', options: [
-        { value: '8', label: '8方向 (S,E,SE,SW,N,W,NW,NE)' },
-        { value: '4', label: '4方向 (S,E,N,W)' }
-      ] },
-      { key: 'hasFreightImage', label: '積載時画像 (FreightImage) を出力', type: 'checkbox' },
-      { key: 'freightRow', label: 'FreightImage 開始行 (空=Y+1)', type: 'number', min: 0 },
-      { key: 'freightTypeName', label: '貨物タイプ指定 (FreightImageType)', type: 'text', placeholder: '空=freight流用 (例: Passagiere)' },
-      { key: 'reverseRowMode', label: 'OTRP 反転画像の参照方法', type: 'select', options: [
-        { value: 'same_row', label: '同一行 (Y) を180°反転流用 (S↔N等)' },
-        { value: 'next_row', label: '次の行 (Y+1) を反転専用行とする' },
-        { value: 'custom_row', label: '下の指定行 (reverseRow) を使用' }
-      ] },
-      { key: 'reverseRow', label: 'OTRP 指定行番号 (custom_row時)', type: 'number', min: 0 },
-      { key: 'reverseFlipDir', label: 'next/custom_row時も180°反転する', type: 'checkbox' },
-      { key: 'includeNoElectric', label: 'OTRP 非電化対応 (No_Electric) も出力', type: 'checkbox' },
-      { key: 'noElectricRow', label: 'No_Electric 開始行 (空=Y)', type: 'number', min: 0 },
       { key: 'intro_year', label: '登場年 (intro_year)', type: 'number', min: 1 },
       { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
       { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },

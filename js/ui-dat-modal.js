@@ -84,10 +84,7 @@ export function renderDatModalUI() {
                   ${buildImageFormatOptions()}
                 </select>
               </div>
-              <div class="dat-field mt-05" id="dat-custom-format-wrap" style="display:none;">
-                <label>カスタム画像書式 ({dir}, {prefix}, {row}, {col}, {offset} 使用可)</label>
-                <textarea id="inp-dat-custom-format" placeholder="EmptyImage[{dir}][0]={prefix}.{row}.{col}{offset}"></textarea>
-              </div>
+              <div id="dat-main-format-options" class="dat-format-options-box mt-05" style="display:none;"></div>
               <label class="dat-check-item mt-05">
                 <input type="checkbox" id="chk-dat-flip-directions"> 車両・車の向きを180°反転 (S↔N, E↔W, SE↔NW, SW↔NE)
               </label>

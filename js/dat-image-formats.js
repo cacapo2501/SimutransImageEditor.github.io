@@ -16,11 +16,12 @@ export const DIR_180_MAP = {
 
 export const IMAGE_FORMAT_OPTIONS = [
   { value: 'auto', label: '自動 (オブジェクト種別標準)' },
-  { value: 'vehicle_empty_8', label: '車両: 8方向 EmptyImage' },
-  { value: 'vehicle_empty_4', label: '車両: 4方向 EmptyImage' },
-  { value: 'vehicle_freight', label: '車両: 空荷 + FreightImage[dir]' },
-  { value: 'vehicle_freight_typed', label: '車両: 空荷 + FreightImageType[0] + [0][dir]' },
-  { value: 'vehicle_otrp_reverse', label: '車両: OTRP逆転対応 (Empty + Reverse)' },
+  { value: 'vehicle_empty_8', label: '車両: 8方向 EmptyImage のみ' },
+  { value: 'vehicle_empty_4', label: '車両: 4方向 EmptyImage のみ' },
+  { value: 'vehicle_freight', label: '車両: EmptyImage + FreightImage[dir] (全貨物共通)' },
+  { value: 'vehicle_freight_typed', label: '車両: EmptyImage + FreightImageType[0] + [0][dir]' },
+  { value: 'vehicle_otrp_reverse', label: '車両: OTRP Reverse.pak 対応 (Empty + Reverse)' },
+  { value: 'vehicle_otrp_reverse_only', label: '車両: OTRP Reverse.pak 単独 (Reverse のみ)' },
   { value: 'vehicle_image_8', label: '車両/車: 8方向 Image[dir]' },
   { value: 'building_back', label: '建物: BackImage のみ' },
   { value: 'building_front', label: '建物: FrontImage のみ' },
@@ -191,8 +192,11 @@ export function buildFormattedImages(objType, values, common) {
     ];
   } else if (format === 'vehicle_freight_typed') {
     entries = buildDirectionalSlots('EmptyImage', DIRS_8, startRow, startCol, flipBase);
-    entries.push({ metaLine: `FreightImageType[0]=${freightName}` });
-    entries.push(...buildDirectionalSlots('FreightImage[0]', DIRS_8, fRow, startCol, flipBase));
+    const typeList = freightName.split(',').map(s => s.trim()).filter(Boolean);
+    (typeList.length ? typeList : ['Passagiere']).forEach((tName, tIdx) => {
+      entries.push({ metaLine: `FreightImageType[${tIdx}]=${tName}` });
+      entries.push(...buildDirectionalSlots(`FreightImage[${tIdx}]`, DIRS_8, fRow + tIdx, startCol, flipBase));
+    });
   } else if (format === 'vehicle_otrp_reverse') {
     entries = buildDirectionalSlots('EmptyImage', DIRS_8, startRow, startCol, flipBase);
     let idx = 0;
@@ -211,6 +215,15 @@ export function buildFormattedImages(objType, values, common) {
       idx++;
       entries.push({ metaLine: `FreightImageType[${idx}]=Reverse_No_Electric` });
       entries.push(...buildDirectionalSlots(`FreightImage[${idx}]`, DIRS_8, revMode === 'same_row' ? noElRow : revRow, startCol, actualRevFlip));
+    }
+  } else if (format === 'vehicle_otrp_reverse_only') {
+    entries = [];
+    entries.push({ metaLine: 'FreightImageType[0]=Reverse' });
+    entries.push(...buildDirectionalSlots('FreightImage[0]', DIRS_8, revRow, startCol, actualRevFlip));
+    if (v.includeNoElectric) {
+      const noElRow = parseOptionalRow(v.noElectricRow, startRow);
+      entries.push({ metaLine: 'FreightImageType[1]=Reverse_No_Electric' });
+      entries.push(...buildDirectionalSlots('FreightImage[1]', DIRS_8, revMode === 'same_row' ? noElRow : revRow, startCol, actualRevFlip));
     }
   } else if (format === 'vehicle_image_8' || (!format && objType === 'citycar')) {
     entries = buildDirectionalSlots('Image', DIRS_8, startRow, startCol, flipBase);

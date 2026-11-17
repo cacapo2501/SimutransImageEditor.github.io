@@ -1,5 +1,5 @@
 import { collectImageEntries } from './dat-serializer.js';
-import { renderDatImagePickerModalUI } from './ui-dat-image-picker.js';
+import { renderDatImagePickerModalUI, renderFormatOptionsPanel, drawDatPickerOverlay } from './ui-dat-image-picker.js';
 import { RenderEngine } from './render-engine.js';
 
 export class DatImagePicker {
@@ -13,8 +13,8 @@ export class DatImagePicker {
     this.panX = 16;
     this.panY = 16;
     this.mode = 'origin';
-    this.tempStartRow = 0;
-    this.tempStartCol = 0;
+    this.tempCommon = {};
+    this.tempValues = {};
     this.tempCustomCoords = {};
     this.selectedKeyIdx = 0;
 
@@ -76,16 +76,21 @@ export class DatImagePicker {
     if (inpTw) inpTw.value = String(this.tileW);
     if (inpTh) inpTh.value = String(this.tileH);
 
-    this.tempStartRow = Math.max(0, parseInt(this.gen.common.startRow, 10) || 0);
-    this.tempStartCol = Math.max(0, parseInt(this.gen.common.startCol, 10) || 0);
-    this.tempImageFormat = this.gen.common.imageFormat || 'auto';
+    this.tempCommon = {
+      ...this.gen.common,
+      startRow: String(Math.max(0, parseInt(this.gen.common.startRow, 10) || 0)),
+      startCol: String(Math.max(0, parseInt(this.gen.common.startCol, 10) || 0)),
+      imageFormat: this.gen.common.imageFormat || 'auto'
+    };
+    this.tempValues = { ...this.gen._getObjState(this.gen.currentObjType) };
     this.tempCustomCoords = this.gen.common.customImageCoords
       ? JSON.parse(JSON.stringify(this.gen.common.customImageCoords))
       : {};
     this.selectedKeyIdx = 0;
 
     const selFmt = document.getElementById('sel-dat-picker-format');
-    if (selFmt) selFmt.value = this.tempImageFormat;
+    if (selFmt) selFmt.value = this.tempCommon.imageFormat;
+    this._renderFormatOptions();
 
     const sizeLbl = document.getElementById('lbl-dat-picker-img-size');
     if (sizeLbl) {
@@ -103,14 +108,19 @@ export class DatImagePicker {
     });
   }
 
+  _renderFormatOptions() {
+    const box = document.getElementById('dat-picker-format-options');
+    renderFormatOptionsPanel(box, {
+      objType: this.gen.currentObjType,
+      common: this.tempCommon,
+      values: this.tempValues,
+      onChange: () => this.refreshAll()
+    });
+  }
+
   _getCurrentEntries() {
-    const objType = this.gen.currentObjType;
-    const values = this.gen._getObjState(objType);
-    return collectImageEntries(objType, values, {
-      ...this.gen.common,
-      imageFormat: this.tempImageFormat,
-      startRow: this.tempStartRow,
-      startCol: this.tempStartCol,
+    return collectImageEntries(this.gen.currentObjType, this.tempValues, {
+      ...this.tempCommon,
       customImageCoords: Object.keys(this.tempCustomCoords).length > 0 ? this.tempCustomCoords : null
     });
   }
@@ -125,9 +135,8 @@ export class DatImagePicker {
     const lbl = document.getElementById('lbl-dat-picker-selection');
     if (!lbl) return;
     const customCount = Object.keys(this.tempCustomCoords).length;
-    lbl.textContent = customCount > 0
-      ? `開始位置: row=${this.tempStartRow}, col=${this.tempStartCol} | 個別割当: ${customCount}件`
-      : `開始位置: row=${this.tempStartRow}, col=${this.tempStartCol}`;
+    const base = `開始位置: row=${this.tempCommon.startRow}, col=${this.tempCommon.startCol}`;
+    lbl.textContent = customCount > 0 ? `${base} | 個別割当: ${customCount}件` : base;
   }
 
   _renderKeyList() {
@@ -176,54 +185,17 @@ export class DatImagePicker {
     ctx.imageSmoothingEnabled = this.zoom < 1.0;
     ctx.drawImage(this.srcCanvas, this.panX, this.panY, drawW, drawH);
 
-    const cols = Math.max(1, Math.ceil(this.srcCanvas.width / this.tileW));
-    const rows = Math.max(1, Math.ceil(this.srcCanvas.height / this.tileH));
-
-    // グリッド線と (row, col) ラベル
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-    ctx.lineWidth = 1;
-    ctx.font = '10px Consolas, monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-
-    for (let r = 0; r <= rows; r++) {
-      const y = Math.round(this.panY + r * this.tileH * this.zoom) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(this.panX, y);
-      ctx.lineTo(this.panX + cols * this.tileW * this.zoom, y);
-      ctx.stroke();
-    }
-    for (let c = 0; c <= cols; c++) {
-      const x = Math.round(this.panX + c * this.tileW * this.zoom) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(x, this.panY);
-      ctx.lineTo(x, this.panY + rows * this.tileH * this.zoom);
-      ctx.stroke();
-    }
-
-    if (this.tileW * this.zoom >= 26 && this.tileH * this.zoom >= 16) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          ctx.fillText(`${r}.${c}`, this.panX + c * this.tileW * this.zoom + 3, this.panY + r * this.tileH * this.zoom + 2);
-        }
-      }
-    }
-
-    // 割当セルハイライト
-    const entries = this._getCurrentEntries();
-    entries.forEach((entry, idx) => {
-      const rx = this.panX + entry.col * this.tileW * this.zoom;
-      const ry = this.panY + entry.row * this.tileH * this.zoom;
-      const rw = this.tileW * this.zoom;
-      const rh = this.tileH * this.zoom;
-      const isFocused = this.mode === 'per_key' && idx === this.selectedKeyIdx;
-
-      ctx.fillStyle = isFocused ? 'rgba(255, 210, 0, 0.28)' : 'rgba(0, 229, 255, 0.16)';
-      ctx.fillRect(rx, ry, rw, rh);
-      ctx.strokeStyle = isFocused ? '#FFD200' : '#00E5FF';
-      ctx.lineWidth = isFocused ? 2.5 : 1.5;
-      ctx.strokeRect(rx + 1, ry + 1, Math.max(1, rw - 2), Math.max(1, rh - 2));
+    drawDatPickerOverlay(ctx, {
+      srcW: this.srcCanvas.width,
+      srcH: this.srcCanvas.height,
+      tileW: this.tileW,
+      tileH: this.tileH,
+      zoom: this.zoom,
+      panX: this.panX,
+      panY: this.panY,
+      entries: this._getCurrentEntries(),
+      mode: this.mode,
+      selectedKeyIdx: this.selectedKeyIdx
     });
 
     const zLbl = document.getElementById('lbl-dat-picker-zoom');
@@ -254,8 +226,27 @@ export class DatImagePicker {
     const row = Math.floor(iy / this.tileH);
 
     if (this.mode === 'origin') {
-      this.tempStartRow = row;
-      this.tempStartCol = col;
+      this.tempCommon.startRow = String(row);
+      this.tempCommon.startCol = String(col);
+    } else if (this.mode === 'freight_row') {
+      this.tempValues.freightRow = String(row);
+      if (this.tempCommon.imageFormat === 'vehicle_otrp_reverse') {
+        this.tempValues.hasFreightImage = true;
+      } else if (this.tempCommon.imageFormat === 'auto' || this.tempCommon.imageFormat.startsWith('vehicle_empty')) {
+        this.tempCommon.imageFormat = 'vehicle_freight';
+        const selFmt = document.getElementById('sel-dat-picker-format');
+        if (selFmt) selFmt.value = 'vehicle_freight';
+      }
+      this._renderFormatOptions();
+    } else if (this.mode === 'reverse_row') {
+      this.tempValues.reverseRowMode = 'custom_row';
+      this.tempValues.reverseRow = String(row);
+      if (!String(this.tempCommon.imageFormat || '').startsWith('vehicle_otrp_reverse')) {
+        this.tempCommon.imageFormat = 'vehicle_otrp_reverse';
+        const selFmt = document.getElementById('sel-dat-picker-format');
+        if (selFmt) selFmt.value = 'vehicle_otrp_reverse';
+      }
+      this._renderFormatOptions();
     } else {
       const entries = this._getCurrentEntries();
       const target = entries[this.selectedKeyIdx];
@@ -295,19 +286,22 @@ export class DatImagePicker {
     });
 
     document.getElementById('sel-dat-picker-format')?.addEventListener('change', (e) => {
-      this.tempImageFormat = e.target.value;
+      this.tempCommon.imageFormat = e.target.value;
       this.selectedKeyIdx = 0;
+      this._renderFormatOptions();
       this.refreshAll();
     });
 
     document.getElementById('sel-dat-picker-mode')?.addEventListener('change', (e) => {
       this.mode = e.target.value;
+      const guides = {
+        origin: 'セルをクリックすると EmptyImage / 基本開始位置 (Y, X) を設定します。',
+        freight_row: 'セルをクリックするとその行を FreightImage 開始行 (Y) に設定します。',
+        reverse_row: 'セルをクリックするとその行を OTRP Reverse 開始行 (Y) に設定します。',
+        per_key: '下のキーを選び、セルをクリックすると個別に座標を割り当てます。'
+      };
       const guide = document.getElementById('lbl-dat-picker-guide');
-      if (guide) {
-        guide.textContent = this.mode === 'origin'
-          ? 'キャンバス上のセルをクリックすると、そのセルを開始位置 (startRow, startCol) に設定します。'
-          : '左側でキーを選び、キャンバス上のセルをクリックすると個別に座標を割り当てます。';
-      }
+      if (guide) guide.textContent = guides[this.mode] || guides.origin;
       this.refreshAll();
     });
 
@@ -372,10 +366,14 @@ export class DatImagePicker {
 
     document.getElementById('btn-dat-picker-apply')?.addEventListener('click', () => {
       this.gen.applyImagePickerResult({
-        imageFormat: this.tempImageFormat,
-        startRow: String(this.tempStartRow),
-        startCol: String(this.tempStartCol),
-        customImageCoords: Object.keys(this.tempCustomCoords).length > 0 ? { ...this.tempCustomCoords } : null
+        commonPatch: {
+          imageFormat: this.tempCommon.imageFormat,
+          customImgFormat: this.tempCommon.customImgFormat,
+          startRow: this.tempCommon.startRow,
+          startCol: this.tempCommon.startCol,
+          customImageCoords: Object.keys(this.tempCustomCoords).length > 0 ? { ...this.tempCustomCoords } : null
+        },
+        valuesPatch: { ...this.tempValues }
       });
       close();
     });
