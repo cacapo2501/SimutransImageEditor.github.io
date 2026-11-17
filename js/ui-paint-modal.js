@@ -89,7 +89,7 @@ export function renderPaintModalUI() {
             <input type="color" id="inp-paint-iso-color" class="color-input-mini" value="#FFAA00" title="タイル菱形の色を選択">
           </div>
 
-          <div class="paint-tool-group guide-control-group" title="塗潰し以外の描画ツールと選択ツールを指定グリッドにスナップします">
+          <div class="paint-tool-group guide-control-group" title="塗潰し以外の描画ツール・選択ツール・選択移動/貼付移動を指定グリッドにスナップします">
             <label class="inline-chk-lbl">
               <input type="checkbox" id="chk-paint-snap-grid"> 🧲 スナップ:
             </label>

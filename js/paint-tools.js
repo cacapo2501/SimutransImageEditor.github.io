@@ -303,7 +303,11 @@ export function updatePaintStatus(ed) {
   } else if (SELECT_TOOLS.has(ed.currentTool) && ed.selectionMode === 'replace' && ed.selectionMask) {
     ed._showHint('選択範囲(新規): 範囲内をドラッグで移動 / 範囲外をクリックで選択解除');
   } else if (ed.currentTool === 'moveSel') {
-    ed._showHint(ed.selectionMask ? '↔️ 選択範囲の移動: 範囲内ドラッグまたは矢印キーで移動' : '⚠️ 先に選択ツールで範囲を指定してください');
+    if (ed.clipMgr && ed.clipMgr.floatingLayer) {
+      ed._showHint('↔️ 貼り付け画像をドラッグまたは矢印キーで移動し、Enterまたは「✓ 確定」で確定します');
+    } else {
+      ed._showHint(ed.selectionMask ? '↔️ 選択範囲の移動: 範囲内ドラッグまたは矢印キーで移動' : '⚠️ 先に選択ツールで範囲を指定してください');
+    }
   } else if (ed.repeatMgr && ed.repeatMgr.enabled && !ed.selectionMask) {
     ed._showHint('🔁 上方リピートON中: 先に選択範囲を指定してその中を描画すると上方へ反復されます');
   } else if (ed.repeatMgr && ed.repeatMgr.isActive()) {

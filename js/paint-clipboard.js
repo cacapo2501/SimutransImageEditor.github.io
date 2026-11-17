@@ -1,18 +1,10 @@
-import { getSelectionBounds, flipEditorTransform } from './paint-flip.js';
-
-function loadImageFromFileReliable(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('画像データのデコードに失敗しました。'));
-      img.src = reader.result;
-    };
-    reader.onerror = () => reject(new Error('ファイルの読み込みに失敗しました。'));
-    reader.readAsDataURL(file);
-  });
-}
+import { flipEditorTransform } from './paint-flip.js';
+import {
+  loadImageFromFileReliable,
+  combineSelectionMask,
+  extractSelectionCanvas,
+  compositeFloatingWithSelectionMask
+} from './paint-clipboard-helpers.js';
 
 export class PaintClipboardManager {
   constructor(editor) {
@@ -20,7 +12,8 @@ export class PaintClipboardManager {
     this.clipboard = null;
     this.floatingLayer = null;
     this.isDraggingFloating = false;
-    this.floatingDragOffset = [0, 0];
+    this.floatingDragStartPos = [0, 0];
+    this.floatingDragStartMouse = [0, 0];
 
     this.lastImportedCanvas = null;
     this.lastImportedName = '';
@@ -51,36 +44,17 @@ export class PaintClipboardManager {
     }
   }
 
+  // 画像貼り付け時にスクロール等の非移動ツールから移動可能な選択移動ツールへ切り替える
+  _switchToPasteMoveTool() {
+    const ed = this.editor;
+    if (ed.currentTool !== 'moveSel') {
+      ed.selectTool('moveSel');
+    }
+  }
+
   applySelectionMask(newMask) {
     const ed = this.editor;
-    const total = ed.width * ed.height;
-
-    if (ed.selectionMode === 'replace' || !ed.selectionMask) {
-      if (ed.selectionMode === 'subtract' || ed.selectionMode === 'intersect') {
-        ed.selectionMask = null;
-      } else {
-        ed.selectionMask = newMask;
-      }
-    } else {
-      const result = new Uint8Array(total);
-      let hasAny = false;
-      for (let i = 0; i < total; i++) {
-        const oldVal = ed.selectionMask[i] === 1;
-        const newVal = newMask[i] === 1;
-        let keep = false;
-
-        if (ed.selectionMode === 'add') keep = oldVal || newVal;
-        else if (ed.selectionMode === 'subtract') keep = oldVal && !newVal;
-        else if (ed.selectionMode === 'intersect') keep = oldVal && newVal;
-
-        if (keep) {
-          result[i] = 1;
-          hasAny = true;
-        }
-      }
-      ed.selectionMask = hasAny ? result : null;
-    }
-
+    ed.selectionMask = combineSelectionMask(ed.selectionMask, newMask, ed.selectionMode, ed.width * ed.height);
     ed._drawOverlay();
     ed._updateStatus();
   }
@@ -104,46 +78,18 @@ export class PaintClipboardManager {
       return;
     }
 
-    const srcData = ed.ctx.getImageData(0, 0, ed.width, ed.height);
+    const extracted = extractSelectionCanvas(ed);
+    if (!extracted) return;
 
-    if (!ed.selectionMask) {
-      const c = document.createElement('canvas');
-      c.width = ed.width;
-      c.height = ed.height;
-      c.getContext('2d').putImageData(srcData, 0, 0);
-      this.clipboard = { canvas: c, width: ed.width, height: ed.height, srcX: 0, srcY: 0 };
-      ed._showHint(`全体画像をコピーしました (${ed.width}×${ed.height}px)`);
-      return;
-    }
-
-    const bounds = getSelectionBounds(ed.selectionMask, ed.width, ed.height);
-    if (!bounds) return;
-
-    const { minX, minY, w, h } = bounds;
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    const cCtx = c.getContext('2d');
-    const outData = cCtx.createImageData(w, h);
-
-    for (let sy = 0; sy < h; sy++) {
-      for (let sx = 0; sx < w; sx++) {
-        const gIdx = (minY + sy) * ed.width + (minX + sx);
-        const dIdx = (sy * w + sx) * 4;
-        if (ed.selectionMask[gIdx]) {
-          outData.data[dIdx] = srcData.data[gIdx * 4];
-          outData.data[dIdx + 1] = srcData.data[gIdx * 4 + 1];
-          outData.data[dIdx + 2] = srcData.data[gIdx * 4 + 2];
-          outData.data[dIdx + 3] = srcData.data[gIdx * 4 + 3];
-        } else {
-          outData.data[dIdx + 3] = 0;
-        }
-      }
-    }
-
-    cCtx.putImageData(outData, 0, 0);
-    this.clipboard = { canvas: c, width: w, height: h, srcX: minX, srcY: minY };
-    ed._showHint(`選択範囲をコピーしました (${w}×${h}px)`);
+    this.clipboard = {
+      canvas: extracted.canvas,
+      width: extracted.width,
+      height: extracted.height,
+      srcX: extracted.srcX,
+      srcY: extracted.srcY
+    };
+    const label = extracted.isFull ? '全体画像をコピーしました' : '選択範囲をコピーしました';
+    ed._showHint(`${label} (${extracted.width}×${extracted.height}px)`);
   }
 
   pasteClipboard() {
@@ -152,6 +98,8 @@ export class PaintClipboardManager {
       return alert('コピーされた画像がありません。先に範囲を選択してコピーしてください。');
     }
     if (this.floatingLayer) this.commitFloatingLayer();
+
+    this._switchToPasteMoveTool();
 
     const c = document.createElement('canvas');
     c.width = this.clipboard.width;
@@ -180,6 +128,8 @@ export class PaintClipboardManager {
     const ed = this.editor;
     if (this.floatingLayer) this.commitFloatingLayer();
 
+    this._switchToPasteMoveTool();
+
     const w = srcCanvas.width;
     const h = srcCanvas.height;
     const c = document.createElement('canvas');
@@ -193,8 +143,14 @@ export class PaintClipboardManager {
       ed.selectionMask = null;
     }
 
-    const initX = pos ? Math.max(0, Math.min(ed.width - w, pos[0])) : Math.max(0, Math.floor((ed.width - w) / 2));
-    const initY = pos ? Math.max(0, Math.min(ed.height - h, pos[1])) : Math.max(0, Math.floor((ed.height - h) / 2));
+    let initX = pos ? Math.max(0, Math.min(ed.width - w, pos[0])) : Math.max(0, Math.floor((ed.width - w) / 2));
+    let initY = pos ? Math.max(0, Math.min(ed.height - h, pos[1])) : Math.max(0, Math.floor((ed.height - h) / 2));
+    if (!pos && ed.gridSnap && ed.gridSnap.enabled) {
+      const sw = Math.max(1, ed.gridSnap.stepW);
+      const sh = Math.max(1, ed.gridSnap.stepH);
+      initX = Math.floor(initX / sw) * sw;
+      initY = Math.floor(initY / sh) * sh;
+    }
 
     this.floatingLayer = {
       canvas: c,
@@ -208,7 +164,7 @@ export class PaintClipboardManager {
     this._updateFloatingBarUI();
     this._updateReimportBtnUI();
     ed._drawOverlay();
-    ed._showHint(`外部画像 (${name}: ${w}×${h}px) を配置しました。ドラッグで位置調整し「✓ 確定」で焼き込みます`);
+    ed._showHint(`外部画像 (${name}: ${w}×${h}px) を配置しました。ドラッグまたは矢印キーで位置調整し「✓ 確定」で焼き込みます`);
   }
 
   importExternalImage() {
@@ -282,29 +238,7 @@ export class PaintClipboardManager {
     const before = ed.repeatMgr ? ed.repeatMgr.snapshotBefore() : null;
 
     if (ed.selectionMask) {
-      const fl = this.floatingLayer;
-      const flData = fl.canvas.getContext('2d').getImageData(0, 0, fl.width, fl.height).data;
-      const dstImg = ed.ctx.getImageData(0, 0, ed.width, ed.height);
-      const dd = dstImg.data;
-      for (let sy = 0; sy < fl.height; sy++) {
-        const gy = fl.y + sy;
-        if (gy < 0 || gy >= ed.height) continue;
-        for (let sx = 0; sx < fl.width; sx++) {
-          const gx = fl.x + sx;
-          if (gx < 0 || gx >= ed.width) continue;
-          const gPos = gy * ed.width + gx;
-          if (!ed.selectionMask[gPos]) continue;
-          const sIdx = (sy * fl.width + sx) * 4;
-          if (flData[sIdx + 3] > 0) {
-            const dIdx = gPos * 4;
-            dd[dIdx] = flData[sIdx];
-            dd[dIdx + 1] = flData[sIdx + 1];
-            dd[dIdx + 2] = flData[sIdx + 2];
-            dd[dIdx + 3] = 255;
-          }
-        }
-      }
-      ed.ctx.putImageData(dstImg, 0, 0);
+      compositeFloatingWithSelectionMask(ed, this.floatingLayer);
       if (ed.repeatMgr && before) ed.repeatMgr.applyDiff(before);
     } else {
       ed.ctx.imageSmoothingEnabled = false;
@@ -333,7 +267,8 @@ export class PaintClipboardManager {
     const fl = this.floatingLayer;
     if (px >= fl.x && px < fl.x + fl.width && py >= fl.y && py < fl.y + fl.height) {
       this.isDraggingFloating = true;
-      this.floatingDragOffset = [px - fl.x, py - fl.y];
+      this.floatingDragStartPos = [fl.x, fl.y];
+      this.floatingDragStartMouse = [px, py];
       return true;
     }
     this.commitFloatingLayer();
@@ -342,9 +277,15 @@ export class PaintClipboardManager {
 
   handlePointerMove(px, py) {
     if (!this.isDraggingFloating || !this.floatingLayer) return false;
-    this.floatingLayer.x = px - this.floatingDragOffset[0];
-    this.floatingLayer.y = py - this.floatingDragOffset[1];
-    this.editor._drawOverlay();
+    const ed = this.editor;
+    const rawDx = px - this.floatingDragStartMouse[0];
+    const rawDy = py - this.floatingDragStartMouse[1];
+    const [dx, dy] = ed.gridSnap ? ed.gridSnap.snapDelta(rawDx, rawDy) : [rawDx, rawDy];
+    this.floatingLayer.x = this.floatingDragStartPos[0] + dx;
+    this.floatingLayer.y = this.floatingDragStartPos[1] + dy;
+    ed._drawOverlay();
+    const snapTag = (ed.gridSnap && ed.gridSnap.enabled) ? ` (スナップ ${ed.gridSnap.stepW}×${ed.gridSnap.stepH})` : '';
+    ed._showHint(`📌 貼付画像を移動中: (${this.floatingLayer.x}, ${this.floatingLayer.y}) ΔX=${dx}px, ΔY=${dy}px${snapTag}`);
     return true;
   }
 
@@ -356,10 +297,13 @@ export class PaintClipboardManager {
 
   handleKeyDown(e) {
     if (!this.floatingLayer) return false;
-    if (e.code === 'ArrowUp') { e.preventDefault(); this.floatingLayer.y -= 1; this.editor._drawOverlay(); return true; }
-    if (e.code === 'ArrowDown') { e.preventDefault(); this.floatingLayer.y += 1; this.editor._drawOverlay(); return true; }
-    if (e.code === 'ArrowLeft') { e.preventDefault(); this.floatingLayer.x -= 1; this.editor._drawOverlay(); return true; }
-    if (e.code === 'ArrowRight') { e.preventDefault(); this.floatingLayer.x += 1; this.editor._drawOverlay(); return true; }
+    const ed = this.editor;
+    const stepX = (ed.gridSnap && ed.gridSnap.enabled) ? Math.max(1, ed.gridSnap.stepW) : 1;
+    const stepY = (ed.gridSnap && ed.gridSnap.enabled) ? Math.max(1, ed.gridSnap.stepH) : 1;
+    if (e.code === 'ArrowUp') { e.preventDefault(); this.floatingLayer.y -= stepY; ed._drawOverlay(); return true; }
+    if (e.code === 'ArrowDown') { e.preventDefault(); this.floatingLayer.y += stepY; ed._drawOverlay(); return true; }
+    if (e.code === 'ArrowLeft') { e.preventDefault(); this.floatingLayer.x -= stepX; ed._drawOverlay(); return true; }
+    if (e.code === 'ArrowRight') { e.preventDefault(); this.floatingLayer.x += stepX; ed._drawOverlay(); return true; }
     if (e.code === 'Enter') { e.preventDefault(); this.commitFloatingLayer(); return true; }
     if (e.code === 'Escape') { e.preventDefault(); this.cancelFloatingLayer(); return true; }
     return false;

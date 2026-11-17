@@ -85,7 +85,8 @@ export class PaintSelectionMover {
     const ed = this.editor;
     this.delta = ed.gridSnap ? ed.gridSnap.snapDelta(rawDx, rawDy) : [rawDx, rawDy];
     ed._drawOverlay();
-    ed._showHint(`↔️ 選択範囲を移動中: ΔX=${this.delta[0]}px, ΔY=${this.delta[1]}px`);
+    const snapTag = (ed.gridSnap && ed.gridSnap.enabled) ? ` (スナップ ${ed.gridSnap.stepW}×${ed.gridSnap.stepH})` : '';
+    ed._showHint(`↔️ 選択範囲を移動中: ΔX=${this.delta[0]}px, ΔY=${this.delta[1]}px${snapTag}`);
     return true;
   }
 
@@ -99,11 +100,15 @@ export class PaintSelectionMover {
   nudge(dx, dy) {
     const ed = this.editor;
     if (!ed.selectionMask) return false;
+    const stepX = (ed.gridSnap && ed.gridSnap.enabled) ? Math.max(1, ed.gridSnap.stepW) : 1;
+    const stepY = (ed.gridSnap && ed.gridSnap.enabled) ? Math.max(1, ed.gridSnap.stepH) : 1;
+    const actualDx = dx * stepX;
+    const actualDy = dy * stepY;
     if (!this.isMoving) {
       this._beginMove(0, 0);
     }
-    this._commitMove(dx, dy);
-    ed._showHint(`↔️ 選択範囲を移動しました (ΔX=${dx}px, ΔY=${dy}px)`);
+    this._commitMove(actualDx, actualDy);
+    ed._showHint(`↔️ 選択範囲を移動しました (ΔX=${actualDx}px, ΔY=${actualDy}px)`);
     return true;
   }
 
