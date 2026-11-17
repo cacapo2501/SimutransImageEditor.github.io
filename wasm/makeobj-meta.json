@@ -1,0 +1,14 @@
+{
+  "available": false,
+  "edition": "Standard",
+  "version": "",
+  "simutransVersion": "",
+  "banner": "",
+  "sourceRepo": "https://github.com/simutrans/simutrans",
+  "sourceRef": "",
+  "commit": "",
+  "license": "Artistic License 1.0",
+  "licenseFile": "./wasm/LICENSE_SIMUTRANS.txt",
+  "noticeFile": "./wasm/NOTICE.md",
+  "builtAt": ""
+}

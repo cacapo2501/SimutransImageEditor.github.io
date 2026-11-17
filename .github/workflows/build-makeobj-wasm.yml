@@ -1,0 +1,70 @@
+name: Build Simutrans Standard makeobj (WASM)
+
+on:
+  workflow_dispatch:
+    inputs:
+      simutrans_ref:
+        description: "Simutrans Standard のブランチまたはタグ (例: master / latest-release)"
+        required: false
+        default: "latest-release"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build-makeobj-wasm.yml"
+      - ".github/scripts/build_makeobj_wasm.py"
+
+permissions:
+  contents: write
+
+jobs:
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout editor repository
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Clone Simutrans Standard source
+        run: |
+          git clone --depth 1 --tags https://github.com/simutrans/simutrans.git /tmp/simutrans_src
+          REQ_REF="${{ github.event.inputs.simutrans_ref || 'latest-release' }}"
+          if [ "$REQ_REF" = "latest-release" ]; then
+            LATEST_TAG=$(git -C /tmp/simutrans_src tag --sort=-v:refname | grep -E '^v?[0-9]+' | head -n 1 || true)
+            if [ -n "$LATEST_TAG" ]; then
+              git -C /tmp/simutrans_src fetch --depth 1 origin "refs/tags/${LATEST_TAG}:refs/tags/${LATEST_TAG}"
+              git -C /tmp/simutrans_src checkout "$LATEST_TAG"
+              echo "SIMUTRANS_REF=$LATEST_TAG" >> "$GITHUB_ENV"
+            else
+              echo "SIMUTRANS_REF=master" >> "$GITHUB_ENV"
+            fi
+          else
+            git -C /tmp/simutrans_src fetch --depth 1 origin "$REQ_REF" || true
+            git -C /tmp/simutrans_src checkout "$REQ_REF" || git -C /tmp/simutrans_src checkout FETCH_HEAD
+            echo "SIMUTRANS_REF=$REQ_REF" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build makeobj WASM and license files
+        run: |
+          python3 .github/scripts/build_makeobj_wasm.py /tmp/simutrans_src "${SIMUTRANS_REF}"
+
+      - name: Commit and push wasm artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add wasm/makeobj.js wasm/makeobj.wasm wasm/makeobj-meta.json wasm/LICENSE_SIMUTRANS.txt wasm/NOTICE.md
+          if ! git diff --cached --quiet; then
+            git commit -m "build: update Simutrans Standard makeobj WASM (${SIMUTRANS_REF})"
+            git push
+          else
+            echo "No changes to commit."
+          fi
