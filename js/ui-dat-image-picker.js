@@ -46,11 +46,12 @@ export function renderFormatOptionsPanel(container, { objType, common, values, o
     return;
   }
 
-  const isVehAuto = fmt === 'auto' && objType === 'vehicle';
-  const showDirCount = isVehAuto || fmt === 'vehicle_freight';
-  const showFreightRow = fmt === 'vehicle_freight' || fmt === 'vehicle_freight_typed';
-  const showFreightType = fmt === 'vehicle_freight_typed';
-  const showReverse = fmt === 'vehicle_otrp_reverse' || fmt === 'vehicle_otrp_reverse_only';
+  const isVeh = objType === 'vehicle';
+  const isVehAuto = fmt === 'auto' && isVeh;
+  const showDirCount = isVeh && (isVehAuto || fmt === 'vehicle_freight');
+  const showFreightRow = isVeh && (fmt === 'vehicle_freight' || fmt === 'vehicle_freight_typed');
+  const showFreightType = isVeh && fmt === 'vehicle_freight_typed';
+  const showReverse = isVeh && (fmt === 'vehicle_otrp_reverse' || fmt === 'vehicle_otrp_reverse_only');
 
   if (!isVehAuto && !showFreightRow && !showReverse) {
     container.style.display = 'none';
@@ -213,17 +214,33 @@ export function renderDatImagePickerModalUI() {
               <div id="dat-picker-items-list"></div>
             </div>
             <div class="dat-field">
-              <label>クリック時の割当先</label>
-              <select id="sel-dat-picker-mode">
-                <option value="origin">EmptyImage / 基本開始位置 (Y, X)</option>
-                <option value="freight_row">FreightImage 開始行 (Y)</option>
-                <option value="reverse_row">OTRP Reverse 開始行 (Y)</option>
-                <option value="per_key">個別キーをクリックで1つずつ指定</option>
-              </select>
+              <label>クリック時の割当方法（下のキーを押しても個別指定になります）</label>
+              <div class="dat-picker-mode-tabs" id="dat-picker-mode-tabs">
+                <button type="button" class="dat-picker-mode-btn active" data-mode="origin" title="クリックしたセルを全体の開始位置(startRow, startCol)にします">📍 一括開始(Y,X)</button>
+                <button type="button" class="dat-picker-mode-btn" data-mode="per_key" title="下のキーを選び1つずつ個別の行・列へ割り当てます">🎯 個別キー指定</button>
+                <button type="button" class="dat-picker-mode-btn" data-mode="freight_row">📦 Freight行</button>
+                <button type="button" class="dat-picker-mode-btn" data-mode="reverse_row">🔁 Reverse行</button>
+              </div>
             </div>
-            <p class="desc-text" id="lbl-dat-picker-guide">右のキャンバスセルをクリックすると開始位置 (startRow, startCol) を設定します。</p>
+            <p class="desc-text" id="lbl-dat-picker-guide">右のセルをクリックすると全体の開始位置 (Y, X) を設定します。独自配置PNGは下のキーをクリックするか「🎯 個別キー指定」で1つずつ指定できます。</p>
             <div id="dat-picker-format-options" class="dat-format-options-box" style="display:none;"></div>
-            <div style="font-size:11px; font-weight:bold; color:#bbb; margin-top:2px;">出力イメージキー一覧</div>
+            <div class="row" style="justify-content:space-between; align-items:center; margin-top:2px;">
+              <span style="font-size:11px; font-weight:bold; color:#bbb;">出力イメージキー一覧</span>
+              <button type="button" class="btn-sm" id="btn-dat-picker-pin-all" title="現在の自動座標を全キーへ個別固定し、そのまま独自編集できるようにします">📌 全キー個別固定</button>
+            </div>
+            <div class="dat-picker-perkey-bar" id="dat-picker-perkey-bar" style="display:none;">
+              <div style="font-size:10px; color:#ffe885; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="lbl-dat-picker-active-key">選択キー: -</div>
+              <div class="row" style="gap:4px; align-items:center;">
+                <label style="font-size:10px; color:#bbb;">Y:</label>
+                <input type="number" id="inp-dat-picker-key-row" min="0">
+                <label style="font-size:10px; color:#bbb;">X:</label>
+                <input type="number" id="inp-dat-picker-key-col" min="0">
+                <button type="button" class="btn-sm" id="btn-dat-picker-key-clear" style="margin-left:auto;" title="選択中キーの個別指定だけ解除して自動位置に戻す">↺ 解除</button>
+              </div>
+              <label style="font-size:10px; color:#ccc; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input type="checkbox" id="chk-dat-picker-auto-advance" checked> キャンバスクリック後に次のキーへ進む
+              </label>
+            </div>
             <div id="dat-picker-key-list"></div>
           </aside>
           <div id="dat-picker-viewport">
@@ -272,75 +289,46 @@ export function renderDatPickerItemsList(items, activeIdx, onSelect) {
   });
 }
 
-// ピッカーキャンバス上のグリッド線・座標ラベル・割当セルハイライトを描画する
-export function drawDatPickerOverlay(ctx, { srcW, srcH, tileW, tileH, zoom, panX, panY, entries, otherEntries = [], mode, selectedKeyIdx }) {
-  const cols = Math.max(1, Math.ceil(srcW / tileW));
-  const rows = Math.max(1, Math.ceil(srcH / tileH));
+const PICKER_MODE_GUIDES = {
+  origin: 'セルをクリックすると全体の開始位置 (Y, X) を設定します。個別指定したい場合は下のキーをクリックするか「🎯 個別キー指定」を押してください。',
+  per_key: '【個別指定中】一覧で選んだ黄枠のキーを、右のセルクリックまたは下の Y/X 入力で個別に配置します。',
+  freight_row: 'セルをクリックするとその行を FreightImage 開始行 (Y) に設定します。',
+  reverse_row: 'セルをクリックするとその行を OTRP Reverse 開始行 (Y) に設定します。'
+};
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-  ctx.lineWidth = 1;
-  ctx.font = '10px Consolas, monospace';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-
-  for (let r = 0; r <= rows; r++) {
-    const y = Math.round(panY + r * tileH * zoom) + 0.5;
-    ctx.beginPath();
-    ctx.moveTo(panX, y);
-    ctx.lineTo(panX + cols * tileW * zoom, y);
-    ctx.stroke();
-  }
-  for (let c = 0; c <= cols; c++) {
-    const x = Math.round(panX + c * tileW * zoom) + 0.5;
-    ctx.beginPath();
-    ctx.moveTo(x, panY);
-    ctx.lineTo(x, panY + rows * tileH * zoom);
-    ctx.stroke();
-  }
-
-  if (tileW * zoom >= 26 && tileH * zoom >= 16) {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        ctx.fillText(`${r}.${c}`, panX + c * tileW * zoom + 3, panY + r * tileH * zoom + 2);
-      }
-    }
-  }
-
-  // 非選択アイテムの割当セルを薄紫で同時にプレビュー表示する
-  otherEntries.forEach((entry) => {
-    const rx = panX + entry.col * tileW * zoom;
-    const ry = panY + entry.row * tileH * zoom;
-    const rw = tileW * zoom;
-    const rh = tileH * zoom;
-    ctx.fillStyle = 'rgba(180, 140, 255, 0.12)';
-    ctx.fillRect(rx, ry, rw, rh);
-    ctx.strokeStyle = 'rgba(195, 160, 255, 0.55)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(rx + 1, ry + 1, Math.max(1, rw - 2), Math.max(1, rh - 2));
-    if (rw >= 24 && rh >= 18) {
-      ctx.font = 'bold 10px Consolas, monospace';
-      ctx.textBaseline = 'bottom';
-      ctx.fillStyle = 'rgba(210, 185, 255, 0.85)';
-      ctx.fillText(`#${entry.itemIdx + 1}`, rx + 3, ry + rh - 2);
-      ctx.textBaseline = 'top';
+// ピッカーの割当モードボタンとガイド文言を同期する
+export function syncDatPickerModeUI(mode, objType) {
+  document.querySelectorAll('.dat-picker-mode-btn').forEach(btn => {
+    const m = btn.dataset.mode;
+    btn.classList.toggle('active', m === mode);
+    if (m === 'freight_row' || m === 'reverse_row') {
+      btn.style.display = objType === 'vehicle' ? '' : 'none';
     }
   });
+  const guide = document.getElementById('lbl-dat-picker-guide');
+  if (guide) guide.textContent = PICKER_MODE_GUIDES[mode] || PICKER_MODE_GUIDES.origin;
+}
 
-  entries.forEach((entry, idx) => {
-    const rx = panX + entry.col * tileW * zoom;
-    const ry = panY + entry.row * tileH * zoom;
-    const rw = tileW * zoom;
-    const rh = tileH * zoom;
-    const isFocused = mode === 'per_key' && idx === selectedKeyIdx;
-    const isFreight = entry.key.startsWith('FreightImage');
-
-    ctx.fillStyle = isFocused
-      ? 'rgba(255, 210, 0, 0.28)'
-      : (isFreight ? 'rgba(255, 153, 0, 0.16)' : 'rgba(0, 229, 255, 0.16)');
-    ctx.fillRect(rx, ry, rw, rh);
-    ctx.strokeStyle = isFocused ? '#FFD200' : (isFreight ? '#FF9900' : '#00E5FF');
-    ctx.lineWidth = isFocused ? 2.5 : 1.5;
-    ctx.strokeRect(rx + 1, ry + 1, Math.max(1, rw - 2), Math.max(1, rh - 2));
-  });
+// 選択中キーの個別Y/X座標編集バーを更新する
+export function syncDatPickerPerKeyBar(activeItem, entries, selectedKeyIdx, mode) {
+  const bar = document.getElementById('dat-picker-perkey-bar');
+  if (!bar) return;
+  const target = entries[selectedKeyIdx];
+  if (!target || entries.length === 0) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = '';
+  const customCoords = activeItem?.common?.customImageCoords || {};
+  const isCustom = Boolean(customCoords[target.key]);
+  const lbl = document.getElementById('lbl-dat-picker-active-key');
+  if (lbl) {
+    lbl.textContent = `${mode === 'per_key' ? '🎯' : '🔎'} ${target.key}${isCustom ? ' [個別★]' : ' [自動]'}`;
+  }
+  const inpR = document.getElementById('inp-dat-picker-key-row');
+  const inpC = document.getElementById('inp-dat-picker-key-col');
+  if (inpR) inpR.value = String(target.row);
+  if (inpC) inpC.value = String(target.col);
+  const btnClr = document.getElementById('btn-dat-picker-key-clear');
+  if (btnClr) btnClr.disabled = !isCustom;
 }

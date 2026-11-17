@@ -11,6 +11,8 @@ export function cloneCommon(c) {
 export function cloneDatEntry(entry) {
   const values = { ...(entry.values || {}) };
   if (Array.isArray(values.climates)) values.climates = [...values.climates];
+  if (Array.isArray(values.fieldRefs)) values.fieldRefs = values.fieldRefs.map(f => ({ ...f }));
+  if (values.seasonMasks && typeof values.seasonMasks === 'object') values.seasonMasks = { ...values.seasonMasks };
   return {
     objType: entry.objType,
     common: cloneCommon(entry.common),
@@ -61,7 +63,10 @@ export function serializeDatProjectState(gen) {
       vehicleMode: document.getElementById('sel-dat-ai-vehicle-mode')?.value ?? pending.aiOptions?.vehicleMode ?? 'consist',
       carCount: document.getElementById('inp-dat-ai-car-count')?.value ?? pending.aiOptions?.carCount ?? '',
       userPrompt: document.getElementById('inp-dat-ai-prompt')?.value ?? pending.aiOptions?.userPrompt ?? '',
-      autoSeqRows: document.getElementById('chk-dat-ai-seq-rows')?.checked ?? pending.aiOptions?.autoSeqRows ?? true
+      autoSeqRows: document.getElementById('chk-dat-ai-seq-rows')?.checked ?? pending.aiOptions?.autoSeqRows ?? true,
+      buildCostMode: document.getElementById('sel-dat-ai-build-cost')?.value ?? pending.aiOptions?.buildCostMode ?? 'standard',
+      maintCostMode: document.getElementById('sel-dat-ai-maint-cost')?.value ?? pending.aiOptions?.maintCostMode ?? 'standard',
+      payloadMode: document.getElementById('sel-dat-ai-payload-eff')?.value ?? pending.aiOptions?.payloadMode ?? 'standard'
     }
   };
 }
@@ -86,6 +91,9 @@ export function applyPendingDatProjectUi(gen) {
       setV('sel-dat-ai-vehicle-mode', p.aiOptions.vehicleMode);
       setV('inp-dat-ai-car-count', p.aiOptions.carCount);
       setV('inp-dat-ai-prompt', p.aiOptions.userPrompt);
+      setV('sel-dat-ai-build-cost', p.aiOptions.buildCostMode);
+      setV('sel-dat-ai-maint-cost', p.aiOptions.maintCostMode);
+      setV('sel-dat-ai-payload-eff', p.aiOptions.payloadMode);
       const chk = document.getElementById('chk-dat-ai-seq-rows');
       if (chk && p.aiOptions.autoSeqRows !== undefined) chk.checked = Boolean(p.aiOptions.autoSeqRows);
     }

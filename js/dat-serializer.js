@@ -33,22 +33,26 @@ function serializeImages(lines, objType, v, common) {
   const prefix = String(common.imgPrefix || '').trim();
   if (!prefix || objType === 'good') return;
   const offsetStr = normalizeOffset(common.imgOffset);
+  const seasonPrefixes = v?._seasonPrefixes || common._seasonPrefixes || {};
   const { entries } = buildFormattedImages(objType, v, common);
   entries.forEach((e) => {
+    const entryPrefix = (e.season !== undefined && seasonPrefixes[String(e.season)])
+      ? seasonPrefixes[String(e.season)]
+      : prefix;
     if (e.metaLine) {
       lines.push(e.metaLine);
     } else if (e.customValTpl) {
       const rendered = e.customValTpl
-        .replace(/\{prefix\}/gi, prefix)
+        .replace(/\{prefix\}/gi, entryPrefix)
         .replace(/\{row\}/gi, String(e.row))
         .replace(/\{col\}/gi, String(e.col))
         .replace(/\{offset\}/gi, offsetStr)
         .replace(/\{dir\}/gi, e.dir || '');
       lines.push(`${e.key}=${rendered}`);
     } else if (e.isIcon) {
-      lines.push(`${e.key}=> ${prefix}.${e.row}.${e.col}`);
+      lines.push(`${e.key}=> ${entryPrefix}.${e.row}.${e.col}`);
     } else {
-      lines.push(`${e.key}=${imgRef(prefix, e.row, e.col, offsetStr)}`);
+      lines.push(`${e.key}=${imgRef(entryPrefix, e.row, e.col, offsetStr)}`);
     }
   });
 }
@@ -154,6 +158,19 @@ export function serializeDatObject(objType, values, common) {
     pushIfPresent(lines, 'OutputGood[0]', v.outputGood0);
     pushIfPresent(lines, 'OutputCapacity[0]', v.outputCapacity0);
     pushIfPresent(lines, 'OutputFactor[0]', v.outputFactor0);
+    pushIfPresent(lines, 'min_fields', v.min_fields);
+    pushIfPresent(lines, 'max_fields', v.max_fields);
+    pushIfPresent(lines, 'probability_to_spawn', v.probability_to_spawn);
+    if (Array.isArray(v.fieldRefs)) {
+      v.fieldRefs.filter(f => f && String(f.name || '').trim()).forEach((f, idx) => {
+        lines.push(`fields[${idx}]=${String(f.name).trim()}`);
+        pushIfPresent(lines, `production_per_field[${idx}]`, f.production);
+        pushIfPresent(lines, `spawn_weight[${idx}]`, f.weight);
+        pushIfPresent(lines, `storage_capacity[${idx}]`, f.capacity);
+      });
+    }
+  } else if (objType === 'field') {
+    pushFlagIfTrue(lines, 'has_snow', v.has_snow);
   } else if (objType === 'good') {
     pushIfPresent(lines, 'metric', v.metric);
     pushIfPresent(lines, 'catg', v.catg);

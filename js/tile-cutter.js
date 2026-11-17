@@ -205,7 +205,9 @@ export class TileCutterController {
     this.dimsViews = Math.max(1, Math.min(4, parseInt(state.dimsViews, 10) || 1));
     this.heightTiles = Math.max(1, Math.min(16, parseInt(state.heightTiles, 10) || 1));
     this.frames = objType === 'factory' ? 1 : Math.max(1, Math.min(16, parseInt(state.frames, 10) || 1));
-    this.seasons = Math.max(1, Math.min(2, parseInt(state.seasons, 10) || 1));
+    const hasExtSeason = state.seasonMasks && Object.values(state.seasonMasks).some(ref => ref && ref !== '__self__');
+    // 色違いマスクで別ファイルを使う場合は1画像あたり1季節分として切り出す
+    this.seasons = hasExtSeason ? 1 : Math.max(1, Math.min(2, parseInt(state.seasons, 10) || 1));
 
     const isMulti = this.dimsW > 1 || this.dimsH > 1 || this.heightTiles > 1;
     if (this.manualOverride === null) {

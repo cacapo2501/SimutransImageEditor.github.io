@@ -15,19 +15,39 @@ export const DIR_180_MAP = {
 };
 
 export const IMAGE_FORMAT_OPTIONS = [
-  { value: 'auto', label: '自動 (オブジェクト種別標準)' },
-  { value: 'vehicle_empty_8', label: '車両: 8方向 EmptyImage のみ' },
-  { value: 'vehicle_empty_4', label: '車両: 4方向 EmptyImage のみ' },
-  { value: 'vehicle_freight', label: '車両: EmptyImage + FreightImage[dir] (全貨物共通)' },
-  { value: 'vehicle_freight_typed', label: '車両: EmptyImage + FreightImageType[0] + [0][dir]' },
-  { value: 'vehicle_otrp_reverse', label: '車両: OTRP Reverse.pak 対応 (Empty + Reverse)' },
-  { value: 'vehicle_otrp_reverse_only', label: '車両: OTRP Reverse.pak 単独 (Reverse のみ)' },
-  { value: 'vehicle_image_8', label: '車両/車: 8方向 Image[dir]' },
-  { value: 'building_back', label: '建物: BackImage のみ' },
-  { value: 'building_front', label: '建物: FrontImage のみ' },
-  { value: 'building_both', label: '建物: BackImage + FrontImage' },
-  { value: 'custom_template', label: 'カスタムテンプレート書式' }
+  { value: 'auto', label: '自動 (オブジェクト種別標準)', objTypes: null },
+  { value: 'vehicle_empty_8', label: '車両: 8方向 EmptyImage のみ', objTypes: ['vehicle'] },
+  { value: 'vehicle_empty_4', label: '車両: 4方向 EmptyImage のみ', objTypes: ['vehicle'] },
+  { value: 'vehicle_freight', label: '車両: EmptyImage + FreightImage[dir] (全貨物共通)', objTypes: ['vehicle'] },
+  { value: 'vehicle_freight_typed', label: '車両: EmptyImage + FreightImageType[0] + [0][dir]', objTypes: ['vehicle'] },
+  { value: 'vehicle_otrp_reverse', label: '車両: OTRP Reverse.pak 対応 (Empty + Reverse)', objTypes: ['vehicle'] },
+  { value: 'vehicle_otrp_reverse_only', label: '車両: OTRP Reverse.pak 単独 (Reverse のみ)', objTypes: ['vehicle'] },
+  { value: 'vehicle_image_8', label: '車両/車: 8方向 Image[dir]', objTypes: ['vehicle', 'citycar'] },
+  { value: 'building_back', label: '建物: BackImage のみ', objTypes: ['building', 'factory'] },
+  { value: 'building_front', label: '建物: FrontImage のみ', objTypes: ['building', 'factory'] },
+  { value: 'building_both', label: '建物: BackImage + FrontImage', objTypes: ['building', 'factory'] },
+  { value: 'custom_template', label: 'カスタムテンプレート書式', objTypes: null }
 ];
+
+// 指定したオブジェクト種別で使用可能な画像指定形式のみ返す
+export function getImageFormatOptionsForObjType(objType) {
+  return IMAGE_FORMAT_OPTIONS.filter(o => !o.objTypes || o.objTypes.includes(objType));
+}
+
+// セレクト要素の選択肢を対象オブジェクト種別に合わせて再構築する
+export function populateImageFormatSelect(selectEl, objType, currentVal = 'auto') {
+  if (!selectEl) return 'auto';
+  const opts = getImageFormatOptionsForObjType(objType);
+  selectEl.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+  const next = opts.some(o => o.value === currentVal) ? currentVal : 'auto';
+  selectEl.value = next;
+  return next;
+}
+
+function hasExternalSeason(v, s) {
+  const ref = v?.seasonMasks && v.seasonMasks[String(s)];
+  return Boolean(ref && ref !== '__self__');
+}
 
 function buildBuildingEntries(objType, v, startRow, startCol, forcedLayer = null) {
   const entries = [];
@@ -41,6 +61,8 @@ function buildBuildingEntries(objType, v, startRow, startCol, forcedLayer = null
 
   const pushLayer = (layerPrefix) => {
     for (let s = 0; s < seasons; s++) {
+      // 色違いマスク等で別ファイルを割り当てた季節は、その画像内の先頭(0段目)を使用する
+      const rowSeason = hasExternalSeason(v, s) ? 0 : s;
       for (let a = 0; a < frames; a++) {
         for (let view = 0; view < views; view++) {
           // 奇数ビュー(90°/270°回転)では東西(W)と南北(H)のタイル数を入れ替える
@@ -50,9 +72,9 @@ function buildBuildingEntries(objType, v, startRow, startCol, forcedLayer = null
             for (let x = 0; x < viewW; x++) {
               for (let h = 0; h < heightTiles; h++) {
                 // 下段(h=0)が画像の下行になるよう逆順に割り当て
-                const row = startRow + s * (heightTiles * frames) + a * heightTiles + (heightTiles - 1 - h);
+                const row = startRow + rowSeason * (heightTiles * frames) + a * heightTiles + (heightTiles - 1 - h);
                 const col = startCol + view * (dimsW * dimsH) + y * viewW + x;
-                entries.push({ key: `${layerPrefix}[${view}][${y}][${x}][${h}][${a}][${s}]`, row, col });
+                entries.push({ key: `${layerPrefix}[${view}][${y}][${x}][${h}][${a}][${s}]`, row, col, season: s });
               }
             }
           }
@@ -146,7 +168,9 @@ export function buildFormattedImages(objType, values, common) {
   const c = common || {};
   if (objType === 'good') return { metaLines: [], entries: [] };
 
-  const format = c.imageFormat && c.imageFormat !== 'auto' ? c.imageFormat : null;
+  const rawFormat = c.imageFormat && c.imageFormat !== 'auto' ? c.imageFormat : null;
+  const allowedOpts = getImageFormatOptionsForObjType(objType);
+  const format = (rawFormat && allowedOpts.some(o => o.value === rawFormat)) ? rawFormat : null;
   const startRow = Math.max(0, parseInt(c.startRow, 10) || 0);
   const startCol = Math.max(0, parseInt(c.startCol, 10) || 0);
   const flipBase = Boolean(c.flipDirections);
@@ -236,13 +260,16 @@ export function buildFormattedImages(objType, values, common) {
     const seasons = Math.max(1, parseInt(v.seasons, 10) || 4);
     for (let age = 0; age < ages; age++) {
       for (let s = 0; s < seasons; s++) {
-        entries.push({ key: `Image[${age}][${s}]`, row: startRow + age, col: startCol + s });
+        const colSeason = hasExternalSeason(v, s) ? 0 : s;
+        entries.push({ key: `Image[${age}][${s}]`, row: startRow + age, col: startCol + colSeason, season: s });
       }
     }
-  } else if (objType === 'groundobj') {
+  } else if (objType === 'groundobj' || objType === 'field') {
     const seasons = Math.max(1, parseInt(v.seasons, 10) || 1);
     for (let s = 0; s < seasons; s++) {
-      entries.push({ key: `Image[0][${s}]`, row: startRow, col: startCol + s });
+      const colSeason = hasExternalSeason(v, s) ? 0 : s;
+      const key = objType === 'field' ? `Image[${s}]` : `Image[0][${s}]`;
+      entries.push({ key, row: startRow, col: startCol + colSeason, season: s });
     }
   } else {
     entries = buildInfraEntries(objType, v, startRow, startCol);

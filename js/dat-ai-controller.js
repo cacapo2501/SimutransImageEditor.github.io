@@ -71,6 +71,9 @@ export class DatAiController {
     const vehicleMode = document.getElementById('sel-dat-ai-vehicle-mode')?.value || 'consist';
     const carCount = (document.getElementById('inp-dat-ai-car-count')?.value || '').trim();
     const autoSeqRows = Boolean(document.getElementById('chk-dat-ai-seq-rows')?.checked);
+    const buildCostMode = document.getElementById('sel-dat-ai-build-cost')?.value || 'standard';
+    const maintCostMode = document.getElementById('sel-dat-ai-maint-cost')?.value || 'standard';
+    const payloadMode = document.getElementById('sel-dat-ai-payload-eff')?.value || 'standard';
     const liveryName = this.gen.liveryMgr ? this.gen.liveryMgr.getActiveLiveryName() : '';
 
     return {
@@ -79,6 +82,9 @@ export class DatAiController {
       pakset,
       vehicleMode,
       carCount,
+      buildCostMode,
+      maintCostMode,
+      payloadMode,
       liveryName,
       imgPrefix: this.gen.common.imgPrefix,
       copyright: this.gen.common.copyright,

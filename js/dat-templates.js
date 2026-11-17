@@ -229,6 +229,6 @@ export const DAT_OBJECT_CATEGORIES = [
   },
   {
     groupLabel: '自然物・工場・貨物',
-    items: ['tree', 'groundobj', 'factory', 'good']
+    items: ['tree', 'groundobj', 'field', 'factory', 'good']
   }
 ];

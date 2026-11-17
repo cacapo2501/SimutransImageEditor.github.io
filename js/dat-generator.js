@@ -13,12 +13,16 @@ import {
 } from './dat-project-state.js';
 import { DatImagePicker } from './dat-image-picker.js';
 import { DatLiveryManager, buildMaskImagePrefix } from './dat-livery-manager.js';
+import { computeSeasonPrefixes, renderSeasonMaskPanel } from './dat-season-masks.js';
+import { populateImageFormatSelect } from './dat-image-formats.js';
+import { renderFactoryFieldsPanel } from './dat-factory-fields.js';
 
 function cloneDefaults(objType) {
   const tpl = DAT_OBJECT_TEMPLATES[objType];
   if (!tpl) return {};
   const copy = { ...tpl.defaults };
   if (Array.isArray(copy.climates)) copy.climates = [...copy.climates];
+  if (Array.isArray(copy.fieldRefs)) copy.fieldRefs = copy.fieldRefs.map(f => ({ ...f }));
   return copy;
 }
 
@@ -149,7 +153,11 @@ export class DatGeneratorController {
     };
     setVal('inp-dat-name', this.common.name);
     setVal('inp-dat-copyright', this.common.copyright);
-    setVal('sel-dat-image-format', this.common.imageFormat || 'auto');
+    this.common.imageFormat = populateImageFormatSelect(
+      document.getElementById('sel-dat-image-format'),
+      this.currentObjType,
+      this.common.imageFormat || 'auto'
+    );
     setVal('inp-dat-img-prefix', this.common.imgPrefix);
     setVal('inp-dat-start-row', this.common.startRow);
     setVal('inp-dat-start-col', this.common.startCol);
@@ -230,6 +238,10 @@ export class DatGeneratorController {
     if (tileCutRow) {
       tileCutRow.style.display = (this.currentObjType === 'building' || this.currentObjType === 'factory') ? '' : 'none';
     }
+    const flipLbl = document.getElementById('lbl-dat-flip-directions');
+    if (flipLbl) {
+      flipLbl.style.display = (this.currentObjType === 'vehicle' || this.currentObjType === 'citycar') ? '' : 'none';
+    }
     const imgFieldset = document.getElementById('fs-dat-image-settings');
     if (imgFieldset && tpl) {
       imgFieldset.style.display = tpl.supportsImages === false ? 'none' : '';
@@ -260,6 +272,17 @@ export class DatGeneratorController {
           this._syncCommonInputsFromState();
         }
       }
+      this._renderSeasonMaskPanel();
+      if (this.autoSync) this.regenerateOutput();
+      this.app?.markDirty?.();
+    });
+  }
+
+  _renderSeasonMaskPanel() {
+    const box = document.getElementById('dat-season-masks-box');
+    const state = this._getObjState(this.currentObjType);
+    renderSeasonMaskPanel(box, this.app, this.currentObjType, state, () => {
+      this.app?.tileCutter?.syncFromDat(this.currentObjType, state);
       if (this.autoSync) this.regenerateOutput();
       this.app?.markDirty?.();
     });
@@ -273,6 +296,13 @@ export class DatGeneratorController {
     this.aiCtrl.updateObjTypeVisibility(this.currentObjType);
     this._renderMainFormatOptions();
     this._renderDynamicFields();
+    this._renderSeasonMaskPanel();
+    renderFactoryFieldsPanel(
+      document.getElementById('dat-factory-fields-box'),
+      this,
+      this._getObjState(this.currentObjType),
+      () => { if (this.autoSync) this.regenerateOutput(); this.app?.markDirty?.(); }
+    );
     this.app?.tileCutter?.syncUI?.();
   }
 
@@ -324,6 +354,7 @@ export class DatGeneratorController {
 
   buildCurrentText() {
     const state = this._getObjState(this.currentObjType);
+    state._seasonPrefixes = computeSeasonPrefixes(this.app, state);
     return serializeDatObject(this.currentObjType, state, this.common);
   }
 

@@ -301,7 +301,11 @@ export const EXTRA_DAT_TEMPLATES = {
       inputFactor0: '',
       outputGood0: 'Kohle',
       outputCapacity0: '100',
-      outputFactor0: '100'
+      outputFactor0: '100',
+      min_fields: '',
+      max_fields: '',
+      probability_to_spawn: '',
+      fieldRefs: []
     },
     fields: [
       { key: 'Location', label: '立地 (Location)', type: 'select', options: [
@@ -332,7 +336,21 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'outputGood0', label: '出力貨物0 (OutputGood[0])', type: 'text', placeholder: '例: Stahl' },
       { key: 'outputCapacity0', label: '出力容量0 (OutputCapacity[0])', type: 'number', min: 0 },
       { key: 'outputFactor0', label: '出力生産率0 (OutputFactor[0])', type: 'number', min: 0 },
+      { key: 'min_fields', label: '最小フィールド数 (min_fields)', type: 'number', min: 0 },
+      { key: 'max_fields', label: '最大フィールド数 (max_fields)', type: 'number', min: 0 },
+      { key: 'probability_to_spawn', label: 'フィールド生成確率 (probability_to_spawn)', type: 'number', min: 0, max: 10000 },
       { key: 'climates', label: '気候 (climates)', type: 'climates', fullWidth: true }
+    ]
+  },
+
+  field: {
+    obj: 'field',
+    label: '畑・周辺フィールド (field)',
+    supportsImages: true,
+    defaults: { name: 'new_field', seasons: '1', has_snow: false },
+    fields: [
+      { key: 'seasons', label: '季節・パターン数 (Image[0..N-1])', type: 'number', min: 1, max: 4 },
+      { key: 'has_snow', label: '雪画像あり (has_snow=1)', type: 'checkbox' }
     ]
   },
 

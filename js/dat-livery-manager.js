@@ -143,6 +143,7 @@ export class DatLiveryManager {
         ? `🎭 全マスク(${count}塗装)を一括 --- 出力`
         : '🎭 全マスクを一括 --- 出力';
     }
+    this.gen._renderSeasonMaskPanel?.();
   }
 
   onAppMaskChanged() {

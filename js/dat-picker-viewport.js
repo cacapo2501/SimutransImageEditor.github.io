@@ -64,18 +64,40 @@ export function bindPickerViewportEvents(picker, modal) {
       picker.panMoved = false;
       picker.panStart = [e.clientX - picker.panX, e.clientY - picker.panY];
     });
+    canvas.addEventListener('mouseleave', () => {
+      if (picker.hoverCell) {
+        picker.hoverCell = null;
+        picker._renderCanvas();
+      }
+    });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   window.addEventListener('mousemove', (e) => {
-    if (!picker.isPanning || !modal?.open) return;
-    const nx = e.clientX - picker.panStart[0];
-    const ny = e.clientY - picker.panStart[1];
-    if (Math.hypot(nx - picker.panX, ny - picker.panY) > 4) picker.panMoved = true;
-    if (e.buttons !== 1 || picker.panMoved) {
-      picker.panX = nx;
-      picker.panY = ny;
-      picker._renderCanvas();
+    if (!modal?.open) return;
+    if (picker.isPanning) {
+      const nx = e.clientX - picker.panStart[0];
+      const ny = e.clientY - picker.panStart[1];
+      if (Math.hypot(nx - picker.panX, ny - picker.panY) > 4) picker.panMoved = true;
+      if (e.buttons !== 1 || picker.panMoved) {
+        picker.panX = nx;
+        picker.panY = ny;
+        picker._renderCanvas();
+      }
+      return;
+    }
+    if (e.target === canvas && picker.srcCanvas) {
+      const rect = canvas.getBoundingClientRect();
+      const ix = (e.clientX - rect.left - picker.panX) / picker.zoom;
+      const iy = (e.clientY - rect.top - picker.panY) / picker.zoom;
+      const next = (ix >= 0 && iy >= 0 && ix < picker.srcCanvas.width && iy < picker.srcCanvas.height)
+        ? { row: Math.floor(iy / picker.tileH), col: Math.floor(ix / picker.tileW) }
+        : null;
+      const prev = picker.hoverCell;
+      if ((prev?.row !== next?.row) || (prev?.col !== next?.col)) {
+        picker.hoverCell = next;
+        picker._renderCanvas();
+      }
     }
   });
 
@@ -84,5 +106,146 @@ export function bindPickerViewportEvents(picker, modal) {
     const wasClick = e.button === 0 && !picker.panMoved && modal?.open;
     picker.isPanning = false;
     if (wasClick && e.target === canvas) picker._handleCanvasClick(e.clientX, e.clientY);
+  });
+}
+
+function shortenKeyTag(key) {
+  const m = key.match(/^([A-Za-z0-9]+)(.*)$/);
+  if (!m) return key;
+  const head = m[1].startsWith('Empty') ? 'Emp' : m[1].startsWith('Freight') ? 'Frt' : m[1].startsWith('Back') ? 'Bk' : m[1].startsWith('Front') ? 'Fr' : m[1].slice(0, 4);
+  return `${head}${m[2]}`;
+}
+
+// ピッカーキャンバス上のグリッド線・座標ラベル・割当セル・ホバー枠を描画する
+export function drawDatPickerOverlay(ctx, { srcW, srcH, tileW, tileH, zoom, panX, panY, entries, otherEntries = [], mode, selectedKeyIdx, hoverCell }) {
+  const cols = Math.max(1, Math.ceil(srcW / tileW));
+  const rows = Math.max(1, Math.ceil(srcH / tileH));
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+  ctx.lineWidth = 1;
+  ctx.font = '10px Consolas, monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  for (let r = 0; r <= rows; r++) {
+    const y = Math.round(panY + r * tileH * zoom) + 0.5;
+    ctx.beginPath(); ctx.moveTo(panX, y); ctx.lineTo(panX + cols * tileW * zoom, y); ctx.stroke();
+  }
+  for (let c = 0; c <= cols; c++) {
+    const x = Math.round(panX + c * tileW * zoom) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, panY); ctx.lineTo(x, panY + rows * tileH * zoom); ctx.stroke();
+  }
+
+  if (tileW * zoom >= 26 && tileH * zoom >= 16) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        ctx.fillText(`${r}.${c}`, panX + c * tileW * zoom + 3, panY + r * tileH * zoom + 2);
+      }
+    }
+  }
+
+  // 非選択アイテムの割当セルを薄紫で同時プレビューする
+  otherEntries.forEach((entry) => {
+    const rx = panX + entry.col * tileW * zoom;
+    const ry = panY + entry.row * tileH * zoom;
+    const rw = tileW * zoom;
+    const rh = tileH * zoom;
+    ctx.fillStyle = 'rgba(180, 140, 255, 0.12)';
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeStyle = 'rgba(195, 160, 255, 0.55)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(rx + 1, ry + 1, Math.max(1, rw - 2), Math.max(1, rh - 2));
+    if (rw >= 24 && rh >= 18) {
+      ctx.font = 'bold 10px Consolas, monospace';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = 'rgba(210, 185, 255, 0.85)';
+      ctx.fillText(`#${entry.itemIdx + 1}`, rx + 3, ry + rh - 2);
+      ctx.textBaseline = 'top';
+    }
+  });
+
+  entries.forEach((entry, idx) => {
+    const rx = panX + entry.col * tileW * zoom;
+    const ry = panY + entry.row * tileH * zoom;
+    const rw = tileW * zoom;
+    const rh = tileH * zoom;
+    const isFocused = mode === 'per_key' && idx === selectedKeyIdx;
+    const isFreight = entry.key.startsWith('FreightImage');
+
+    ctx.fillStyle = isFocused ? 'rgba(255, 210, 0, 0.28)' : (isFreight ? 'rgba(255, 153, 0, 0.16)' : 'rgba(0, 229, 255, 0.16)');
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeStyle = isFocused ? '#FFD200' : (isFreight ? '#FF9900' : '#00E5FF');
+    ctx.lineWidth = isFocused ? 2.5 : 1.5;
+    ctx.strokeRect(rx + 1, ry + 1, Math.max(1, rw - 2), Math.max(1, rh - 2));
+
+    if (rw >= 34 && rh >= 24) {
+      ctx.font = isFocused ? 'bold 10px Consolas, monospace' : '10px Consolas, monospace';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = isFocused ? '#FFE875' : (isFreight ? '#FFC266' : '#80F2FF');
+      ctx.fillText(shortenKeyTag(entry.key), rx + 3, ry + rh - 2);
+      ctx.textBaseline = 'top';
+    }
+  });
+
+  if (hoverCell) {
+    const hx = panX + hoverCell.col * tileW * zoom;
+    const hy = panY + hoverCell.row * tileH * zoom;
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(hx + 1, hy + 1, Math.max(1, tileW * zoom - 2), Math.max(1, tileH * zoom - 2));
+    ctx.restore();
+  }
+}
+
+// ピッカー内の個別キー指定・全キー固定・解除イベントをバインドする
+export function bindPickerCustomKeyEvents(picker) {
+  document.querySelectorAll('.dat-picker-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      picker.setMode(btn.dataset.mode);
+      picker.refreshAll();
+    });
+  });
+
+  const onPerKeyInput = () => {
+    const active = picker._activeItem();
+    const target = picker._getCurrentEntries()[picker.selectedKeyIdx];
+    if (!active || !target) return;
+    const r = Math.max(0, parseInt(document.getElementById('inp-dat-picker-key-row')?.value, 10) || 0);
+    const c = Math.max(0, parseInt(document.getElementById('inp-dat-picker-key-col')?.value, 10) || 0);
+    if (!active.common.customImageCoords) active.common.customImageCoords = {};
+    active.common.customImageCoords[target.key] = { row: r, col: c };
+    picker.setMode('per_key');
+    picker.refreshAll();
+  };
+  document.getElementById('inp-dat-picker-key-row')?.addEventListener('input', onPerKeyInput);
+  document.getElementById('inp-dat-picker-key-col')?.addEventListener('input', onPerKeyInput);
+
+  document.getElementById('btn-dat-picker-key-clear')?.addEventListener('click', () => {
+    const active = picker._activeItem();
+    const target = picker._getCurrentEntries()[picker.selectedKeyIdx];
+    if (active?.common?.customImageCoords && target) {
+      delete active.common.customImageCoords[target.key];
+      if (Object.keys(active.common.customImageCoords).length === 0) active.common.customImageCoords = null;
+      picker.refreshAll();
+    }
+  });
+
+  document.getElementById('btn-dat-picker-pin-all')?.addEventListener('click', () => {
+    const active = picker._activeItem();
+    if (!active) return;
+    const entries = picker._getCurrentEntries();
+    if (!active.common.customImageCoords) active.common.customImageCoords = {};
+    entries.forEach(e => { active.common.customImageCoords[e.key] = { row: e.row, col: e.col }; });
+    picker.setMode('per_key');
+    picker.refreshAll();
+  });
+
+  document.getElementById('btn-dat-picker-reset-custom')?.addEventListener('click', () => {
+    const active = picker._activeItem();
+    if (active) active.common.customImageCoords = null;
+    picker.refreshAll();
   });
 }

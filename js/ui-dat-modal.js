@@ -86,7 +86,7 @@ export function renderDatModalUI() {
                 </select>
               </div>
               <div id="dat-main-format-options" class="dat-format-options-box mt-05" style="display:none;"></div>
-              <label class="dat-check-item mt-05">
+              <label class="dat-check-item mt-05" id="lbl-dat-flip-directions">
                 <input type="checkbox" id="chk-dat-flip-directions"> 車両・車の向きを180°反転 (S↔N, E↔W, SE↔NW, SW↔NE)
               </label>
               <div class="dat-field mt-05">
@@ -121,12 +121,13 @@ export function renderDatModalUI() {
                     <button type="button" id="btn-dat-tilecut-export" style="margin-left:auto;">✂️ カットPNG保存</button>
                   </div>
                 </div>
+                <div class="dat-field full-width" id="dat-season-masks-box" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
                 <div class="dat-field full-width">
                   <div class="btn-group">
-                    <button type="button" id="btn-dat-open-img-picker" class="btn-primary">🗺️ 編集中画像からGUIで指定</button>
+                    <button type="button" id="btn-dat-open-img-picker" class="btn-primary">🗺️ GUIで画像位置を指定 (一括 / 個別)</button>
                     <button type="button" id="btn-dat-clear-custom-img" style="display:none; flex:0 0 auto;">↺ 個別解除</button>
                   </div>
-                  <div class="info-text" id="lbl-dat-custom-img-status">画像位置: 開始行列 (Y, X) から自動展開</div>
+                  <div class="info-text" id="lbl-dat-custom-img-status">画像位置: 開始行列 (Y, X) から自動展開（独自配置PNGは上のGUIから個別指定）</div>
                 </div>
                 <div class="dat-field full-width">
                   <label>画像オフセット (,x,y 形式 / 省略可)</label>
@@ -138,6 +139,7 @@ export function renderDatModalUI() {
             <fieldset class="sub-panel">
               <legend>オブジェクト固有パラメータ</legend>
               <div id="dat-dynamic-fields" class="dat-field-grid"></div>
+              <div id="dat-factory-fields-box" class="dat-field full-width mt-05" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
             </fieldset>
 
             <fieldset class="sub-panel">
@@ -285,12 +287,8 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
     gen.currentObjType = e.target.value;
     if (!gen.common.name || gen.common.name === prevDefault) {
       gen.common.name = gen._deriveAddonNameFromApp(gen.currentObjType);
-      gen._syncCommonInputsFromState();
     }
-    gen._updatePresetVisibility();
-    gen.aiCtrl.updateObjTypeVisibility(gen.currentObjType);
-    gen._renderMainFormatOptions();
-    gen._renderDynamicFields();
+    gen._applyControllerStateToForm();
     if (gen.autoSync) gen.regenerateOutput();
     gen._updateSidebarStatus();
     gen.app?.markDirty?.();

@@ -3,14 +3,18 @@ import {
   renderDatImagePickerModalUI,
   renderFormatOptionsPanel,
   renderDatPickerItemsList,
-  drawDatPickerOverlay
+  syncDatPickerModeUI,
+  syncDatPickerPerKeyBar
 } from './ui-dat-image-picker.js';
 import { cloneDatEntry } from './dat-project-state.js';
+import { populateImageFormatSelect } from './dat-image-formats.js';
 import { RenderEngine } from './render-engine.js';
 import {
   buildPickerSourceCanvas,
   guessInitialTileSize,
-  bindPickerViewportEvents
+  bindPickerViewportEvents,
+  drawDatPickerOverlay,
+  bindPickerCustomKeyEvents
 } from './dat-picker-viewport.js';
 
 export class DatImagePicker {
@@ -27,10 +31,17 @@ export class DatImagePicker {
     this.tempItems = [];
     this.tempActiveIdx = 0;
     this.selectedKeyIdx = 0;
+    this.hoverCell = null;
 
     this.isPanning = false;
     this.panMoved = false;
     this.panStart = [0, 0];
+  }
+
+  setMode(nextMode) {
+    this.mode = nextMode || 'origin';
+    const active = this._activeItem();
+    syncDatPickerModeUI(this.mode, active?.objType || this.gen.currentObjType);
   }
 
   _activeItem() {
@@ -107,7 +118,11 @@ export class DatImagePicker {
     const active = this._activeItem();
     if (!active) return;
     const selFmt = document.getElementById('sel-dat-picker-format');
-    if (selFmt) selFmt.value = active.common.imageFormat || 'auto';
+    active.common.imageFormat = populateImageFormatSelect(selFmt, active.objType, active.common.imageFormat || 'auto');
+    const hasCustom = active.common.customImageCoords && Object.keys(active.common.customImageCoords).length > 0;
+    if (hasCustom) this.mode = 'per_key';
+    else if ((this.mode === 'freight_row' || this.mode === 'reverse_row') && active.objType !== 'vehicle') this.mode = 'origin';
+    syncDatPickerModeUI(this.mode, active.objType);
     this._renderFormatOptions();
   }
 
@@ -143,6 +158,7 @@ export class DatImagePicker {
       this.refreshAll();
     });
     this._renderKeyList();
+    syncDatPickerPerKeyBar(this._activeItem(), this._getCurrentEntries(), this.selectedKeyIdx, this.mode);
     this._renderCanvas();
     this._updateSelectionLabel();
   }
@@ -178,6 +194,7 @@ export class DatImagePicker {
       rowEl.innerHTML = `<span class="k-name">${entry.key}</span><span class="k-coord">.${entry.row}.${entry.col}${isCustom ? ' ★' : ''}</span>`;
       rowEl.onclick = () => {
         this.selectedKeyIdx = idx;
+        if (this.mode !== 'per_key') this.setMode('per_key');
         this.refreshAll();
       };
       listEl.appendChild(rowEl);
@@ -222,7 +239,8 @@ export class DatImagePicker {
       entries: this._getCurrentEntries(),
       otherEntries,
       mode: this.mode,
-      selectedKeyIdx: this.selectedKeyIdx
+      selectedKeyIdx: this.selectedKeyIdx,
+      hoverCell: this.hoverCell
     });
 
     const zLbl = document.getElementById('lbl-dat-picker-zoom');
@@ -283,7 +301,8 @@ export class DatImagePicker {
       if (target) {
         if (!active.common.customImageCoords) active.common.customImageCoords = {};
         active.common.customImageCoords[target.key] = { row, col };
-        if (this.selectedKeyIdx + 1 < entries.length) this.selectedKeyIdx += 1;
+        const autoAdv = document.getElementById('chk-dat-picker-auto-advance')?.checked !== false;
+        if (autoAdv && this.selectedKeyIdx + 1 < entries.length) this.selectedKeyIdx += 1;
       }
     }
     this.refreshAll();
@@ -344,26 +363,8 @@ export class DatImagePicker {
       this.refreshAll();
     });
 
-    document.getElementById('sel-dat-picker-mode')?.addEventListener('change', (e) => {
-      this.mode = e.target.value;
-      const guides = {
-        origin: 'セルをクリックすると EmptyImage / 基本開始位置 (Y, X) を設定します。',
-        freight_row: 'セルをクリックするとその行を FreightImage 開始行 (Y) に設定します。',
-        reverse_row: 'セルをクリックするとその行を OTRP Reverse 開始行 (Y) に設定します。',
-        per_key: '下のキーを選び、セルをクリックすると個別に座標を割り当てます。'
-      };
-      const guide = document.getElementById('lbl-dat-picker-guide');
-      if (guide) guide.textContent = guides[this.mode] || guides.origin;
-      this.refreshAll();
-    });
-
+    bindPickerCustomKeyEvents(this);
     bindPickerViewportEvents(this, modal);
-
-    document.getElementById('btn-dat-picker-reset-custom')?.addEventListener('click', () => {
-      const active = this._activeItem();
-      if (active) active.common.customImageCoords = null;
-      this.refreshAll();
-    });
 
     document.getElementById('btn-dat-picker-apply')?.addEventListener('click', () => {
       this.gen.applyImagePickerResult({

@@ -66,6 +66,27 @@ function describeFieldsSchema(objType) {
   }).join('\n');
 }
 
+const BUILD_COST_GUIDES = {
+  standard: '作成・購入コスト (cost) は pak セット標準バランスどおりに設定',
+  cheap: '作成・購入コスト効率を重視し、cost を pak 標準の約 0.6〜0.7 倍（低コスト）に設定',
+  budget: '超高効率・格安バランスとし、cost を pak 標準の約 0.3〜0.4 倍に設定',
+  expensive: '高級・高コスト車両/施設として、cost を pak 標準の約 1.4〜1.6 倍に設定',
+  luxury: '超高価・特注扱いとして、cost を pak 標準の約 2.2〜2.8 倍に設定'
+};
+
+const MAINT_COST_GUIDES = {
+  standard: '輸送・維持コスト (runningcost / maintenance) は pak 標準バランスどおりに設定',
+  high_eff: '輸送コスト効率（燃費・省メンテ）を優秀にし、runningcost / maintenance を標準の約 0.6〜0.7 倍に設定',
+  ultra_eff: '超省エネ・赤字回避重視とし、runningcost / maintenance を標準の約 0.35〜0.45 倍に設定',
+  heavy: '高維持費・重装備とし、runningcost / maintenance を標準の約 1.4〜1.6 倍に設定'
+};
+
+const PAYLOAD_EFF_GUIDES = {
+  standard: '積載量・容量・生産性 (payload / capacity / Productivity) は実車/標準に準拠',
+  high_cap: '収容効率を重視し、payload / capacity / Productivity を標準の約 1.3〜1.5 倍に設定',
+  express: '快適性・ゆとり重視とし、payload / capacity を標準の約 0.7〜0.8 倍に設定'
+};
+
 // 生成AI向けプロンプトを構築する
 export function buildDatAiPrompt({
   objType,
@@ -73,6 +94,9 @@ export function buildDatAiPrompt({
   pakset = 'pak64',
   vehicleMode = 'consist',
   carCount = '',
+  buildCostMode = 'standard',
+  maintCostMode = 'standard',
+  payloadMode = 'standard',
   liveryName = '',
   imgPrefix = 'base_combined',
   copyright = '',
@@ -128,6 +152,10 @@ obj = "${objType}" (${tpl ? tpl.label : objType})
 【対象 pak セットと数値バランス】
 ${pakInfo.label}
 ${pakInfo.guide}
+【コスト・効率指定バランス】
+- 作成コスト効率: ${BUILD_COST_GUIDES[buildCostMode] || BUILD_COST_GUIDES.standard}
+- 輸送/維持コスト効率: ${MAINT_COST_GUIDES[maintCostMode] || MAINT_COST_GUIDES.standard}
+- 積載/容量効率: ${PAYLOAD_EFF_GUIDES[payloadMode] || PAYLOAD_EFF_GUIDES.standard}
 ${vehicleRules}
 
 【画像・共通設定】

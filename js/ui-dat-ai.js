@@ -44,6 +44,36 @@ export function renderDatAiSectionHtml() {
           </div>
         </div>
 
+        <div class="dat-field-grid mt-05" id="dat-ai-cost-options-wrap">
+          <div class="dat-field">
+            <label>作成・購入コスト効率 (cost)</label>
+            <select id="sel-dat-ai-build-cost">
+              <option value="standard" selected>標準 (pak基準)</option>
+              <option value="cheap">高効率・低コスト (約0.65倍)</option>
+              <option value="budget">超高効率・格安 (約0.35倍)</option>
+              <option value="expensive">高コスト・豪華 (約1.5倍)</option>
+              <option value="luxury">超高コスト・試験 (約2.5倍)</option>
+            </select>
+          </div>
+          <div class="dat-field">
+            <label>輸送・維持コスト効率 (runningcost等)</label>
+            <select id="sel-dat-ai-maint-cost">
+              <option value="standard" selected>標準 (pak基準)</option>
+              <option value="high_eff">省エネ・高輸送効率 (約0.65倍)</option>
+              <option value="ultra_eff">超省エネ・低維持費 (約0.35倍)</option>
+              <option value="heavy">重維持費・高運行費 (約1.5倍)</option>
+            </select>
+          </div>
+          <div class="dat-field full-width">
+            <label>積載・収容効率バランス (payload / capacity / 生産性)</label>
+            <select id="sel-dat-ai-payload-eff">
+              <option value="standard" selected>標準 (実車・標準収容)</option>
+              <option value="high_cap">高収容・詰め込み重視 (約1.35倍)</option>
+              <option value="express">快適・少数高速重視 (約0.75倍)</option>
+            </select>
+          </div>
+        </div>
+
         <div class="dat-field mt-05">
           <label>生成したい実車・建物・設備名や特徴</label>
           <textarea id="inp-dat-ai-prompt" placeholder="例: JR東日本 E233系0番台 中央線 10両編成 / または 昭和レトロな木造駅舎"></textarea>

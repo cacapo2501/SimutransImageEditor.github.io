@@ -1,6 +1,7 @@
 import { serializeDatObject, downloadDatText } from './dat-serializer.js';
 import { flipCustomImageCoords180 } from './dat-image-formats.js';
 import { cloneCommon, cloneDatEntry } from './dat-project-state.js';
+import { computeSeasonPrefixes } from './dat-season-masks.js';
 
 function addRevSuffixToName(rawName) {
   const s = String(rawName || 'obj').trim();
@@ -189,7 +190,10 @@ export class DatCollectionManager {
     }
     this.saveActiveFromController();
     return this.items
-      .map(item => serializeDatObject(item.objType, item.values, item.common).trimEnd())
+      .map(item => {
+        const values = { ...item.values, _seasonPrefixes: computeSeasonPrefixes(this.gen.app, item.values) };
+        return serializeDatObject(item.objType, values, item.common).trimEnd();
+      })
       .join('\n---\n') + '\n';
   }
 

@@ -178,6 +178,53 @@
   background: #2e2a17;
 }
 
+.dat-picker-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.dat-picker-mode-btn {
+  padding: 5px 6px;
+  font-size: 11px;
+  border: 1px solid #3c4352;
+  border-radius: 3px;
+  background: #282c34;
+  color: #ccc;
+  cursor: pointer;
+  text-align: center;
+}
+
+.dat-picker-mode-btn:hover {
+  background: #333946;
+}
+
+.dat-picker-mode-btn.active {
+  border-color: #ffd200;
+  background: #3a3216;
+  color: #ffe885;
+  font-weight: bold;
+}
+
+.dat-picker-perkey-bar {
+  background: #1c2229;
+  border: 1px solid #485468;
+  border-radius: 4px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dat-picker-perkey-bar input[type="number"] {
+  width: 52px;
+  background: #141414;
+  border: 1px solid #444;
+  color: #eee;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
 .dat-picker-key-item.custom .k-coord {
   color: #ffd200;
 }
