@@ -1,4 +1,4 @@
-import { exportPaletteToFile, importPaletteFromFile, generateAircraftHeightRamp } from './paint-palette-ui.js';
+import { bindPaletteControls } from './paint-palette-actions.js';
 
 export class PaintInputController {
   constructor(editor) {
@@ -44,22 +44,7 @@ export class PaintInputController {
     bindClick('btn-commit-floating', () => ed.clipMgr.commitFloatingLayer());
     bindClick('btn-cancel-floating', () => ed.clipMgr.cancelFloatingLayer());
 
-    bindClick('btn-export-palette', () => exportPaletteToFile(ed));
-    bindClick('btn-import-palette', () => importPaletteFromFile(ed));
-    bindClick('btn-open-palette-blend', () => ed.dialogs.openPaletteBlendDialog());
-
-    bindClick('btn-add-aircraft-custom-color', async () => {
-      const picked = await ed.app.colorPicker.open(ed.currentColor || '#FF0000');
-      if (picked && ed.app.aircraftCtrl) {
-        const up = picked.toUpperCase();
-        const ac = ed.app.aircraftCtrl;
-        if (!ac.planPalette) ac.planPalette = [];
-        if (!ac.planPalette.includes(up)) ac.planPalette.push(up);
-        ed.currentColor = up;
-        ed._renderPaletteUI();
-      }
-    });
-    bindClick('btn-gen-aircraft-height-ramp', () => generateAircraftHeightRamp(ed));
+    bindPaletteControls(ed);
 
     bindClick('btn-paint-regen-mask', () => {
       if (ed.targetType !== 'mask') return;
@@ -88,25 +73,6 @@ export class PaintInputController {
       if (ed.selMover) ed.selMover.reset();
       ed._drawOverlay();
       ed._updateStatus();
-    });
-
-    bindClick('btn-gen-base-palette', () => {
-      const pm = ed.app.paletteManager;
-      pm.basePaletteConfig.brightestHex = document.getElementById('inp-gray-max').value.trim() || '#FEFEFE';
-      pm.basePaletteConfig.darkestHex = document.getElementById('inp-gray-min').value.trim() || '#404040';
-      pm.basePaletteConfig.steps = parseInt(document.getElementById('inp-gray-steps').value, 10) || 16;
-      pm.generateBasePalette();
-      ed.customDeftilePalette = null;
-      ed._renderPaletteUI();
-    });
-
-    bindClick('btn-add-mask-custom-color', async () => {
-      const picked = await ed.app.colorPicker.open(ed.currentColor || '#FFFFFF');
-      if (picked) {
-        ed.app.paletteManager.addColorToMaskPalette(picked);
-        ed.currentColor = picked;
-        ed._renderPaletteUI();
-      }
     });
 
     bindClick('btn-open-image-sampler', () => ed.dialogs.openSamplerModal());

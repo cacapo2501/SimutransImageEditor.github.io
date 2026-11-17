@@ -138,7 +138,6 @@ export function serializeDatObject(objType, values, common) {
     pushFlagIfTrue(lines, 'free_route', v.free_route);
     pushFlagIfTrue(lines, 'end_of_choose', v.end_of_choose);
     pushFlagIfTrue(lines, 'single_way', v.single_way);
-    pushFlagIfTrue(lines, 'frontdiagonal', v.frontdiagonal);
   } else if (objType === 'tree') {
     pushIfPresent(lines, 'DistributionWeight', v.DistributionWeight);
     pushIfPresent(lines, 'seasons', v.seasons);

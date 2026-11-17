@@ -147,6 +147,13 @@ export function restoreDatProjectState(gen, data) {
   gen.hasOpenedOnce = data.hasOpenedOnce !== undefined ? Boolean(data.hasOpenedOnce) : true;
   gen.common = cloneCommon({ ...createDefaultDatCommon(), ...(data.common || {}) });
   gen.stateByObj = data.stateByObj ? JSON.parse(JSON.stringify(data.stateByObj)) : {};
+  // 旧バージョンのハルシネーション値を安全な現行仕様へ正規化
+  if (gen.stateByObj['way-object']?.own_waytype === 'overhead_lines') {
+    gen.stateByObj['way-object'].own_waytype = 'electrified_track';
+  }
+  if (gen.stateByObj.roadsign && 'frontdiagonal' in gen.stateByObj.roadsign) {
+    delete gen.stateByObj.roadsign.frontdiagonal;
+  }
 
   const col = data.collection || {};
   gen.collectionMgr.items = Array.isArray(col.items) ? col.items.map(cloneDatEntry) : [];

@@ -147,7 +147,14 @@ export class PaintPaletteBlendController {
     const ed = this.editor;
     const pm = ed.app.paletteManager;
 
-    if (ed.targetType === 'deftile') {
+    if (ed.targetType === 'aircraftPlan') {
+      const ac = ed.app.aircraftCtrl;
+      if (ac) {
+        const merged = [...(ac.planPalette || [])];
+        this.generatedColors.forEach(c => { if (!merged.includes(c)) merged.push(c); });
+        ac.planPalette = merged;
+      }
+    } else if (ed.targetType === 'deftile') {
       const cur = getCurrentPaletteColors(ed);
       const merged = [...cur];
       this.generatedColors.forEach(c => { if (!merged.includes(c)) merged.push(c); });

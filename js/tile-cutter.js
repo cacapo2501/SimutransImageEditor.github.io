@@ -33,7 +33,7 @@ export function cutBuildingSheet(sourceCanvas, opts = {}) {
   const tileSize = Math.max(16, Math.min(512, parseInt(opts.tileSize, 10) || 64));
   const dimsW = Math.max(1, Math.min(16, parseInt(opts.dimsW, 10) || 1));
   const dimsH = Math.max(1, Math.min(16, parseInt(opts.dimsH, 10) || 1));
-  const dimsViews = Math.max(1, Math.min(4, parseInt(opts.dimsViews, 10) || 4));
+  const dimsViews = Math.max(1, Math.min(255, parseInt(opts.dimsViews, 10) || 4));
   const heightTiles = Math.max(1, Math.min(16, parseInt(opts.heightTiles, 10) || 1));
   const frames = Math.max(1, Math.min(16, parseInt(opts.frames, 10) || 1));
   const seasons = Math.max(1, Math.min(2, parseInt(opts.seasons, 10) || 1));
@@ -202,7 +202,7 @@ export class TileCutterController {
     if ((objType !== 'building' && objType !== 'factory') || !state) return;
     this.dimsW = Math.max(1, Math.min(16, parseInt(state.dimsW, 10) || 1));
     this.dimsH = Math.max(1, Math.min(16, parseInt(state.dimsH, 10) || 1));
-    this.dimsViews = Math.max(1, Math.min(4, parseInt(state.dimsViews, 10) || 1));
+    this.dimsViews = Math.max(1, Math.min(255, parseInt(state.dimsViews, 10) || 1));
     this.heightTiles = Math.max(1, Math.min(16, parseInt(state.heightTiles, 10) || 1));
     this.frames = objType === 'factory' ? 1 : Math.max(1, Math.min(16, parseInt(state.frames, 10) || 1));
     const hasExtSeason = state.seasonMasks && Object.values(state.seasonMasks).some(ref => ref && ref !== '__self__');
@@ -278,7 +278,7 @@ export class TileCutterController {
     setVal('sel-dat-tilecut-size', this.tileSize);
     setVal('inp-tilecut-w', this.dimsW);
     setVal('inp-tilecut-h', this.dimsH);
-    setVal('sel-tilecut-views', this.dimsViews);
+    setVal('inp-tilecut-views', this.dimsViews);
     setVal('inp-tilecut-height', this.heightTiles);
     setVal('inp-tilecut-ox', this.offsetX);
     setVal('inp-tilecut-oy', this.offsetY);
@@ -321,16 +321,11 @@ export class TileCutterController {
     };
     bindNum('inp-tilecut-w', 'dimsW', 1, 16);
     bindNum('inp-tilecut-h', 'dimsH', 1, 16);
+    bindNum('inp-tilecut-views', 'dimsViews', 1, 255);
     bindNum('inp-tilecut-height', 'heightTiles', 1, 16);
     document.getElementById('inp-tilecut-ox')?.addEventListener('input', (e) => { this.offsetX = parseInt(e.target.value, 10) || 0; this.app?.markDirty?.(); });
     document.getElementById('inp-tilecut-oy')?.addEventListener('input', (e) => { this.offsetY = parseInt(e.target.value, 10) || 0; this.app?.markDirty?.(); });
 
-    document.getElementById('sel-tilecut-views')?.addEventListener('change', (e) => {
-      this.dimsViews = parseInt(e.target.value, 10) || 4;
-      this.pushToDatState();
-      this.syncUI();
-      this.app?.markDirty?.();
-    });
     document.getElementById('sel-tilecut-size')?.addEventListener('change', (e) => {
       this.tileSize = parseInt(e.target.value, 10) || 64;
       this.syncUI();

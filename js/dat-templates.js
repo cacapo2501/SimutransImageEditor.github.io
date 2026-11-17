@@ -70,11 +70,26 @@ export const CORE_DAT_TEMPLATES = {
       { key: 'level', label: 'レベル / 規模 (level)', type: 'number', min: 0 },
       { key: 'dimsW', label: '幅タイル (dims W)', type: 'number', min: 1, max: 16 },
       { key: 'dimsH', label: '奥行タイル (dims H)', type: 'number', min: 1, max: 16 },
-      { key: 'dimsViews', label: '向き数 (dims Views)', type: 'select', options: [
-        { value: '1', label: '1方向' },
-        { value: '2', label: '2方向' },
-        { value: '4', label: '4方向' }
-      ] },
+      {
+        key: 'dimsViews',
+        label: '向き数 (dims Views)',
+        type: 'number_presets',
+        min: 1,
+        max: 255,
+        fullWidth: true,
+        presets: [
+          { value: '1', label: '1', title: '1方向 (固定)' },
+          { value: '2', label: '2', title: '2方向 (通過型駅/道路)' },
+          { value: '4', label: '4', title: '4方向 (終端/車庫/港)' },
+          { value: '8', label: '8', title: '8方向 (連節ホーム・拡張)' },
+          { value: '16', label: '16', title: '16方向 (片側表裏・OTRP拡張)' },
+          { value: '24', label: '24', title: '24方向 (OTRP斜め停留所等)' },
+          { value: '32', label: '32', title: '32方向 (OTRP拡張)' },
+          { value: '48', label: '48', title: '48方向 (OTRP斜め・勾配拡張)' },
+          { value: '64', label: '64', title: '64方向 (大規模拡張)' }
+        ],
+        hint: 'type=stop / OTRP斜め・勾配拡張を含め 1〜255 まで任意指定可'
+      },
       { key: 'heightTiles', label: '高さ段数 (H)', type: 'number', min: 1, max: 16 },
       { key: 'frames', label: 'アニメ枚数 (A)', type: 'number', min: 1, max: 16 },
       { key: 'seasons', label: '季節数 (S: 1=通常 / 2=雪有)', type: 'select', options: [

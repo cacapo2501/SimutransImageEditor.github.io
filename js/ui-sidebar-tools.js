@@ -172,11 +172,7 @@ export function renderSidebarToolAccordions() {
         </div>
         <div class="row mt-05" style="gap:4px;">
           <label style="font-size:11px;">向き:</label>
-          <select id="sel-tilecut-views" style="width:65px;">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="4" selected>4</option>
-          </select>
+          <input type="number" id="inp-tilecut-views" value="4" min="1" max="255" style="width:52px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
           <label style="font-size:11px;">ずらしX/Y:</label>
           <input type="number" id="inp-tilecut-ox" value="0" style="width:44px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
           <input type="number" id="inp-tilecut-oy" value="0" style="width:44px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">

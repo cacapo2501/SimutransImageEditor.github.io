@@ -102,21 +102,28 @@ export function renderFormatOptionsPanel(container, { objType, common, values, o
 
   if (objType === 'roadsign') {
     container.style.display = '';
-    appendCheck(container, '斜め画像 (Diagonal[0..N-1]) を出力', Boolean(v.includeDiagonal), (ck) => {
-      v.includeDiagonal = ck; rerenderAndNotify();
+    const baseCount = Math.max(1, Math.min(64, parseInt(v.signalStates, 10) || 4));
+    appendCheck(container, `前面画像 (FrontImage[0..${baseCount - 1}]) を出力`, Boolean(v.includeFrontImage), (ck) => {
+      v.includeFrontImage = ck; rerenderAndNotify();
     });
-    if (v.includeDiagonal) {
+    appendCheck(container, '斜め画像 (Diagonal[0..M-1]) を出力', Boolean(v.includeDiagonal), (ck) => {
+      v.includeDiagonal = ck;
+      if (ck && !v.diagonalStates) v.diagonalStates = String(baseCount * 2);
+      rerenderAndNotify();
+    });
+    appendCheck(container, '斜め前面画像 (FrontDiagonal[0..M-1]) を出力', Boolean(v.includeFrontDiagonal), (ck) => {
+      v.includeFrontDiagonal = ck;
+      if (ck && !v.diagonalStates) v.diagonalStates = String(baseCount * 2);
+      rerenderAndNotify();
+    });
+    if (v.includeDiagonal || v.includeFrontDiagonal) {
       const inpDiag = document.createElement('input');
       inpDiag.type = 'number';
-      inpDiag.min = '1';
-      inpDiag.max = '32';
-      inpDiag.value = v.diagonalStates ?? '4';
+      inpDiag.min = '4';
+      inpDiag.max = '128';
+      inpDiag.value = v.diagonalStates ?? String(baseCount * 2);
       inpDiag.oninput = () => { v.diagonalStates = inpDiag.value; onChange(); };
-      appendField(container, '斜め画像コマ数 (Diagonal[0..N-1])', inpDiag);
-
-      appendCheck(container, '斜め前面描画 (frontdiagonal=1)', Boolean(v.frontdiagonal), (ck) => {
-        v.frontdiagonal = ck; onChange();
-      });
+      appendField(container, `斜め画像コマ数 (makeobj推奨 Image×2 = ${baseCount * 2})`, inpDiag);
     }
     appendCheck(container, 'Cursor / Icon を出力', Boolean(v.includeCursorIcon), (ck) => {
       v.includeCursorIcon = ck; onChange();

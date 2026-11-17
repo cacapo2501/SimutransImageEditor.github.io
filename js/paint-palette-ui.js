@@ -1,4 +1,32 @@
-import { rgbToHsv, hsvToHex } from './color-utils.js';
+import { rgbToHsv } from './color-utils.js';
+
+export function getAircraftTotalHeightMeters() {
+  const raw = parseFloat(document.getElementById('inp-aircraft-height')?.value);
+  return Number.isFinite(raw) && raw > 0 ? raw : 12.5;
+}
+
+// 平面定義図パレットの基準全高表示と単位suffix/step/maxを現在値へ合わせる
+export function syncAircraftRampUI() {
+  const totalH = getAircraftTotalHeightMeters();
+  const refLbl = document.getElementById('lbl-aircraft-ramp-ref-height');
+  if (refLbl) refLbl.textContent = `基準全高: ${totalH.toFixed(1)} m (100% = 全高)`;
+
+  const unit = document.getElementById('sel-aircraft-ramp-unit')?.value || '%';
+  const maxInp = document.getElementById('inp-aircraft-ramp-max');
+  const minInp = document.getElementById('inp-aircraft-ramp-min');
+  const isMeters = unit === 'm';
+
+  document.querySelectorAll('.aircraft-ramp-unit-suffix').forEach((el) => {
+    el.textContent = isMeters ? 'm' : '%';
+  });
+
+  [maxInp, minInp].forEach((inp) => {
+    if (!inp) return;
+    inp.min = '0';
+    inp.max = isMeters ? String(totalH) : '100';
+    inp.step = isMeters ? '0.1' : '1';
+  });
+}
 
 const DEFAULT_AIRCRAFT_PALETTE = [
   '#FF0000', // 胴体用 (Hue 0)
@@ -45,31 +73,58 @@ export function getCurrentPaletteColors(editor) {
   return [...pm.maskPalette];
 }
 
-export function generateAircraftHeightRamp(editor) {
-  if (editor.targetType !== 'aircraftPlan') return;
-  const ac = editor.app.aircraftCtrl;
-  if (!ac) return;
+// 現在の編集対象パレットへ任意の色を追加する
+export function addColorToCurrentPalette(editor, hex) {
+  const up = String(hex || '').trim().toUpperCase();
+  if (!/^#[0-9A-F]{6}$/.test(up)) return false;
+  const pm = editor.app.paletteManager;
+  let added = false;
 
-  const cur = editor.currentColor || '#FF0000';
-  const r = parseInt(cur.slice(1, 3), 16) || 0;
-  const g = parseInt(cur.slice(3, 5), 16) || 0;
-  const b = parseInt(cur.slice(5, 7), 16) || 0;
-  const [h, s] = rgbToHsv(r, g, b);
-  const useS = s >= 15 ? s : 90;
-
-  const ramp = [];
-  for (let v = 100; v >= 10; v -= 10) {
-    const hex = hsvToHex(h, useS, v);
-    if (!ramp.includes(hex)) ramp.push(hex);
+  if (editor.targetType === 'aircraftPlan') {
+    const ac = editor.app.aircraftCtrl;
+    if (ac) {
+      if (!ac.planPalette) ac.planPalette = [...DEFAULT_AIRCRAFT_PALETTE];
+      if (!ac.planPalette.includes(up)) {
+        ac.planPalette.push(up);
+        added = true;
+      }
+    }
+  } else if (editor.targetType === 'deftile') {
+    if (!editor.customDeftilePalette || editor.customDeftilePalette.length === 0) {
+      editor.customDeftilePalette = getCurrentPaletteColors(editor);
+    }
+    if (!editor.customDeftilePalette.includes(up)) {
+      editor.customDeftilePalette.push(up);
+      added = true;
+    }
+  } else if (editor.targetType === 'mask') {
+    added = pm.addColorToMaskPalette(up);
+  } else {
+    added = pm.addColorToBasePalette(up);
   }
 
-  const merged = [...ramp];
-  (ac.planPalette || []).forEach(c => {
-    if (!merged.includes(c)) merged.push(c);
-  });
-  ac.planPalette = merged;
+  editor.currentColor = up;
   renderEditorPaletteUI(editor);
-  editor._showHint(`🌈 色相 H=${h}° の高さ(明度 100%〜10%)段階パレットを生成しました`);
+  return added;
+}
+
+// 現在の編集対象パレットから色を削除する
+export function removeColorFromCurrentPalette(editor, hex) {
+  const up = String(hex || '').trim().toUpperCase();
+  const pm = editor.app.paletteManager;
+  if (editor.targetType === 'mask') {
+    pm.removeColorFromMaskPalette(up);
+  } else if (editor.targetType === 'base') {
+    pm.removeColorFromBasePalette(up);
+  } else if (editor.targetType === 'deftile') {
+    if (!editor.customDeftilePalette || editor.customDeftilePalette.length === 0) {
+      editor.customDeftilePalette = getCurrentPaletteColors(editor);
+    }
+    editor.customDeftilePalette = editor.customDeftilePalette.filter(c => c !== up);
+  } else if (editor.targetType === 'aircraftPlan' && editor.app.aircraftCtrl) {
+    editor.app.aircraftCtrl.planPalette = (editor.app.aircraftCtrl.planPalette || []).filter(c => c !== up);
+  }
+  renderEditorPaletteUI(editor);
 }
 
 export function renderEditorPaletteUI(editor) {
@@ -85,12 +140,16 @@ export function renderEditorPaletteUI(editor) {
 
   if (baseTools) baseTools.style.display = editor.targetType === 'base' ? 'block' : 'none';
   if (maskTools) maskTools.style.display = editor.targetType === 'mask' ? 'block' : 'none';
-  if (aircraftTools) aircraftTools.style.display = editor.targetType === 'aircraftPlan' ? 'block' : 'none';
+  if (aircraftTools) {
+    aircraftTools.style.display = editor.targetType === 'aircraftPlan' ? 'block' : 'none';
+    if (editor.targetType === 'aircraftPlan') syncAircraftRampUI();
+  }
 
   const colors = getCurrentPaletteColors(editor);
   if (emptyMsg) emptyMsg.style.display = colors.length === 0 ? 'block' : 'none';
 
   const maxFloors = editor.app.deftileBuilder?.getOptions().maxFloors || 4;
+  const totalHeightM = parseFloat(document.getElementById('inp-aircraft-height')?.value) || 12.5;
   const editableLimit = editor.targetType === 'base' ? pm.basePalette.length : colors.length;
 
   colors.forEach((hex, idx) => {
@@ -105,15 +164,16 @@ export function renderEditorPaletteUI(editor) {
       const g = parseInt(hex.slice(3, 5), 16) || 0;
       const b = parseInt(hex.slice(5, 7), 16) || 0;
       const [h, , v] = rgbToHsv(r, g, b);
-      btn.title = `${hex} (色相H=${h}° / 高さV=${v}% | ダブルクリック・長タップで編集 / 右クリックで削除)`;
+      const meters = ((v / 100) * totalHeightM).toFixed(2);
+      btn.title = `${hex} (色相H=${h}° / 高さV=${v}% ≈ ${meters}m | ダブルクリック・長タップで編集 / 右クリックで削除)`;
     } else if (editor.targetType === 'deftile') {
       const val = parseInt(hex.slice(1, 3), 16);
       const fl = ((val / 255) * maxFloors).toFixed(1);
-      btn.title = `${hex} (${fl}階相当 / ダブルクリック・長タップで編集)`;
+      btn.title = `${hex} (${fl}階相当 / ダブルクリック・長タップで編集 / 右クリックで削除)`;
     } else if (editor.targetType === 'mask') {
       btn.title = `${hex} (ダブルクリック・長タップで編集 / 右クリックで削除)`;
     } else {
-      btn.title = isEditable ? `${hex} (ダブルクリック・長タップで編集)` : `${hex} (特殊色)`;
+      btn.title = isEditable ? `${hex} (ダブルクリック・長タップで編集 / 右クリックで削除)` : `${hex} (特殊色)`;
     }
 
     const openColorEdit = async () => {
@@ -167,16 +227,11 @@ export function renderEditorPaletteUI(editor) {
       updateEditorCurrentColorUI(editor);
     };
 
-    if (editor.targetType === 'mask' || editor.targetType === 'aircraftPlan') {
+    if (isEditable) {
       btn.oncontextmenu = (e) => {
         e.preventDefault();
         if (confirm(`パレットから色 ${hex} を削除しますか？`)) {
-          if (editor.targetType === 'mask') {
-            pm.removeColorFromMaskPalette(hex);
-          } else if (editor.app.aircraftCtrl) {
-            editor.app.aircraftCtrl.planPalette = editor.app.aircraftCtrl.planPalette.filter(c => c !== hex);
-          }
-          renderEditorPaletteUI(editor);
+          removeColorFromCurrentPalette(editor, hex);
         }
       };
     }
@@ -195,90 +250,4 @@ export function updateEditorCurrentColorUI(editor) {
   const hx = document.getElementById('paint-current-color-hex');
   if (sw) sw.style.backgroundColor = editor.currentColor;
   if (hx) hx.textContent = editor.currentColor;
-}
-
-export function exportPaletteToFile(editor) {
-  const colors = getCurrentPaletteColors(editor);
-  const payload = {
-    type: 'simutrans_paint_palette',
-    version: '1.0',
-    target_type: editor.targetType,
-    colors
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `palette_${editor.targetType}.json`;
-  a.click();
-}
-
-export function importPaletteFromFile(editor) {
-  const inp = document.createElement('input');
-  inp.type = 'file';
-  inp.accept = '.json,application/json';
-  inp.onchange = () => {
-    const file = inp.files && inp.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(reader.result);
-        const rawColors = Array.isArray(parsed) ? parsed : (parsed.colors || []);
-        const validColors = rawColors
-          .filter(c => typeof c === 'string' && /^#[0-9A-Fa-f]{6}$/.test(c.trim()))
-          .map(c => c.trim().toUpperCase());
-
-        if (validColors.length === 0) {
-          alert('有効なカラーコード (#RRGGBB) が含まれていません。');
-          return;
-        }
-
-        const modal = document.getElementById('modal-palette-import');
-        const info = document.getElementById('lbl-palette-import-info');
-        if (!modal) return;
-
-        if (info) {
-          info.textContent = `「${file.name}」から ${validColors.length} 色を読み込みました。現在のパレットを置き換えますか、追加しますか？`;
-        }
-
-        const applyImport = (mode) => {
-          const pm = editor.app.paletteManager;
-          if (editor.targetType === 'aircraftPlan') {
-            const ac = editor.app.aircraftCtrl;
-            if (ac) {
-              if (mode === 'replace') ac.planPalette = [...validColors];
-              else {
-                const merged = [...(ac.planPalette || [])];
-                validColors.forEach(c => { if (!merged.includes(c)) merged.push(c); });
-                ac.planPalette = merged;
-              }
-            }
-          } else if (editor.targetType === 'deftile') {
-            if (mode === 'replace') editor.customDeftilePalette = [...validColors];
-            else {
-              const merged = [...getCurrentPaletteColors(editor)];
-              validColors.forEach(c => { if (!merged.includes(c)) merged.push(c); });
-              editor.customDeftilePalette = merged;
-            }
-          } else if (mode === 'replace') {
-            pm.replacePalette(editor.targetType, validColors);
-          } else {
-            pm.appendPalette(editor.targetType, validColors);
-          }
-          renderEditorPaletteUI(editor);
-          modal.close();
-        };
-
-        document.getElementById('btn-palette-import-replace').onclick = () => applyImport('replace');
-        document.getElementById('btn-palette-import-append').onclick = () => applyImport('append');
-        document.getElementById('btn-palette-import-cancel').onclick = () => modal.close();
-
-        modal.showModal();
-      } catch (err) {
-        alert('パレットJSONの読み込みに失敗しました: ' + err.message);
-      }
-    };
-    reader.readAsText(file);
-  };
-  inp.click();
 }

@@ -57,6 +57,9 @@ function describeFieldsSchema(objType) {
     let extra = '';
     if (f.options) {
       extra = ' 選択肢:[' + f.options.map(o => `"${o.value}"`).join(', ') + ']';
+    } else if (f.type === 'number_presets') {
+      const pList = (f.presets || []).map(p => `"${p.value}"`).join(', ');
+      extra = ` (数値文字列 ${f.min ?? 1}〜${f.max ?? 255}${pList ? ' / 代表値:[' + pList + ']' : ''})`;
     } else if (f.type === 'checkbox') {
       extra = ' (boolean: true/false)';
     } else if (f.type === 'climates') {

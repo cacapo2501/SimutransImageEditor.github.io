@@ -190,9 +190,32 @@ export function renderPaintModalUI() {
               <summary>✈️ 平面定義図パレット設定</summary>
               <div class="paint-accordion-body">
                 <p class="desc-text">色相(H)＝部品グループ、明度(V)＝高さ(100%=全高, 0%=0m)</p>
+                <div class="info-text" id="lbl-aircraft-ramp-ref-height">基準全高: 12.5 m</div>
+                <div class="row mt-05">
+                  <span>単位:</span>
+                  <select id="sel-aircraft-ramp-unit" class="snap-select-mini" style="flex:1;">
+                    <option value="%">% (全高比 0〜100%)</option>
+                    <option value="m">m (メートル)</option>
+                  </select>
+                </div>
+                <div class="row mt-05">
+                  <span>最大値:</span>
+                  <input type="number" id="inp-aircraft-ramp-max" value="100" min="0" max="100" step="1" class="num-input-mini" style="width:62px;">
+                  <span class="aircraft-ramp-unit-suffix" style="font-size:10px; color:#aaa;">%</span>
+                </div>
+                <div class="row mt-05">
+                  <span>最小値:</span>
+                  <input type="number" id="inp-aircraft-ramp-min" value="10" min="0" max="100" step="1" class="num-input-mini" style="width:62px;">
+                  <span class="aircraft-ramp-unit-suffix" style="font-size:10px; color:#aaa;">%</span>
+                </div>
+                <div class="row mt-05">
+                  <span>段階数:</span>
+                  <input type="number" id="inp-aircraft-ramp-steps" value="10" min="1" max="64" step="1" class="num-input-mini" style="width:62px;">
+                  <span style="font-size:10px; color:#aaa;">段階</span>
+                </div>
                 <div class="btn-group mt-05">
                   <button id="btn-add-aircraft-custom-color" class="btn-primary">＋ 任意色追加</button>
-                  <button id="btn-gen-aircraft-height-ramp" class="btn-primary" title="現在選択中の色の色相で高さ(明度)段階パレットを生成">🌈 高さ段階生成</button>
+                  <button id="btn-gen-aircraft-height-ramp" class="btn-primary" title="現在選択中の色の色相で指定範囲・段階数の高さパレットを生成">🌈 高さ段階生成</button>
                 </div>
                 <span class="info-text">※白(#FFFFFF)は余白扱い / 右クリックで削除</span>
               </div>
@@ -221,10 +244,14 @@ export function renderPaintModalUI() {
 
             <fieldset class="sub-panel" id="paint-palette-list-panel">
               <legend>カラーパレット一覧</legend>
-              <span class="info-text">※ダブルクリック/長タップで色編集</span>
+              <div class="btn-group" style="margin-bottom:4px;">
+                <button type="button" id="btn-palette-add-picked" class="btn-primary" title="カラーピッカーで任意の色を選んで現在のパレットに追加">＋ 色を追加</button>
+                <button type="button" id="btn-palette-add-current" title="現在の描画色（スポイト等で取得した色）を現在のパレットに登録">＋ 現在色登録</button>
+              </div>
+              <span class="info-text">※ダブルクリック/長タップで色編集 / 右クリックで削除</span>
               <div id="paint-palette-slots"></div>
               <div id="paint-palette-empty-msg" class="info-text" style="display:none; text-align:center; padding:10px 0;">
-                パレットは空です。<br>「＋ 任意色を追加」または「画像からスポイト」で色を追加してください。
+                パレットは空です。<br>「＋ 色を追加」または「画像からスポイト」で色を追加してください。
               </div>
             </fieldset>
           </aside>

@@ -177,15 +177,27 @@ function buildInfraEntries(objType, v, startRow, startCol) {
     entries.push({ key: 'closedimage[NS][0]', row: startRow + 1, col: startCol });
     entries.push({ key: 'closedimage[EW][0]', row: startRow + 1, col: startCol + 1 });
   } else if (objType === 'roadsign') {
-    const count = Math.max(1, Math.min(32, parseInt(v.signalStates, 10) || 4));
+    const count = Math.max(1, Math.min(64, parseInt(v.signalStates, 10) || 4));
     for (let i = 0; i < count; i++) {
       entries.push({ key: `Image[${i}]`, row: startRow, col: startCol + i });
     }
     let nextRow = startRow + 1;
+    if (v.includeFrontImage) {
+      for (let i = 0; i < count; i++) {
+        entries.push({ key: `FrontImage[${i}]`, row: nextRow, col: startCol + i });
+      }
+      nextRow += 1;
+    }
+    const diagCount = Math.max(1, Math.min(128, parseInt(v.diagonalStates, 10) || (count * 2)));
     if (v.includeDiagonal) {
-      const diagCount = Math.max(1, Math.min(32, parseInt(v.diagonalStates, 10) || count));
       for (let i = 0; i < diagCount; i++) {
         entries.push({ key: `Diagonal[${i}]`, row: nextRow, col: startCol + i });
+      }
+      nextRow += 1;
+    }
+    if (v.includeFrontDiagonal) {
+      for (let i = 0; i < diagCount; i++) {
+        entries.push({ key: `FrontDiagonal[${i}]`, row: nextRow, col: startCol + i });
       }
       nextRow += 1;
     }

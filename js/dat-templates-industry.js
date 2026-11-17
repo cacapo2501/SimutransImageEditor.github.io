@@ -88,11 +88,18 @@ export const INDUSTRY_DAT_TEMPLATES = (WAYTYPE_OPTIONS) => ({
       { key: 'MapColor', label: 'マップ色番号 (MapColor)', type: 'number', min: 0, max: 255 },
       { key: 'dimsW', label: '幅タイル (dims W)', type: 'number', min: 1, max: 16 },
       { key: 'dimsH', label: '奥行タイル (dims H)', type: 'number', min: 1, max: 16 },
-      { key: 'dimsViews', label: '向き数 (dims Views)', type: 'select', options: [
-        { value: '1', label: '1方向' },
-        { value: '2', label: '2方向' },
-        { value: '4', label: '4方向' }
-      ] },
+      {
+        key: 'dimsViews',
+        label: '向き数 (dims Views)',
+        type: 'number_presets',
+        min: 1,
+        max: 255,
+        presets: [
+          { value: '1', label: '1' },
+          { value: '2', label: '2' },
+          { value: '4', label: '4' }
+        ]
+      },
       { key: 'heightTiles', label: '高さ段数 (H)', type: 'number', min: 1, max: 16 },
       { key: 'seasons', label: '季節数 (1:通常 / 2:通常+雪)', type: 'select', options: [
         { value: '1', label: '1 (通常のみ)' },

@@ -70,12 +70,28 @@ export class PaletteManager {
     return this.basePalette;
   }
 
+  addColorToBasePalette(hex) {
+    const clean = hex.toUpperCase();
+    if (!this.basePalette.includes(clean)) {
+      this.basePalette.push(clean);
+      return true;
+    }
+    return false;
+  }
+
+  removeColorFromBasePalette(hex) {
+    const clean = hex.toUpperCase();
+    this.basePalette = this.basePalette.filter(c => c !== clean);
+  }
+
   addColorToMaskPalette(hex) {
     const clean = hex.toUpperCase();
     if (!this.maskPalette.includes(clean)) {
       this.maskPalette.push(clean);
       this._saveMaskPalette();
+      return true;
     }
+    return false;
   }
 
   removeColorFromMaskPalette(hex) {

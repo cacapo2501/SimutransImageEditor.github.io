@@ -124,16 +124,21 @@ function renderTunnelHint(k, w, h, large) {
 }
 
 function renderRoadsignHint(k, w, h, large) {
-  let m = k.match(/^Diagonal\[(\d+)\]$/);
+  let m = k.match(/^(Front)?Diagonal\[(\d+)\]$/);
   if (m) {
-    const inner = `<line x1="18" y1="13" x2="46" y2="31" stroke="#66FFB2" stroke-width="4.5" stroke-linecap="round"/>`
-      + `<circle cx="32" cy="22" r="4.5" fill="#FFD200"/>`;
-    return { label: `斜め画像 Diagonal[${m[1]}]`, svg: wrapDiamondSvg(inner, w, h, large) };
+    const isFront = Boolean(m[1]);
+    const color = isFront ? '#FFAA44' : '#66FFB2';
+    const inner = `<line x1="18" y1="13" x2="46" y2="31" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/>`
+      + `<circle cx="32" cy="22" r="4.5" fill="${isFront ? '#FF6644' : '#FFD200'}"/>`;
+    const prefix = isFront ? '斜め前面画像 FrontDiagonal' : '斜め画像 Diagonal';
+    return { label: `${prefix}[${m[2]}]`, svg: wrapDiamondSvg(inner, w, h, large) };
   }
-  m = k.match(/^Image\[(\d+)\]$/);
+  m = k.match(/^(Front)?Image\[(\d+)\]$/);
   if (m) {
-    const inner = `<circle cx="32" cy="22" r="6" fill="#00E5FF"/>`;
-    return { label: `標識/信号コマ Image[${m[1]}]`, svg: wrapDiamondSvg(inner, w, h, large) };
+    const isFront = Boolean(m[1]);
+    const inner = `<circle cx="32" cy="22" r="6" fill="${isFront ? '#FFAA44' : '#00E5FF'}"/>`;
+    const prefix = isFront ? '前面コマ FrontImage' : '標識/信号コマ Image';
+    return { label: `${prefix}[${m[2]}]`, svg: wrapDiamondSvg(inner, w, h, large) };
   }
   return null;
 }

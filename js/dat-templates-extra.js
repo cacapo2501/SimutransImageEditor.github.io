@@ -12,6 +12,15 @@ export const WAYTYPE_OPTIONS = [
   { value: 'air', label: 'air (航空)' }
 ];
 
+// way-object の own_waytype 用（makeobj の get_waytype() 準拠）
+export const OWN_WAYTYPE_OPTIONS = [
+  { value: 'electrified_track', label: 'electrified_track (架線・電化設備)' },
+  ...WAYTYPE_OPTIONS,
+  { value: 'decoration', label: 'decoration (装飾設備)' },
+  { value: 'power', label: 'power (送電線)' },
+  { value: 'none', label: 'none (種別なし)' }
+];
+
 export const CLIMATE_OPTIONS = [
   { value: 'water', label: 'water' },
   { value: 'desert', label: 'desert' },
@@ -76,7 +85,7 @@ export const EXTRA_DAT_TEMPLATES = {
     defaults: {
       name: 'new_catenary',
       waytype: 'track',
-      own_waytype: 'overhead_lines',
+      own_waytype: 'electrified_track',
       topspeed: '200',
       cost: '3000',
       maintenance: '100',
@@ -89,10 +98,7 @@ export const EXTRA_DAT_TEMPLATES = {
     },
     fields: [
       { key: 'waytype', label: '対象軌道 (waytype)', type: 'select', options: WAYTYPE_OPTIONS },
-      { key: 'own_waytype', label: '設備種別 (own_waytype)', type: 'select', options: [
-        { value: 'overhead_lines', label: 'overhead_lines (架線)' },
-        { value: 'electrified_track', label: 'electrified_track' }
-      ] },
+      { key: 'own_waytype', label: '設備種別 (own_waytype)', type: 'select', options: OWN_WAYTYPE_OPTIONS },
       { key: 'topspeed', label: '最高速度 (topspeed)', type: 'number', min: 1 },
       { key: 'cost', label: '建設費 (cost)', type: 'number', min: 0 },
       { key: 'maintenance', label: '維持費 (maintenance)', type: 'number', min: 0 },
@@ -232,9 +238,10 @@ export const EXTRA_DAT_TEMPLATES = {
       retire_year: '',
       retire_month: '',
       signalStates: '4',
+      includeFrontImage: false,
       includeDiagonal: false,
-      diagonalStates: '4',
-      frontdiagonal: false,
+      includeFrontDiagonal: false,
+      diagonalStates: '8',
       includeCursorIcon: true
     },
     fields: [
@@ -242,8 +249,8 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'cost', label: '建設費 (cost)', type: 'number', min: 0 },
       { key: 'maintenance', label: '維持費 (maintenance)', type: 'number', min: 0 },
       { key: 'min_speed', label: '最低速度 (min_speed)', type: 'number', min: 0 },
-      { key: 'signalStates', label: '画像コマ数 (Image[0..N-1])', type: 'number', min: 1, max: 32 },
-      { key: 'diagonalStates', label: '斜め画像コマ数 (Diagonal[0..N-1])', type: 'number', min: 1, max: 32 },
+      { key: 'signalStates', label: '画像コマ数 (Image[0..N-1] / 4の倍数)', type: 'number', min: 4, max: 64 },
+      { key: 'diagonalStates', label: '斜め画像コマ数 (Diagonal/FrontDiagonal, 基本 N×2)', type: 'number', min: 4, max: 128 },
       { key: 'intro_year', label: '登場年 (intro_year)', type: 'number', min: 1 },
       { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
       { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },
@@ -256,8 +263,9 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'free_route', label: 'チューズ / 経路選択 (free_route=1)', type: 'checkbox' },
       { key: 'end_of_choose', label: '選択終了 / 振分無効 (end_of_choose=1)', type: 'checkbox' },
       { key: 'single_way', label: '一方通行 (single_way=1)', type: 'checkbox' },
-      { key: 'includeDiagonal', label: '斜め画像 (Diagonal[0..N-1]) を出力', type: 'checkbox' },
-      { key: 'frontdiagonal', label: '斜め前面描画 (frontdiagonal=1)', type: 'checkbox' },
+      { key: 'includeFrontImage', label: '前面画像 (FrontImage[0..N-1]) を出力', type: 'checkbox' },
+      { key: 'includeDiagonal', label: '斜め画像 (Diagonal[0..M-1]) を出力', type: 'checkbox' },
+      { key: 'includeFrontDiagonal', label: '斜め前面画像 (FrontDiagonal[0..M-1]) を出力', type: 'checkbox' },
       { key: 'includeCursorIcon', label: 'Cursor / Icon を出力', type: 'checkbox' }
     ]
   },
