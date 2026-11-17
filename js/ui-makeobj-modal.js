@@ -89,6 +89,10 @@ export function renderMakeobjCompileModalUI() {
                 <button type="button" id="btn-mk-load-jatab" title="既存の ja.tab を読み込んで訳語を引き継ぎます">📂 ja.tab 読込</button>
               </div>
               <div class="dat-field mt-05">
+                <label>保存ファイル名 (デフォルト: ja_識別名.tab)</label>
+                <input type="text" id="inp-mk-jatab-name" value="ja.tab" placeholder="例: ja_addon.tab">
+              </div>
+              <div class="dat-field mt-05">
                 <textarea id="txt-mk-jatab" spellcheck="false" style="min-height:130px; font-family:Consolas, monospace;" placeholder="§#\nobject_name\n日本語表示名"></textarea>
               </div>
               <div class="btn-group mt-05">

@@ -26,7 +26,7 @@ import { renderDeftileModalUI } from './ui-deftile-modal.js';
 import { initMakeobjStatus } from './makeobj-service.js';
 
 // アプリケーションバージョン
-export const APP_VERSION = '5.0.0';
+export const APP_VERSION = '5.1.0';
 
 class AdvancedMultiplyApp {
   constructor() {

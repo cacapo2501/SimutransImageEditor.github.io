@@ -131,3 +131,26 @@ export function deriveSinglePakFilename(datFilename, baseName = '', objects = []
   const firstName = objects[0]?.name ? objects[0].name.replace(/\([^()]*\)$/, '').trim() : '';
   return `${firstName || 'addon'}.pak`;
 }
+
+/**
+ * ベース画像の識別部分から ja_(識別名).tab 形式のデフォルト保存ファイル名を生成する
+ */
+export function deriveJaTabFilename(baseName = '', fallbackName = '') {
+  const ignored = new Set(['def', 'paint', 'combined', 'cut', 'base']);
+  const tokens = String(baseName || '')
+    .replace(/\.png$/i, '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .split('_')
+    .map(t => t.trim())
+    .filter(Boolean)
+    .filter(t => !ignored.has(t.toLowerCase()));
+
+  let ident = tokens.join('_');
+  if (!ident && fallbackName) {
+    ident = String(fallbackName)
+      .replace(/\.(dat|pak|png)$/i, '')
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .trim();
+  }
+  return ident ? `ja_${ident}.tab` : 'ja.tab';
+}

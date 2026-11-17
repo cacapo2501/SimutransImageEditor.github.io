@@ -6,7 +6,8 @@ import {
   buildJaTabText,
   parseJaTabText,
   downloadJaTabText,
-  deriveSinglePakFilename
+  deriveSinglePakFilename,
+  deriveJaTabFilename
 } from './ja-tab-helper.js';
 import { downloadDatText } from './dat-serializer.js';
 import { loadMakeobjMeta, openMakeobjLicenseModal, runMakeobjCompile } from './makeobj-service.js';
@@ -125,6 +126,7 @@ export class MakeobjModalController {
     const datEl = document.getElementById('txt-mk-dat');
     const inpDat = document.getElementById('inp-mk-dat-name');
     const inpPak = document.getElementById('inp-mk-pak-name');
+    const inpTab = document.getElementById('inp-mk-jatab-name');
     const selPak = document.getElementById('sel-mk-pak-arg');
 
     const datText = this._buildInitialDatFromApp();
@@ -139,6 +141,9 @@ export class MakeobjModalController {
     }
     if (inpPak && (!keepUserNames || !inpPak.dataset.userEdited)) {
       inpPak.value = deriveSinglePakFilename(inpDat?.value, this.app?.baseName, objects);
+    }
+    if (inpTab && (!keepUserNames || !inpTab.dataset.userEdited)) {
+      inpTab.value = deriveJaTabFilename(this.app?.baseName, this.app?.datGenerator?.common?.name);
     }
     if (selPak && !selPak.dataset.userEdited) {
       const datSelPak = document.getElementById('sel-dat-makeobj-pak')?.value;
@@ -244,6 +249,7 @@ export class MakeobjModalController {
     document.getElementById('sel-mk-pak-arg')?.addEventListener('change', (e) => { e.target.dataset.userEdited = '1'; });
     document.getElementById('inp-mk-pak-name')?.addEventListener('input', (e) => { e.target.dataset.userEdited = '1'; });
     document.getElementById('inp-mk-dat-name')?.addEventListener('input', (e) => { e.target.dataset.userEdited = '1'; });
+    document.getElementById('inp-mk-jatab-name')?.addEventListener('input', (e) => { e.target.dataset.userEdited = '1'; });
     document.getElementById('txt-mk-dat')?.addEventListener('input', () => this._refreshObjectSummary());
 
     document.getElementById('btn-mk-sync-dat')?.addEventListener('click', () => this.syncFromDatEditor({ keepUserNames: false }));
@@ -298,7 +304,9 @@ export class MakeobjModalController {
     document.getElementById('btn-mk-save-jatab')?.addEventListener('click', () => {
       const txt = document.getElementById('txt-mk-jatab')?.value || '';
       if (!txt.trim()) return alert('保存する ja.tab が空です。');
-      downloadJaTabText(txt, 'ja.tab');
+      const fallback = deriveJaTabFilename(this.app?.baseName, this.app?.datGenerator?.common?.name);
+      const tabName = document.getElementById('inp-mk-jatab-name')?.value?.trim() || fallback;
+      downloadJaTabText(txt, tabName);
     });
 
     bindMakeobjModalAiEvents(this);
