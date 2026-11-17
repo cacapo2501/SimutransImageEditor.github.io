@@ -31,10 +31,9 @@ export function flipEditorTransform(editor, clipMgr, flipH, flipV) {
     return;
   }
 
-  editor._pushHistory();
-
   // 2. 選択範囲なしの全体反転
   if (!editor.selectionMask) {
+    editor._pushHistory();
     const c = document.createElement('canvas');
     c.width = editor.width;
     c.height = editor.height;
@@ -53,6 +52,7 @@ export function flipEditorTransform(editor, clipMgr, flipH, flipV) {
   // 3. 選択範囲内のピクセルとマスクの反転
   const bounds = getSelectionBounds(editor.selectionMask, editor.width, editor.height);
   if (!bounds) return;
+  editor._pushHistory();
   const { minX, minY, maxX, maxY } = bounds;
 
   const imgData = editor.ctx.getImageData(0, 0, editor.width, editor.height);

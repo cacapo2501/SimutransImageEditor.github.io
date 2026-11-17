@@ -220,7 +220,7 @@ export class PaintColorReplaceController {
       toRgb: hexToRgb(r.to)
     }));
 
-    ed._pushHistory();
+    const beforeSnap = ed._captureHistoryState ? ed._captureHistoryState() : null;
     const before = (selectionOnly && ed.repeatMgr) ? ed.repeatMgr.snapshotBefore() : null;
     const imgData = ed.ctx.getImageData(0, 0, ed.width, ed.height);
     const d = imgData.data;
@@ -248,8 +248,12 @@ export class PaintColorReplaceController {
       }
     }
 
-    ed.ctx.putImageData(imgData, 0, 0);
-    if (selectionOnly && ed.repeatMgr && before) ed.repeatMgr.applyDiff(before);
+    if (replacedCount > 0) {
+      if (beforeSnap) ed._pushHistory(beforeSnap);
+      else ed._pushHistory();
+      ed.ctx.putImageData(imgData, 0, 0);
+      if (selectionOnly && ed.repeatMgr && before) ed.repeatMgr.applyDiff(before);
+    }
     ed._drawOverlay();
     this.replaceModal.close();
     alert(`色置換が完了しました。（${replacedCount} ピクセルを置換）`);

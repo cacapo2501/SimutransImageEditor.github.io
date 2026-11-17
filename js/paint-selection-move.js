@@ -16,6 +16,7 @@ export class PaintSelectionMover {
     this.delta = [0, 0];
     this.origImageData = null;
     this.origMask = null;
+    this.beforeHistoryState = null;
     this.floatingPreview = null;
   }
 
@@ -39,7 +40,7 @@ export class PaintSelectionMover {
     const w = ed.width;
     const h = ed.height;
 
-    ed._pushHistory();
+    this.beforeHistoryState = ed._captureHistoryState ? ed._captureHistoryState() : null;
     this.isMoving = true;
     this.startPx = [px, py];
     this.delta = [0, 0];
@@ -114,6 +115,18 @@ export class PaintSelectionMover {
 
   _commitMove(dx, dy) {
     const ed = this.editor;
+    if (dx === 0 && dy === 0) {
+      if (this.origImageData) ed.ctx.putImageData(this.origImageData, 0, 0);
+      this.reset();
+      ed._drawOverlay();
+      ed._updateStatus();
+      return;
+    }
+    if (this.beforeHistoryState) {
+      ed._pushHistory(this.beforeHistoryState);
+    } else {
+      ed._pushHistory();
+    }
     const w = ed.width;
     const h = ed.height;
     const imgData = ed.ctx.getImageData(0, 0, w, h);

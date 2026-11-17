@@ -72,6 +72,7 @@ export class PaintEditor {
     this.undoStack = [];
     this.redoStack = [];
     this.maxUndo = 25;
+    this.initialMaskSnapshot = null;
   }
 
   _ensureInitialized() {
@@ -224,7 +225,9 @@ export class PaintEditor {
 
     this.undoStack = [];
     this.redoStack = [];
-    this._pushHistory();
+    this.initialMaskSnapshot = (this.targetType === 'base' && this.app.maskImage)
+      ? cloneCanvasFromSource(this.app.maskImage)
+      : null;
 
     this._renderPaletteUI();
     this.updateCursor();
@@ -271,11 +274,7 @@ export class PaintEditor {
       return;
     }
 
-    const latestState = this.undoStack[this.undoStack.length - 1];
-    if (this.targetType === 'base' && latestState && latestState.maskCanvas) {
-      this.app.applyBaseImage(outCanvas, this.app.baseName, { resetMask: false });
-      this.app.applyMaskImage(latestState.maskCanvas, this.app.maskName);
-    } else if (this.targetType === 'base') {
+    if (this.targetType === 'base') {
       this.app.applyBaseImage(outCanvas, this.app.baseName, { resetMask: false });
     } else {
       this.app.applyMaskImage(outCanvas, this.app.maskName);
@@ -288,17 +287,21 @@ export class PaintEditor {
 
   _cancelAndClose() {
     if (this.onionSkinMgr) this.onionSkinMgr.clearAll();
-    if (this.targetType === 'base' && this.undoStack.length > 0 && this.undoStack[0].maskCanvas) {
-      this.app.applyMaskImage(this.undoStack[0].maskCanvas, this.app.maskName);
+    if (this.targetType === 'base' && this.initialMaskSnapshot) {
+      this.app.applyMaskImage(this.initialMaskSnapshot, this.app.maskName);
       this.app.render();
     }
     this.modal.close();
   }
 
-  _pushHistory() {
+  _captureHistoryState() {
     const data = this.ctx.getImageData(0, 0, this.width, this.height);
     const maskSnap = (this.targetType === 'base' && this.app.maskImage) ? cloneCanvasFromSource(this.app.maskImage) : null;
-    this.undoStack.push({ imageData: data, width: this.width, height: this.height, maskCanvas: maskSnap });
+    return { imageData: data, width: this.width, height: this.height, maskCanvas: maskSnap };
+  }
+
+  _pushHistory(state = null) {
+    this.undoStack.push(state || this._captureHistoryState());
     if (this.undoStack.length > this.maxUndo) this.undoStack.shift();
     this.redoStack = [];
   }
@@ -330,16 +333,15 @@ export class PaintEditor {
 
   undo() {
     if (this.clipMgr && this.clipMgr.floatingLayer) { this.clipMgr.cancelFloatingLayer(); return; }
-    if (this.undoStack.length <= 1) return;
-    this.redoStack.push(this.undoStack.pop());
-    this._restoreHistoryState(this.undoStack[this.undoStack.length - 1]);
+    if (this.undoStack.length === 0) return;
+    this.redoStack.push(this._captureHistoryState());
+    this._restoreHistoryState(this.undoStack.pop());
   }
 
   redo() {
     if (this.redoStack.length === 0) return;
-    const next = this.redoStack.pop();
-    this.undoStack.push(next);
-    this._restoreHistoryState(next);
+    this.undoStack.push(this._captureHistoryState());
+    this._restoreHistoryState(this.redoStack.pop());
   }
 
   _renderPaletteUI() { renderEditorPaletteUI(this); }

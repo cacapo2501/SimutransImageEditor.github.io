@@ -91,6 +91,7 @@ export class PaintResizeController {
 
   resizeBaseAndMask(newW, newH, mode, anchor, fillHex = '#E7FFFF') {
     const ed = this.editor;
+    ed._pushHistory();
     const oldW = ed.width;
     const oldH = ed.height;
 
@@ -115,7 +116,6 @@ export class PaintResizeController {
 
     ed.selectionMask = null;
     ed.polyPoints = [];
-    ed._pushHistory();
     ed._updateTransform();
     ed._drawOverlay();
     ed._updateStatus();
