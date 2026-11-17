@@ -54,6 +54,7 @@ export function renderPaintModalUI() {
 
           <div class="paint-tool-group floating-bar" id="floating-action-bar" style="display:none;">
             <span style="font-size:10px; color:#00ff88; font-weight:bold;">貼付調整中:</span>
+            <button type="button" id="btn-edit-floating-text" style="display:none;" title="確定前に文字入力ウィンドウへ戻って再編集します">✏️ 文字編集</button>
             <button id="btn-commit-floating" class="btn-primary">✓ 確定 (Enter)</button>
             <button id="btn-cancel-floating">✕ 破棄 (Esc)</button>
           </div>

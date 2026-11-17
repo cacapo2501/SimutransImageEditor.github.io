@@ -32,6 +32,10 @@ export class PaintClipboardManager {
     if (bar) {
       bar.style.display = this.floatingLayer ? 'flex' : 'none';
     }
+    const btnEditText = document.getElementById('btn-edit-floating-text');
+    if (btnEditText) {
+      btnEditText.style.display = (this.floatingLayer && this.floatingLayer.isText) ? '' : 'none';
+    }
   }
 
   _updateReimportBtnUI() {
@@ -165,6 +169,51 @@ export class PaintClipboardManager {
     this._updateReimportBtnUI();
     ed._drawOverlay();
     ed._showHint(`外部画像 (${name}: ${w}×${h}px) を配置しました。ドラッグまたは矢印キーで位置調整し「✓ 確定」で焼き込みます`);
+  }
+
+  // 文字編集モーダルで作成したテキストキャンバスをフローティング配置する
+  placeTextFloatingLayer(srcCanvas, pos, textConfig, { replaceExisting = false } = {}) {
+    const ed = this.editor;
+    if (this.floatingLayer) {
+      if (replaceExisting) {
+        this.floatingLayer = null;
+      } else {
+        this.commitFloatingLayer();
+      }
+    }
+
+    this._switchToPasteMoveTool();
+
+    const w = srcCanvas.width;
+    const h = srcCanvas.height;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const cCtx = c.getContext('2d');
+    cCtx.imageSmoothingEnabled = false;
+    cCtx.drawImage(srcCanvas, 0, 0);
+
+    if (!ed.repeatMgr || !ed.repeatMgr.isActive()) {
+      ed.selectionMask = null;
+    }
+
+    const initX = Array.isArray(pos) ? pos[0] : 0;
+    const initY = Array.isArray(pos) ? pos[1] : 0;
+
+    this.floatingLayer = {
+      canvas: c,
+      width: w,
+      height: h,
+      x: initX,
+      y: initY,
+      isImported: false,
+      isText: true,
+      textConfig: { ...textConfig }
+    };
+
+    this._updateFloatingBarUI();
+    ed._drawOverlay();
+    ed._showHint(`🔤 文字 (${w}×${h}px) を配置中: ドラッグ/矢印キーで移動、「✏️ 文字編集」で再編集、「✓ 確定」で焼き込み`);
   }
 
   importExternalImage() {

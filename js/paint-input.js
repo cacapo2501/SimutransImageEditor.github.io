@@ -43,6 +43,7 @@ export class PaintInputController {
     bindClick('btn-paint-flip-v', () => ed.clipMgr.flipVertical());
     bindClick('btn-commit-floating', () => ed.clipMgr.commitFloatingLayer());
     bindClick('btn-cancel-floating', () => ed.clipMgr.cancelFloatingLayer());
+    bindClick('btn-edit-floating-text', () => ed.textCtrl.reopenFromFloating());
 
     bindPaletteControls(ed);
 
@@ -302,7 +303,8 @@ export class PaintInputController {
     const ed = this.editor;
     window.addEventListener('keydown', (e) => {
       if (!ed.modal || !ed.modal.open) return;
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (ed.textCtrl?.modal?.open) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
       if (ed.dialogs?.colorReplace?.isPicking()) {
         if (e.code === 'Escape') { e.preventDefault(); ed.dialogs.colorReplace.cancelCanvasPick(); return; }

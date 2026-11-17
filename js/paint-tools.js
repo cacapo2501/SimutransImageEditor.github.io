@@ -5,7 +5,6 @@ import {
   magicWandMask,
   colorSelectMask,
   rasterizePolygonMask,
-  renderTextPixels,
   drawSelectionOverlay,
   drawRectSelectionOverlay,
   drawGuidesOverlay
@@ -115,13 +114,8 @@ export class PaintToolHandler {
       ed.clipMgr.applySelectionMask(colorSelectMask(ed.ctx, ed.width, ed.height, spx, spy));
       ed.isDrawing = false;
     } else if (ed.currentTool === 'text') {
-      const text = prompt('挿入するテキストを入力してください:');
-      if (text) {
-        const fontSize = parseInt(prompt('フォントサイズ (px):', '10'), 10) || 10;
-        ed._pushHistory();
-        renderTextPixels(ed.width, ed.height, text, fontSize, spx, spy, (tx, ty) => ed._drawPixel(tx, ty));
-      }
       ed.isDrawing = false;
+      ed.textCtrl.openForNew(spx, spy);
     }
   }
 
@@ -304,7 +298,9 @@ export function updatePaintStatus(ed) {
     ed._showHint('選択範囲(新規): 範囲内をドラッグで移動 / 範囲外をクリックで選択解除');
   } else if (ed.currentTool === 'moveSel') {
     if (ed.clipMgr && ed.clipMgr.floatingLayer) {
-      ed._showHint('↔️ 貼り付け画像をドラッグまたは矢印キーで移動し、Enterまたは「✓ 確定」で確定します');
+      ed._showHint(ed.clipMgr.floatingLayer.isText
+        ? '↔️ 文字を移動中: ドラッグ/矢印キーで移動、「✏️ 文字編集」で再編集、Enterまたは「✓ 確定」で焼き込み'
+        : '↔️ 貼り付け画像をドラッグまたは矢印キーで移動し、Enterまたは「✓ 確定」で確定します');
     } else {
       ed._showHint(ed.selectionMask ? '↔️ 選択範囲の移動: 範囲内ドラッグまたは矢印キーで移動' : '⚠️ 先に選択ツールで範囲を指定してください');
     }

@@ -12,6 +12,8 @@ import { renderEditorPaletteUI, updateEditorCurrentColorUI } from './paint-palet
 import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 import { renderDeftileModalUI } from './ui-deftile-modal.js';
+import { renderPaintTextModalUI } from './ui-paint-text-modal.js';
+import { PaintTextController } from './paint-text-modal.js';
 
 const DRAWING_TOOLS = new Set(['pencil', 'line', 'rectFill', 'bucket', 'text']);
 const SELECT_TOOLS = new Set(['rectSelect', 'polySelect', 'wand', 'colorSelect']);
@@ -77,6 +79,7 @@ export class PaintEditor {
     renderPaintModalUI();
     renderSubModalsUI();
     renderDeftileModalUI();
+    renderPaintTextModalUI();
 
     this.modal = document.getElementById('modal-paint-editor');
     this.canvas = document.getElementById('paint-canvas');
@@ -100,12 +103,14 @@ export class PaintEditor {
     this.selMover = new PaintSelectionMover(this);
     this.gridSnap = new PaintGridSnapManager(this);
     this.rectHandles = new PaintRectHandlesController(this);
+    this.textCtrl = new PaintTextController(this);
 
     this.resizeCtrl.bindEvents();
     this.inputCtrl.bindAll();
     this.onionSkinMgr.bindEvents();
     this.repeatMgr.bindEvents();
     this.gridSnap.bindEvents();
+    this.textCtrl.bindEvents();
 
     const btnToggleLive = document.getElementById('btn-toggle-live-preview-size');
     if (btnToggleLive) {
