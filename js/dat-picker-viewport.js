@@ -35,42 +35,110 @@ export function guessInitialTileSize(w, h, objType, tileCutter = null) {
 }
 
 export function bindPickerViewportEvents(picker, modal) {
-  document.getElementById('btn-dat-picker-z-in')?.addEventListener('click', () => {
-    picker.zoom = Math.min(16, picker.zoom * 1.25);
-    picker._renderCanvas();
-  });
-  document.getElementById('btn-dat-picker-z-out')?.addEventListener('click', () => {
-    picker.zoom = Math.max(0.2, picker.zoom * 0.8);
-    picker._renderCanvas();
-  });
+  document.getElementById('btn-dat-picker-z-in')?.addEventListener('click', () => picker.zoomAt(picker.zoom * 1.25));
+  document.getElementById('btn-dat-picker-z-out')?.addEventListener('click', () => picker.zoomAt(picker.zoom * 0.8));
+  document.getElementById('btn-dat-picker-z-100')?.addEventListener('click', () => picker.zoomAt(1.0));
   document.getElementById('btn-dat-picker-z-fit')?.addEventListener('click', () => picker.zoomFit());
 
+  const btnPan = document.getElementById('btn-dat-picker-pan');
+  btnPan?.addEventListener('click', () => {
+    picker.panMode = !picker.panMode;
+    btnPan.classList.toggle('active', picker.panMode);
+    picker._updateCursor?.();
+  });
+
+  const vp = document.getElementById('dat-picker-viewport');
   const canvas = document.getElementById('dat-picker-canvas');
-  if (canvas) {
-    canvas.addEventListener('wheel', (e) => {
+  const targetEl = canvas || vp;
+  if (targetEl) {
+    targetEl.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
-      const nextZ = Math.max(0.2, Math.min(16, picker.zoom * (e.deltaY < 0 ? 1.25 : 0.8)));
-      picker.panX = cx - ((cx - picker.panX) / picker.zoom) * nextZ;
-      picker.panY = cy - ((cy - picker.panY) / picker.zoom) * nextZ;
-      picker.zoom = nextZ;
-      picker._renderCanvas();
+      const rect = targetEl.getBoundingClientRect();
+      picker.zoomAt(picker.zoom * (e.deltaY < 0 ? 1.25 : 0.8), [e.clientX - rect.left, e.clientY - rect.top]);
     }, { passive: false });
 
-    canvas.addEventListener('mousedown', (e) => {
+    targetEl.addEventListener('mousedown', (e) => {
       picker.isPanning = true;
-      picker.panMoved = false;
+      picker.panMoved = e.button !== 0 || picker.panMode || picker.spacePressed;
+      picker.dragOrigin = [e.clientX, e.clientY];
       picker.panStart = [e.clientX - picker.panX, e.clientY - picker.panY];
+      picker._updateCursor?.();
     });
-    canvas.addEventListener('mouseleave', () => {
+    targetEl.addEventListener('mouseleave', () => {
       if (picker.hoverCell) {
         picker.hoverCell = null;
         picker._renderCanvas();
       }
     });
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    targetEl.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // タッチ操作: 1本指ドラッグで移動／タップでセル選択、2本指ピンチで拡大縮小・移動
+    targetEl.addEventListener('touchstart', (e) => {
+      if (!picker.srcCanvas) return;
+      if (e.touches.length === 1) {
+        e.preventDefault();
+        const t = e.touches[0];
+        picker.touchState = {
+          mode: 'single',
+          moved: false,
+          startX: t.clientX,
+          startY: t.clientY,
+          panStartX: t.clientX - picker.panX,
+          panStartY: t.clientY - picker.panY
+        };
+      } else if (e.touches.length === 2) {
+        e.preventDefault();
+        const t1 = e.touches[0], t2 = e.touches[1];
+        const rect = targetEl.getBoundingClientRect();
+        picker.touchState = {
+          mode: 'pinch',
+          moved: true,
+          startDist: Math.max(1, Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)),
+          startZoom: picker.zoom,
+          startCenter: [((t1.clientX + t2.clientX) / 2) - rect.left, ((t1.clientY + t2.clientY) / 2) - rect.top],
+          startPan: [picker.panX, picker.panY]
+        };
+      }
+    }, { passive: false });
+
+    targetEl.addEventListener('touchmove', (e) => {
+      const ts = picker.touchState;
+      if (!ts) return;
+      if (e.touches.length === 1 && ts.mode === 'single') {
+        e.preventDefault();
+        const t = e.touches[0];
+        if (Math.hypot(t.clientX - ts.startX, t.clientY - ts.startY) > 6) ts.moved = true;
+        if (ts.moved || picker.panMode) {
+          picker.panX = t.clientX - ts.panStartX;
+          picker.panY = t.clientY - ts.panStartY;
+          picker._renderCanvas();
+        }
+      } else if (e.touches.length === 2 && ts.mode === 'pinch') {
+        e.preventDefault();
+        const t1 = e.touches[0], t2 = e.touches[1];
+        const curDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        const newZoom = Math.max(0.1, Math.min(32.0, ts.startZoom * (curDist / ts.startDist)));
+        const rect = targetEl.getBoundingClientRect();
+        const cx = ((t1.clientX + t2.clientX) / 2) - rect.left;
+        const cy = ((t1.clientY + t2.clientY) / 2) - rect.top;
+        const ix = (ts.startCenter[0] - ts.startPan[0]) / ts.startZoom;
+        const iy = (ts.startCenter[1] - ts.startPan[1]) / ts.startZoom;
+        picker.zoom = newZoom;
+        picker.panX = cx - ix * newZoom;
+        picker.panY = cy - iy * newZoom;
+        picker._renderCanvas();
+      }
+    }, { passive: false });
+
+    targetEl.addEventListener('touchend', (e) => {
+      const ts = picker.touchState;
+      if (ts && ts.mode === 'single' && !ts.moved && !picker.panMode && e.changedTouches.length > 0 && modal?.open) {
+        const t = e.changedTouches[0];
+        picker._handleCanvasClick(t.clientX, t.clientY);
+      }
+      if (e.touches.length === 0) picker.touchState = null;
+    });
+    targetEl.addEventListener('touchcancel', () => { picker.touchState = null; });
   }
 
   window.addEventListener('mousemove', (e) => {
@@ -78,16 +146,18 @@ export function bindPickerViewportEvents(picker, modal) {
     if (picker.isPanning) {
       const nx = e.clientX - picker.panStart[0];
       const ny = e.clientY - picker.panStart[1];
-      if (Math.hypot(nx - picker.panX, ny - picker.panY) > 4) picker.panMoved = true;
-      if (e.buttons !== 1 || picker.panMoved) {
+      if (Math.hypot(e.clientX - picker.dragOrigin[0], e.clientY - picker.dragOrigin[1]) > 4) {
+        picker.panMoved = true;
+      }
+      if (picker.panMoved) {
         picker.panX = nx;
         picker.panY = ny;
         picker._renderCanvas();
       }
       return;
     }
-    if (e.target === canvas && picker.srcCanvas) {
-      const rect = canvas.getBoundingClientRect();
+    if (e.target === targetEl && picker.srcCanvas) {
+      const rect = targetEl.getBoundingClientRect();
       const ix = (e.clientX - rect.left - picker.panX) / picker.zoom;
       const iy = (e.clientY - rect.top - picker.panY) / picker.zoom;
       const next = (ix >= 0 && iy >= 0 && ix < picker.srcCanvas.width && iy < picker.srcCanvas.height)
@@ -103,9 +173,36 @@ export function bindPickerViewportEvents(picker, modal) {
 
   window.addEventListener('mouseup', (e) => {
     if (!picker.isPanning) return;
-    const wasClick = e.button === 0 && !picker.panMoved && modal?.open;
+    const wasClick = e.button === 0 && !picker.panMoved && !picker.panMode && !picker.spacePressed && modal?.open;
     picker.isPanning = false;
-    if (wasClick && e.target === canvas) picker._handleCanvasClick(e.clientX, e.clientY);
+    picker._updateCursor?.();
+    if (wasClick && e.target === targetEl) picker._handleCanvasClick(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (!modal?.open) return;
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (!picker.spacePressed) {
+        picker.spacePressed = true;
+        picker._updateCursor?.();
+      }
+    } else if (e.key === '+' || e.key === '=') {
+      picker.zoomAt(picker.zoom * 1.25);
+    } else if (e.key === '-') {
+      picker.zoomAt(picker.zoom * 0.8);
+    } else if (e.key === '0') {
+      picker.zoomFit();
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' && picker.spacePressed) {
+      picker.spacePressed = false;
+      picker._updateCursor?.();
+    }
   });
 }
 
@@ -263,16 +360,19 @@ export function bindPickerToolbarEvents(picker) {
       picker.tileH = parseInt(btn.dataset.h, 10) || 64;
       document.getElementById('inp-dat-picker-tw').value = String(picker.tileW);
       document.getElementById('inp-dat-picker-th').value = String(picker.tileH);
+      picker._syncTilePresetUI?.();
       picker.refreshAll();
     });
   });
 
   document.getElementById('inp-dat-picker-tw')?.addEventListener('input', (e) => {
     picker.tileW = Math.max(8, Math.min(1024, parseInt(e.target.value, 10) || 64));
+    picker._syncTilePresetUI?.();
     picker._renderCanvas();
   });
   document.getElementById('inp-dat-picker-th')?.addEventListener('input', (e) => {
     picker.tileH = Math.max(8, Math.min(1024, parseInt(e.target.value, 10) || 64));
+    picker._syncTilePresetUI?.();
     picker._renderCanvas();
   });
 

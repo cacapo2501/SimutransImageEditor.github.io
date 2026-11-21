@@ -1,4 +1,4 @@
-/* GUI画像座標ピッカーモーダル & 形式別オプションパネル */
+/* GUI画像座標ピッカーモーダル 外枠・ツールバー・ビューポート・フッター */
 #modal-dat-image-picker {
   width: 92vw;
   height: 88vh;
@@ -26,6 +26,20 @@
   overflow: hidden;
 }
 
+#modal-dat-image-picker .dat-header {
+  min-height: 40px;
+  height: auto;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+}
+
+#lbl-dat-picker-img-size {
+  max-width: 42vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dat-picker-toolbar {
   min-height: 38px;
   background: #242424;
@@ -33,9 +47,32 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  padding: 4px 10px;
-  gap: 6px;
+  padding: 5px 10px;
+  gap: 5px;
   flex-shrink: 0;
+}
+
+.dat-picker-tb-lbl {
+  font-size: 11px;
+  color: #ccc;
+}
+
+.dat-picker-tb-unit {
+  font-size: 11px;
+  color: #aaa;
+}
+
+.dat-picker-toolbar button {
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
+.btn-dat-picker-preset.active,
+#btn-dat-picker-pan.active {
+  background: #005a9e;
+  border-color: #0078d4;
+  color: #fff;
+  font-weight: bold;
 }
 
 .dat-picker-toolbar input[type="number"],
@@ -48,236 +85,90 @@
   font-size: 11px;
 }
 
+.dat-picker-tile-input {
+  width: 54px;
+}
+
+#sel-dat-picker-format {
+  max-width: 240px;
+  min-width: 140px;
+}
+
 .dat-picker-zoom-group {
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
 
-.dat-picker-body {
-  flex: 1 1 0%;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-}
-
-.dat-picker-sidebar {
-  width: 300px;
-  min-width: 240px;
-  background: #232323;
-  border-right: 1px solid #383838;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow-y: auto;
-}
-
-.dat-format-options-box {
-  background: #1c2229;
-  border: 1px solid #354759;
-  border-radius: 4px;
-  padding: 6px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.dat-format-options-box .dat-field label {
-  font-size: 10px;
-  color: #b7d2eb;
-}
-
-#dat-picker-key-list {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.dat-picker-items-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 6px 8px;
-  border: 1px solid #3a4254;
-  border-radius: 4px;
-  background: #20242c;
-}
-
-.dat-picker-items-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: bold;
-  color: #cdd8ee;
-}
-
-#dat-picker-items-list {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-height: 145px;
-  overflow-y: auto;
-}
-
-.dat-picker-item-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 7px;
-  border-radius: 3px;
-  border: 1px solid #353944;
-  background: #262930;
-  color: #ccc;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.dat-picker-item-row:hover {
-  background: #303642;
-}
-
-.dat-picker-item-row.active {
-  border-color: #00E5FF;
-  background: #173440;
-  color: #fff;
-}
-
-.dat-picker-item-row .item-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
-
-.dat-picker-item-row .item-meta {
-  font-family: Consolas, monospace;
-  font-size: 10px;
-  color: #9bb4c8;
-  flex-shrink: 0;
-}
-
-.dat-picker-key-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 6px;
-  background: #1b1b1b;
-  border: 1px solid #333;
-  border-radius: 3px;
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.dat-picker-key-item.active {
-  border-color: #ffd200;
-  background: #2e2a17;
-}
-
-.dat-picker-mode-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-}
-
-.dat-picker-mode-btn {
-  padding: 5px 6px;
-  font-size: 11px;
-  border: 1px solid #3c4352;
-  border-radius: 3px;
-  background: #282c34;
-  color: #ccc;
-  cursor: pointer;
+.dat-picker-zoom-group .val-badge {
+  min-width: 42px;
   text-align: center;
 }
 
-.dat-picker-mode-btn:hover {
-  background: #333946;
-}
-
-.dat-picker-mode-btn.active {
-  border-color: #ffd200;
-  background: #3a3216;
-  color: #ffe885;
-  font-weight: bold;
-}
-
-.dat-picker-perkey-bar {
-  background: #1c2229;
-  border: 1px solid #485468;
-  border-radius: 4px;
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.dat-picker-perkey-bar input[type="number"] {
-  width: 52px;
-  background: #141414;
-  border: 1px solid #444;
-  color: #eee;
-  padding: 2px 4px;
-  font-size: 11px;
-}
-
-.dat-picker-key-item.custom .k-coord {
-  color: #ffd200;
-}
-
-.dat-picker-key-item .k-left {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.dat-way-hint-svg {
-  flex-shrink: 0;
-  display: block;
-}
-
-.dat-picker-way-hint {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
-  background: #141920;
-  border: 1px solid #354759;
-  border-radius: 3px;
-}
-
-.dat-way-hint-text {
+.btn-sm {
+  padding: 3px 7px;
   font-size: 10px;
-  line-height: 1.35;
-  color: #cfe6ff;
+  line-height: 1.25;
+  background: #2e3440;
+  border: 1px solid #485366;
+  color: #dce6f5;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.dat-picker-key-item .k-name {
-  font-family: Consolas, monospace;
-  color: #ddd;
+.btn-sm:hover:not(:disabled) {
+  background: #3b4454;
+  border-color: #62728c;
 }
 
-.dat-picker-key-item .k-coord {
-  font-family: Consolas, monospace;
-  color: #79d8ff;
+.btn-sm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 #dat-picker-viewport {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   position: relative;
   overflow: hidden;
   background: #121212;
   cursor: crosshair;
+  touch-action: none;
+  user-select: none;
 }
 
 #dat-picker-canvas {
   display: block;
   width: 100%;
   height: 100%;
+  touch-action: none;
+}
+
+.dat-picker-footer-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+#lbl-dat-picker-selection {
+  color: #b7c6d8;
+  font-size: 11px;
+}
+
+@media (max-width: 820px) {
+  #modal-dat-image-picker {
+    width: 96vw;
+    height: 92vh;
+    height: 92dvh;
+  }
+  #sel-dat-picker-format {
+    max-width: 100%;
+  }
 }

@@ -3,13 +3,15 @@ import {
   renderDatImagePickerModalUI,
   renderFormatOptionsPanel,
   renderDatPickerItemsList,
+  renderDatPickerKeyList,
   syncDatPickerModeUI,
-  syncDatPickerPerKeyBar
+  syncDatPickerPerKeyBar,
+  syncDatPickerPresetUI,
+  updateDatPickerCursor
 } from './ui-dat-image-picker.js';
 import { cloneDatEntry } from './dat-project-state.js';
 import { populateImageFormatSelect } from './dat-image-formats.js';
 import { RenderEngine } from './render-engine.js';
-import { getImageKeyHint } from './dat-infra-hints.js';
 import { bindPatternFileButtons } from './dat-image-pattern-io.js';
 import {
   buildPickerSourceCanvas,
@@ -38,7 +40,19 @@ export class DatImagePicker {
 
     this.isPanning = false;
     this.panMoved = false;
+    this.panMode = false;
+    this.spacePressed = false;
     this.panStart = [0, 0];
+    this.dragOrigin = [0, 0];
+    this.touchState = null;
+  }
+
+  _updateCursor() {
+    updateDatPickerCursor(this);
+  }
+
+  _syncTilePresetUI() {
+    syncDatPickerPresetUI(this.tileW, this.tileH);
   }
 
   setMode(nextMode) {
@@ -99,6 +113,11 @@ export class DatImagePicker {
     });
     this.selectedKeyIdx = 0;
     this.mode = 'origin';
+    this.panMode = false;
+    this.spacePressed = false;
+    document.getElementById('btn-dat-picker-pan')?.classList.remove('active');
+    this._syncTilePresetUI();
+    this._updateCursor();
 
     this._syncActiveItemControls();
 
@@ -178,33 +197,14 @@ export class DatImagePicker {
   }
 
   _renderKeyList() {
-    const listEl = document.getElementById('dat-picker-key-list');
     const active = this._activeItem();
-    if (!listEl || !active) return;
+    if (!active) return;
     const entries = this._getCurrentEntries();
     if (this.selectedKeyIdx >= entries.length) this.selectedKeyIdx = 0;
-
-    listEl.innerHTML = '';
-    if (entries.length === 0) {
-      listEl.innerHTML = '<div class="info-text">このオブジェクト種別には画像キーがありません。</div>';
-      return;
-    }
-
-    const customCoords = active.common.customImageCoords || {};
-    entries.forEach((entry, idx) => {
-      const rowEl = document.createElement('div');
-      const isSelected = idx === this.selectedKeyIdx;
-      const isCustom = Boolean(customCoords[entry.key]);
-      const hint = getImageKeyHint(active.objType, entry.key, { large: false });
-      rowEl.className = 'dat-picker-key-item' + (isSelected ? ' active' : '') + (isCustom ? ' custom' : '');
-      if (hint) rowEl.title = hint.label;
-      rowEl.innerHTML = `<span class="k-left">${hint ? hint.svg : ''}<span class="k-name">${entry.key}</span></span><span class="k-coord">.${entry.row}.${entry.col}${isCustom ? ' ★' : ''}</span>`;
-      rowEl.onclick = () => {
-        this.selectedKeyIdx = idx;
-        if (this.mode !== 'per_key') this.setMode('per_key');
-        this.refreshAll();
-      };
-      listEl.appendChild(rowEl);
+    renderDatPickerKeyList(active, entries, this.selectedKeyIdx, (idx) => {
+      this.selectedKeyIdx = idx;
+      if (this.mode !== 'per_key') this.setMode('per_key');
+      this.refreshAll();
     });
   }
 
@@ -252,6 +252,18 @@ export class DatImagePicker {
 
     const zLbl = document.getElementById('lbl-dat-picker-zoom');
     if (zLbl) zLbl.textContent = `${Math.round(this.zoom * 100)}%`;
+  }
+
+  zoomAt(nextZoom, anchor = null) {
+    const vp = document.getElementById('dat-picker-viewport');
+    if (!vp || !this.srcCanvas) return;
+    const clamped = Math.max(0.1, Math.min(32.0, nextZoom));
+    const ax = anchor ? anchor[0] : (vp.clientWidth || 600) / 2;
+    const ay = anchor ? anchor[1] : (vp.clientHeight || 420) / 2;
+    this.panX = ax - ((ax - this.panX) / this.zoom) * clamped;
+    this.panY = ay - ((ay - this.panY) / this.zoom) * clamped;
+    this.zoom = clamped;
+    this._renderCanvas();
   }
 
   zoomFit() {
@@ -357,6 +369,7 @@ export class DatImagePicker {
           const th = document.getElementById('inp-dat-picker-th');
           if (tw) tw.value = String(this.tileW);
           if (th) th.value = String(this.tileH);
+          this._syncTilePresetUI();
         }
         this.selectedKeyIdx = 0;
         this._syncActiveItemControls();

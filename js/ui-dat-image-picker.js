@@ -18,27 +18,29 @@ export function renderDatImagePickerModalUI() {
         </header>
 
         <div class="dat-picker-toolbar">
-          <span style="font-size:11px; color:#ccc;">タイル:</span>
+          <span class="dat-picker-tb-lbl">タイル:</span>
           <button type="button" class="btn-dat-picker-preset" data-w="32" data-h="32">32</button>
           <button type="button" class="btn-dat-picker-preset" data-w="64" data-h="64">64</button>
           <button type="button" class="btn-dat-picker-preset" data-w="96" data-h="96">96</button>
           <button type="button" class="btn-dat-picker-preset" data-w="128" data-h="128">128</button>
           <button type="button" class="btn-dat-picker-preset" data-w="192" data-h="192">192</button>
-          <input type="number" id="inp-dat-picker-tw" value="64" min="8" max="1024" style="width:52px;">
-          <span style="font-size:11px; color:#aaa;">×</span>
-          <input type="number" id="inp-dat-picker-th" value="64" min="8" max="1024" style="width:52px;">
-          <span style="font-size:11px; color:#aaa;">px</span>
+          <input type="number" id="inp-dat-picker-tw" class="dat-picker-tile-input" value="64" min="8" max="1024">
+          <span class="dat-picker-tb-unit">×</span>
+          <input type="number" id="inp-dat-picker-th" class="dat-picker-tile-input" value="64" min="8" max="1024">
+          <span class="dat-picker-tb-unit">px</span>
 
-          <span style="margin-left:6px; font-size:11px; color:#ccc;">形式:</span>
+          <span class="dat-picker-tb-lbl" style="margin-left:4px;">形式:</span>
           <select id="sel-dat-picker-format">
             ${fmtOpts}
           </select>
 
           <div class="dat-picker-zoom-group">
-            <button type="button" id="btn-dat-picker-z-out">－</button>
+            <button type="button" id="btn-dat-picker-pan" title="オンの間、左ドラッグでプレビュー画像を移動します（通常時もドラッグ・Space+ドラッグ・タッチ2本指で移動/拡縮可）">✋ 移動</button>
+            <button type="button" id="btn-dat-picker-z-out" title="縮小">－</button>
             <span id="lbl-dat-picker-zoom" class="val-badge">100%</span>
-            <button type="button" id="btn-dat-picker-z-in">＋</button>
-            <button type="button" id="btn-dat-picker-z-fit">全体</button>
+            <button type="button" id="btn-dat-picker-z-in" title="拡大">＋</button>
+            <button type="button" id="btn-dat-picker-z-100" title="等倍 (100%)">100%</button>
+            <button type="button" id="btn-dat-picker-z-fit" title="画像全体を画面に収める">全体</button>
           </div>
         </div>
 
@@ -66,21 +68,21 @@ export function renderDatImagePickerModalUI() {
             </div>
             <p class="desc-text" id="lbl-dat-picker-guide">右のセルをクリックすると全体の開始位置 (Y, X) を設定します。独自配置PNGは下のキーをクリックするか「🎯 個別キー指定」で1つずつ指定できます。</p>
             <div id="dat-picker-format-options" class="dat-format-options-box" style="display:none;"></div>
-            <div class="row" style="justify-content:space-between; align-items:center; margin-top:2px;">
-              <span style="font-size:11px; font-weight:bold; color:#bbb;">出力イメージキー一覧</span>
+            <div class="dat-picker-key-header">
+              <span>出力イメージキー一覧</span>
               <button type="button" class="btn-sm" id="btn-dat-picker-pin-all" title="現在の自動座標を全キーへ個別固定し、そのまま独自編集できるようにします">📌 全キー個別固定</button>
             </div>
             <div class="dat-picker-perkey-bar" id="dat-picker-perkey-bar" style="display:none;">
-              <div style="font-size:10px; color:#ffe885; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="lbl-dat-picker-active-key">選択キー: -</div>
+              <div class="dat-picker-active-key-lbl" id="lbl-dat-picker-active-key">選択キー: -</div>
               <div id="dat-picker-way-hint" class="dat-picker-way-hint" style="display:none;"></div>
-              <div class="row" style="gap:4px; align-items:center;">
-                <label style="font-size:10px; color:#bbb;">Y:</label>
+              <div class="dat-picker-perkey-inputs">
+                <label>Y:</label>
                 <input type="number" id="inp-dat-picker-key-row" min="0">
-                <label style="font-size:10px; color:#bbb;">X:</label>
+                <label>X:</label>
                 <input type="number" id="inp-dat-picker-key-col" min="0">
-                <button type="button" class="btn-sm" id="btn-dat-picker-key-clear" style="margin-left:auto;" title="選択中キーの個別指定だけ解除して自動位置に戻す">↺ 解除</button>
+                <button type="button" class="btn-sm" id="btn-dat-picker-key-clear" title="選択中キーの個別指定だけ解除して自動位置に戻す">↺ 解除</button>
               </div>
-              <label style="font-size:10px; color:#ccc; display:flex; align-items:center; gap:4px; cursor:pointer;">
+              <label class="dat-picker-perkey-check">
                 <input type="checkbox" id="chk-dat-picker-auto-advance" checked> キャンバスクリック後に次のキーへ進む
               </label>
             </div>
@@ -93,7 +95,7 @@ export function renderDatImagePickerModalUI() {
 
         <footer class="dat-footer">
           <span class="info-text" id="lbl-dat-picker-selection">開始位置: row=0, col=0</span>
-          <div class="row" style="margin-left:auto; width:auto;">
+          <div class="dat-picker-footer-actions">
             <button type="button" id="btn-dat-picker-load-pattern" title="保存済みの画像指定パターン(JSON)を読み込みます">📂 パターン読込</button>
             <button type="button" id="btn-dat-picker-save-pattern" title="現在の画像指定パターンを別ファイル(JSON)に保存します">💾 パターン保存</button>
             <button type="button" id="btn-dat-picker-reset-custom">↺ 個別割当をリセット</button>
@@ -188,4 +190,46 @@ export function syncDatPickerPerKeyBar(activeItem, entries, selectedKeyIdx, mode
       hintEl.innerHTML = '';
     }
   }
+}
+
+// タイルサイズプリセットボタンの選択状態を同期する
+export function syncDatPickerPresetUI(tileW, tileH) {
+  document.querySelectorAll('.btn-dat-picker-preset').forEach((btn) => {
+    const bw = parseInt(btn.dataset.w, 10);
+    const bh = parseInt(btn.dataset.h, 10);
+    btn.classList.toggle('active', bw === tileW && bh === tileH);
+  });
+}
+
+// ピッカーのビューポートカーソル状態を同期する
+export function updateDatPickerCursor({ isPanning, panMode, spacePressed }) {
+  const vp = document.getElementById('dat-picker-viewport');
+  if (!vp) return;
+  if (isPanning) vp.style.cursor = 'grabbing';
+  else if (panMode || spacePressed) vp.style.cursor = 'grab';
+  else vp.style.cursor = 'crosshair';
+}
+
+// ピッカー内の出力イメージキー一覧を描画する
+export function renderDatPickerKeyList(activeItem, entries, selectedKeyIdx, onSelectKey) {
+  const listEl = document.getElementById('dat-picker-key-list');
+  if (!listEl || !activeItem) return;
+  listEl.innerHTML = '';
+  if (entries.length === 0) {
+    listEl.innerHTML = '<div class="info-text">このオブジェクト種別には画像キーがありません。</div>';
+    return;
+  }
+
+  const customCoords = activeItem.common.customImageCoords || {};
+  entries.forEach((entry, idx) => {
+    const rowEl = document.createElement('div');
+    const isSelected = idx === selectedKeyIdx;
+    const isCustom = Boolean(customCoords[entry.key]);
+    const hint = getImageKeyHint(activeItem.objType, entry.key, { large: false });
+    rowEl.className = 'dat-picker-key-item' + (isSelected ? ' active' : '') + (isCustom ? ' custom' : '');
+    if (hint) rowEl.title = hint.label;
+    rowEl.innerHTML = `<span class="k-left">${hint ? hint.svg : ''}<span class="k-name">${entry.key}</span></span><span class="k-coord">.${entry.row}.${entry.col}${isCustom ? ' ★' : ''}</span>`;
+    rowEl.onclick = () => onSelectKey(idx);
+    listEl.appendChild(rowEl);
+  });
 }
