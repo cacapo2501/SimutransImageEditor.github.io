@@ -72,7 +72,16 @@ export function renderDatAiSectionHtml() {
         </div>
 
         <div class="dat-field mt-05">
-          <label>生成したい実車・建物・設備名や特徴</label>
+          <div class="row" style="justify-content:space-between; align-items:center; gap:4px;">
+            <label style="margin:0;">生成したい実車・建物・設備名や特徴</label>
+            <div class="row" style="gap:4px; width:auto;">
+              <select id="sel-dat-ai-history" style="max-width:155px; font-size:10px;" title="過去に保存・生成したAI指示を呼び出します">
+                <option value="">-- 保存済み指示 (0件) --</option>
+              </select>
+              <button type="button" id="btn-dat-ai-save-history" class="btn-sm" title="現在の指示文・設定を履歴に保存します">💾</button>
+              <button type="button" id="btn-dat-ai-del-history" class="btn-sm" style="color:#ff8888;" title="選択中の履歴を削除します">🗑️</button>
+            </div>
+          </div>
           <textarea id="inp-dat-ai-prompt" placeholder="例: JR東日本 E233系0番台 中央快速線 10両編成 / 国鉄 EF65形1000番台＋コキ104形 / いすゞエルガ 都営バス / B787-8 / 昭和レトロな木造駅舎"></textarea>
         </div>
 
@@ -165,6 +174,9 @@ export function renderDatAiSectionHtml() {
         </label>
         <label class="dat-check-item mt-05">
           <input type="checkbox" id="chk-dat-livery-batch-img" checked> 画像名にマスク名を含める (一括PNG出力と一致)
+        </label>
+        <label class="dat-check-item mt-05" title="有効にすると、車両の constraint[prev/next] に登録済み全マスク（全塗装）の対応車両を展開し、異なる塗装同士を混結できるようにします">
+          <input type="checkbox" id="chk-dat-livery-mix-consist"> 塗装を気にせず混結する (全マスク塗装を連結許可)
         </label>
         <button type="button" id="btn-dat-livery-expand-all" class="btn-primary w-100 mt-05">🎭 全マスクを一括 --- 出力</button>
       </div>

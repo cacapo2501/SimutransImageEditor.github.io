@@ -351,7 +351,8 @@ export class DatGeneratorController {
       this.app?.tileCutter?.syncFromDat(this.currentObjType, this._getObjState(this.currentObjType));
       this.syncImagePrefixWithApp({ force: /(_combined|_cut)$/i.test(this.common.imgPrefix) });
     }
-    this.liveryMgr.refreshUI();
+    if (this.liveryMgr.mixLiveryConsist && (this.app?.maskMgr?.items?.length || 0) > 1) this.liveryMgr.applyActiveMaskLivery({ regenerate: false });
+    else this.liveryMgr.refreshUI();
     this.regenerateOutput();
     this.app?.markDirty?.();
   }

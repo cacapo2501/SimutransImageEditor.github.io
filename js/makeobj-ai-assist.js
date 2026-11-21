@@ -1,5 +1,6 @@
 // makeobj (.pak コンパイル設定) ＆ ja.tab 日本語翻訳の AI 設定支援モジュール
 import { loadGeminiConfig, requestDatFromGemini, extractJsonText, pasteClipboardIntoTextarea } from './dat-ai-service.js';
+import { loadMakeobjAiHint, saveMakeobjAiHint } from './dat-ai-storage.js';
 import { parseDatObjectsSummary, collectJaTabEntries, buildJaTabText } from './ja-tab-helper.js';
 
 const VALID_PAK_ARGS = new Set(['pak', 'pak32', 'pak48', 'pak64', 'pak96', 'pak128', 'pak192', 'pak256']);
@@ -151,6 +152,13 @@ export function applyMakeobjAssistToModal(ctrl, res) {
 }
 
 export function bindMakeobjModalAiEvents(ctrl) {
+  const inpHint = document.getElementById('inp-mk-ai-hint');
+  if (inpHint) {
+    const savedHint = loadMakeobjAiHint();
+    if (savedHint && !inpHint.value) inpHint.value = savedHint;
+    inpHint.addEventListener('input', (e) => saveMakeobjAiHint(e.target.value));
+  }
+
   const getOpts = () => ({
     datText: document.getElementById('txt-mk-dat')?.value || '',
     baseW: ctrl.app?.baseW || 0,

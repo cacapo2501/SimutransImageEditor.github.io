@@ -1,14 +1,11 @@
 import {
-  DEFAULT_GEMINI_MODEL,
-  GEMINI_MODELS,
-  loadGeminiConfig,
-  saveGeminiConfig,
-  buildDatAiPrompt,
-  parseAiDatResponse,
-  fetchAvailableGeminiModels,
-  requestDatFromGemini,
-  pasteClipboardIntoTextarea
+  DEFAULT_GEMINI_MODEL, GEMINI_MODELS, loadGeminiConfig, saveGeminiConfig,
+  buildDatAiPrompt, parseAiDatResponse, fetchAvailableGeminiModels,
+  requestDatFromGemini, pasteClipboardIntoTextarea
 } from './dat-ai-service.js';
+import {
+  loadDatAiDraft, saveDatAiDraft, loadDatAiHistory, saveDatAiHistoryEntry, deleteDatAiHistoryEntry
+} from './dat-ai-storage.js';
 import { guessInitialTileSize } from './dat-picker-viewport.js';
 
 export class DatAiController {
@@ -29,18 +26,46 @@ export class DatAiController {
     if (chkSave) chkSave.checked = Boolean(this.cfg.saveKey);
 
     const isKnownModel = GEMINI_MODELS.some(m => m.value === this.cfg.model);
-    if (selModel) {
-      selModel.value = isKnownModel ? this.cfg.model : '__custom__';
-    }
-    if (customWrap) {
-      customWrap.style.display = isKnownModel ? 'none' : '';
-    }
-    if (inpCustom && !isKnownModel) {
-      inpCustom.value = this.cfg.model;
-    }
+    if (selModel) selModel.value = isKnownModel ? this.cfg.model : '__custom__';
+    if (customWrap) customWrap.style.display = isKnownModel ? 'none' : '';
+    if (inpCustom && !isKnownModel) inpCustom.value = this.cfg.model;
 
+    this.restoreDraftFromStorage();
+    this.refreshHistorySelect();
     this.updateObjTypeVisibility(this.gen.currentObjType);
     this.syncBalanceSliderLabels();
+  }
+
+  // 保存済みドラフト（AIへの指示・設定）をフォームに復元する
+  restoreDraftFromStorage(override = null) {
+    const d = override || loadDatAiDraft();
+    if (!d) return;
+    const setV = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = String(v); };
+    setV('inp-dat-ai-prompt', d.userPrompt);
+    setV('sel-dat-ai-pakset', d.pakset);
+    setV('sel-dat-ai-vehicle-mode', d.vehicleMode);
+    setV('inp-dat-ai-car-count', d.carCount);
+    setV('rng-dat-ai-build-cost', d.buildCostPct ?? 100);
+    setV('rng-dat-ai-maint-cost', d.maintCostPct ?? 100);
+    setV('rng-dat-ai-payload-eff', d.payloadPct ?? 100);
+    const chk = document.getElementById('chk-dat-ai-seq-rows');
+    if (chk && d.autoSeqRows !== undefined) chk.checked = Boolean(d.autoSeqRows);
+    this.syncBalanceSliderLabels();
+  }
+
+  _persistPromptDraft() {
+    saveDatAiDraft(this._collectPromptFormValues());
+  }
+
+  refreshHistorySelect(selectedId = '') {
+    const sel = document.getElementById('sel-dat-ai-history');
+    if (!sel) return;
+    const list = loadDatAiHistory();
+    sel.innerHTML = `<option value="">-- 保存済み指示 (${list.length}件) --</option>` + list.map((item) => {
+      const short = item.userPrompt.replace(/\s+/g, ' ').slice(0, 26) + (item.userPrompt.length > 26 ? '…' : '');
+      return `<option value="${item.id}">${short} [${item.pakset}]</option>`;
+    }).join('');
+    if (selectedId && list.some(i => i.id === selectedId)) sel.value = selectedId;
   }
 
   // コスト・バランス調整スライダーの表示ラベルを更新する
@@ -76,9 +101,7 @@ export class DatAiController {
     const apiKey = inpKey ? inpKey.value.trim() : '';
     const saveKey = chkSave ? chkSave.checked : false;
     let model = selModel ? selModel.value : DEFAULT_GEMINI_MODEL;
-    if (model === '__custom__') {
-      model = (inpCustom ? inpCustom.value.trim() : '') || DEFAULT_GEMINI_MODEL;
-    }
+    if (model === '__custom__') model = (inpCustom ? inpCustom.value.trim() : '') || DEFAULT_GEMINI_MODEL;
 
     this.cfg = { apiKey, model, saveKey };
     saveGeminiConfig(this.cfg);
@@ -101,54 +124,57 @@ export class DatAiController {
     if (useCut && tc) {
       tileW = tc.tileSize || 64;
       tileH = tileW;
-      const outCols = Math.max(1, (tc.dimsViews || 1) * (tc.dimsW || 1) * (tc.dimsH || 1));
-      const outRows = Math.max(1, (tc.seasons || 1) * (tc.frames || 1) * (tc.heightTiles || 1));
-      imgW = outCols * tileW;
-      imgH = outRows * tileH;
+      imgW = Math.max(1, (tc.dimsViews || 1) * (tc.dimsW || 1) * (tc.dimsH || 1)) * tileW;
+      imgH = Math.max(1, (tc.seasons || 1) * (tc.frames || 1) * (tc.heightTiles || 1)) * tileH;
     } else {
       const [gw, gh] = guessInitialTileSize(imgW, imgH, objType, tc);
       tileW = gw;
       tileH = gh;
     }
+    return {
+      hasImage: true, imgW, imgH, tileW, tileH,
+      gridRows: Math.max(1, Math.floor(imgH / tileH)),
+      gridCols: Math.max(1, Math.floor(imgW / tileW)),
+      useCut
+    };
+  }
 
-    const gridCols = Math.max(1, Math.floor(imgW / tileW));
-    const gridRows = Math.max(1, Math.floor(imgH / tileH));
-    return { hasImage: true, imgW, imgH, tileW, tileH, gridRows, gridCols, useCut };
+  _collectPromptFormValues() {
+    return {
+      userPrompt: (document.getElementById('inp-dat-ai-prompt')?.value || '').trim(),
+      pakset: document.getElementById('sel-dat-ai-pakset')?.value || 'pak64',
+      vehicleMode: document.getElementById('sel-dat-ai-vehicle-mode')?.value || 'consist',
+      carCount: (document.getElementById('inp-dat-ai-car-count')?.value || '').trim(),
+      autoSeqRows: Boolean(document.getElementById('chk-dat-ai-seq-rows')?.checked),
+      buildCostPct: parseInt(document.getElementById('rng-dat-ai-build-cost')?.value, 10) || 100,
+      maintCostPct: parseInt(document.getElementById('rng-dat-ai-maint-cost')?.value, 10) || 100,
+      payloadPct: parseInt(document.getElementById('rng-dat-ai-payload-eff')?.value, 10) || 100
+    };
   }
 
   _collectPromptOptions() {
     this.gen.syncImagePrefixWithApp?.();
-
     const objType = this.gen.currentObjType;
-    const userPrompt = (document.getElementById('inp-dat-ai-prompt')?.value || '').trim();
-    const pakset = document.getElementById('sel-dat-ai-pakset')?.value || 'pak64';
-    const vehicleMode = document.getElementById('sel-dat-ai-vehicle-mode')?.value || 'consist';
-    const carCount = (document.getElementById('inp-dat-ai-car-count')?.value || '').trim();
-    const autoSeqRows = Boolean(document.getElementById('chk-dat-ai-seq-rows')?.checked);
-    const buildCostPct = parseInt(document.getElementById('rng-dat-ai-build-cost')?.value, 10) || 100;
-    const maintCostPct = parseInt(document.getElementById('rng-dat-ai-maint-cost')?.value, 10) || 100;
-    const payloadPct = parseInt(document.getElementById('rng-dat-ai-payload-eff')?.value, 10) || 100;
-    const liveryName = this.gen.liveryMgr ? this.gen.liveryMgr.getActiveLiveryName({ forPrompt: true }) : '';
-    const imageContext = this._buildCurrentImageContext(objType);
-    const currentValues = { ...this.gen._getObjState(objType) };
-
+    const form = this._collectPromptFormValues();
     return {
       objType,
-      userPrompt,
-      pakset,
-      vehicleMode,
-      carCount,
-      buildCostPct,
-      maintCostPct,
-      payloadPct,
-      liveryName,
+      ...form,
+      liveryName: this.gen.liveryMgr ? this.gen.liveryMgr.getActiveLiveryName({ forPrompt: true }) : '',
       imgPrefix: this.gen.common.imgPrefix,
       copyright: this.gen.common.copyright,
-      autoSeqRows,
-      imageContext,
+      imageContext: this._buildCurrentImageContext(objType),
       currentCommon: { ...this.gen.common },
-      currentValues
+      currentValues: { ...this.gen._getObjState(objType) }
     };
+  }
+
+  _recordCurrentToHistory({ showStatus = false } = {}) {
+    const form = this._collectPromptFormValues();
+    if (!form.userPrompt) return;
+    saveDatAiDraft(form);
+    const list = saveDatAiHistoryEntry({ objType: this.gen.currentObjType, ...form });
+    this.refreshHistorySelect(list[0]?.id || '');
+    if (showStatus) this._setStatus('AI指示・設定を履歴に保存しました');
   }
 
   _setStatus(text, isError = false) {
@@ -166,10 +192,42 @@ export class DatAiController {
 
     document.getElementById('sel-dat-ai-model')?.addEventListener('change', (e) => {
       const customWrap = document.getElementById('dat-ai-custom-model-wrap');
-      if (customWrap) {
-        customWrap.style.display = e.target.value === '__custom__' ? '' : 'none';
-      }
+      if (customWrap) customWrap.style.display = e.target.value === '__custom__' ? '' : 'none';
       this._persistSettings();
+    });
+
+    // AI指示・各種パラメータ入力を自動保存
+    const draftIds = [
+      ['inp-dat-ai-prompt', 'input'], ['sel-dat-ai-pakset', 'change'],
+      ['sel-dat-ai-vehicle-mode', 'change'], ['inp-dat-ai-car-count', 'input'],
+      ['chk-dat-ai-seq-rows', 'change'], ['rng-dat-ai-build-cost', 'input'],
+      ['rng-dat-ai-maint-cost', 'input'], ['rng-dat-ai-payload-eff', 'input']
+    ];
+    draftIds.forEach(([id, ev]) => {
+      document.getElementById(id)?.addEventListener(ev, () => this._persistPromptDraft());
+    });
+
+    document.getElementById('sel-dat-ai-history')?.addEventListener('change', (e) => {
+      const item = loadDatAiHistory().find(x => x.id === e.target.value);
+      if (!item) return;
+      this.restoreDraftFromStorage(item);
+      this._persistPromptDraft();
+      this._setStatus('保存済みの指示を呼び出しました');
+    });
+    document.getElementById('btn-dat-ai-save-history')?.addEventListener('click', () => {
+      if (!this._collectPromptFormValues().userPrompt) {
+        alert('保存する指示内容を先に入力してください。');
+        document.getElementById('inp-dat-ai-prompt')?.focus();
+        return;
+      }
+      this._recordCurrentToHistory({ showStatus: true });
+    });
+    document.getElementById('btn-dat-ai-del-history')?.addEventListener('click', () => {
+      const sel = document.getElementById('sel-dat-ai-history');
+      if (!sel || !sel.value) return;
+      deleteDatAiHistoryEntry(sel.value);
+      this.refreshHistorySelect();
+      this._setStatus('選択中の指示履歴を削除しました');
     });
 
     document.getElementById('btn-dat-ai-fetch-models')?.addEventListener('click', () => this.refreshAvailableModels());
@@ -185,6 +243,7 @@ export class DatAiController {
         if (el) el.value = '100';
       });
       this.syncBalanceSliderLabels();
+      this._persistPromptDraft();
     });
 
     const jsonWrap = document.getElementById('dat-ai-manual-json-wrap');
@@ -194,11 +253,8 @@ export class DatAiController {
       const opening = jsonWrap.style.display === 'none';
       jsonWrap.style.display = opening ? '' : 'none';
       if (opening && jsonInp) {
-        if (!jsonInp.value.trim()) {
-          pasteClipboardIntoTextarea(jsonInp, (msg) => this._setStatus(msg));
-        } else {
-          jsonInp.focus();
-        }
+        if (!jsonInp.value.trim()) pasteClipboardIntoTextarea(jsonInp, (msg) => this._setStatus(msg));
+        else jsonInp.focus();
       }
     });
     document.getElementById('btn-dat-ai-paste-clip')?.addEventListener('click', () => {
@@ -220,6 +276,8 @@ export class DatAiController {
       document.getElementById('inp-dat-ai-prompt')?.focus();
       return;
     }
+    this._recordCurrentToHistory();
+
     if (!this.cfg.apiKey) {
       const keyDetails = document.getElementById('details-dat-ai-key');
       if (keyDetails) keyDetails.open = true;
@@ -230,19 +288,12 @@ export class DatAiController {
 
     const btn = document.getElementById('btn-dat-ai-generate');
     this.isGenerating = true;
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = '⏳ 生成中...';
-    }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成中...'; }
     this._setStatus(`AI生成中 (${this.cfg.model})...`);
 
     try {
       const prompt = buildDatAiPrompt(opts);
-      const rawText = await requestDatFromGemini({
-        apiKey: this.cfg.apiKey,
-        model: this.cfg.model,
-        prompt
-      });
+      const rawText = await requestDatFromGemini({ apiKey: this.cfg.apiKey, model: this.cfg.model, prompt });
       const parsed = parseAiDatResponse(rawText, this.gen.currentObjType, this.gen.common, {
         fallbackValues: opts.currentValues,
         autoSeqRows: opts.autoSeqRows,
@@ -256,10 +307,7 @@ export class DatAiController {
       alert(err.message || String(err));
     } finally {
       this.isGenerating = false;
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = '✨ AIで生成・反映';
-      }
+      if (btn) { btn.disabled = false; btn.textContent = '✨ AIで生成・反映'; }
     }
   }
 
@@ -292,12 +340,7 @@ export class DatAiController {
         customOpt.value = '__custom__';
         customOpt.textContent = 'カスタムモデル名を指定...';
         selModel.appendChild(customOpt);
-
-        if (models.some(m => m.value === prevVal)) {
-          selModel.value = prevVal;
-        } else {
-          selModel.value = models[0].value;
-        }
+        selModel.value = models.some(m => m.value === prevVal) ? prevVal : models[0].value;
         const customWrap = document.getElementById('dat-ai-custom-model-wrap');
         if (customWrap) customWrap.style.display = 'none';
         this._persistSettings();
@@ -318,10 +361,11 @@ export class DatAiController {
       document.getElementById('inp-dat-ai-prompt')?.focus();
       return;
     }
+    this._recordCurrentToHistory();
     const prompt = buildDatAiPrompt(opts);
     try {
       await navigator.clipboard.writeText(prompt);
-      this._setStatus('プロンプトをクリップボードにコピーしました');
+      this._setStatus('プロンプトをクリップボードにコピーしました（指示を保存しました）');
     } catch (err) {
       alert('クリップボードへのコピーに失敗しました: ' + (err.message || err));
     }
@@ -334,6 +378,7 @@ export class DatAiController {
       return;
     }
     try {
+      this._recordCurrentToHistory();
       const opts = this._collectPromptOptions();
       const parsed = parseAiDatResponse(raw, this.gen.currentObjType, this.gen.common, {
         fallbackValues: opts.currentValues,

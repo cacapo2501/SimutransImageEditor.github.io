@@ -108,6 +108,9 @@ export function applyPendingDatProjectUi(gen) {
       gen.aiCtrl?.syncBalanceSliderLabels?.();
       const chk = document.getElementById('chk-dat-ai-seq-rows');
       if (chk && p.aiOptions.autoSeqRows !== undefined) chk.checked = Boolean(p.aiOptions.autoSeqRows);
+      gen.aiCtrl?._persistPromptDraft?.();
+    } else {
+      gen.aiCtrl?.restoreDraftFromStorage?.();
     }
     const txtEl = document.getElementById('txt-dat-output');
     if (txtEl && p.outputText !== null && (!gen.autoSync || p.outputText)) {
@@ -117,10 +120,7 @@ export function applyPendingDatProjectUi(gen) {
     }
     gen._pendingProjectUi = null;
   } else {
-    ['rng-dat-ai-build-cost', 'rng-dat-ai-maint-cost', 'rng-dat-ai-payload-eff'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '100';
-    });
+    gen.aiCtrl?.restoreDraftFromStorage?.();
     gen.aiCtrl?.syncBalanceSliderLabels?.();
     if (gen.autoSync) gen.regenerateOutput();
   }

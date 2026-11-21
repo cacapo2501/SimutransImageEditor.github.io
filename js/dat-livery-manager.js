@@ -1,61 +1,14 @@
 import { serializeDatObject } from './dat-serializer.js';
-import { buildCompositeImagePrefix } from './composite-naming.js';
+import {
+  stripLiverySuffix,
+  deriveLiveryName,
+  applyLiveryToName,
+  buildMaskImagePrefix,
+  buildLiveryConstraintMaps,
+  replaceConstraintNames
+} from './dat-livery-helpers.js';
 
-// マスクファイル名から塗装名候補を抽出する（ベース画像と同名の自動生成マスク時は空文字を返す）
-export function deriveLiveryName(maskName, baseName = '', idx = 0, { allowEmpty = false } = {}) {
-  let clean = String(maskName || '').replace(/\.png$/i, '').replace(/(_s?paint|_mask)$/i, '').trim();
-  const baseRaw = String(baseName || '').replace(/\.png$/i, '').trim();
-  const baseRoot = baseRaw
-    .replace(/(_combined|_cut|_s?def|_s?paint|_base|_mask)$/i, '')
-    .replace(/_[sc][0-9A]$/i, '')
-    .trim();
-
-  const lowerClean = clean.toLowerCase();
-  if ((baseRaw && lowerClean === baseRaw.toLowerCase()) || (baseRoot && lowerClean === baseRoot.toLowerCase())) {
-    clean = '';
-  } else if (baseRaw && lowerClean.startsWith(baseRaw.toLowerCase() + '_')) {
-    clean = clean.slice(baseRaw.length + 1);
-  } else if (baseRoot && lowerClean.startsWith(baseRoot.toLowerCase() + '_')) {
-    clean = clean.slice(baseRoot.length + 1);
-  }
-
-  clean = clean.replace(/^_+/, '').trim();
-  if (/^(base|mask|paint|default|combined|cut)$/i.test(clean) || /^new_\d+x\d+$/i.test(clean)) {
-    clean = '';
-  }
-  if (allowEmpty) return clean;
-  return clean || `Livery${idx + 1}`;
-}
-
-// 塗装名をオブジェクト名へ適用する（車両は 鉄道会社略称_系列名_形式(塗装名) 形式）
-export function applyLiveryToName(rawName, liveryName, objType, baseNameHint = '') {
-  const cleanLivery = String(liveryName || '').trim();
-  const base = String(baseNameHint || rawName || 'addon').trim();
-  if (!cleanLivery) return base;
-
-  if (objType === 'vehicle') {
-    const stripped = base.replace(/\([^()]*\)$/, '').trim();
-    return `${stripped}(${cleanLivery})`;
-  }
-  const stripped = base.replace(/\([^()]*\)$/, '').trim();
-  return `${stripped}_${cleanLivery}`;
-}
-
-// BatchExporter と同一規則でマスクごとの画像ファイル名プレフィックスを生成
-export function buildMaskImagePrefix(app, maskItem, useBatchNaming = true) {
-  const useCut = Boolean(app?.tileCutter?.shouldCutOnExport?.());
-  const maskName = (useBatchNaming && maskItem) ? maskItem.name : '';
-  return buildCompositeImagePrefix(app?.baseName || 'base.png', maskName, { useCut });
-}
-
-function replaceConstraintNames(rawText, nameMap) {
-  const lines = String(rawText || '').split(/\r?\n/);
-  return lines.map(line => {
-    const t = line.trim();
-    if (!t || t === 'none') return t;
-    return nameMap.get(t) || t;
-  }).filter(Boolean).join('\n');
-}
+export { deriveLiveryName, applyLiveryToName, buildMaskImagePrefix };
 
 export class DatLiveryManager {
   constructor(datGenerator) {
@@ -64,6 +17,7 @@ export class DatLiveryManager {
     this.baseNameByKey = new Map();
     this.followMaskChange = true;
     this.useBatchImgNaming = true;
+    this.mixLiveryConsist = false;
   }
 
   getActiveMaskItem() {
@@ -122,6 +76,12 @@ export class DatLiveryManager {
       this.applyActiveMaskLivery({ regenerate: true });
     });
 
+    document.getElementById('chk-dat-livery-mix-consist')?.addEventListener('change', (e) => {
+      this.mixLiveryConsist = e.target.checked;
+      this.applyActiveMaskLivery({ regenerate: this.gen.autoSync });
+      this.gen.app?.markDirty?.();
+    });
+
     document.getElementById('btn-dat-livery-apply-active')?.addEventListener('click', () => {
       this.applyActiveMaskLivery({ regenerate: true });
     });
@@ -172,14 +132,20 @@ export class DatLiveryManager {
     const active = maskMgr?.getActive();
     if (!active) return;
 
-    const count = maskMgr ? maskMgr.items.length : 0;
+    const maskItems = maskMgr.items || [];
+    const count = maskItems.length;
     const liveryName = this.getLiveryNameForMask(active, maskMgr.activeIndex, { allowEmpty: count <= 1 });
     const nextImgPrefix = buildMaskImagePrefix(this.gen.app, active, this.useBatchImgNaming);
+    const mixAll = Boolean(this.mixLiveryConsist && count > 1);
+    const getLivFn = (m, i, opts) => this.getLiveryNameForMask(m, i, opts);
 
     if (this.gen.collectionMgr.hasCollection()) {
       this.gen.collectionMgr.saveActiveFromController();
       const items = this.gen.collectionMgr.items;
       this._rememberBaseNames(items);
+      const { allNamesByStrip, singleStripMap } = buildLiveryConstraintMaps(
+        items, maskItems, getLivFn, this.baseNameByKey, liveryName
+      );
 
       const nameMap = new Map();
       items.forEach((it, idx) => {
@@ -195,8 +161,9 @@ export class DatLiveryManager {
 
       items.forEach(it => {
         if (it.objType === 'vehicle') {
-          it.values.constraintsPrev = replaceConstraintNames(it.values.constraintsPrev, nameMap);
-          it.values.constraintsNext = replaceConstraintNames(it.values.constraintsNext, nameMap);
+          const opts = { mixAll, allNamesByStrip, singleStripMap };
+          it.values.constraintsPrev = replaceConstraintNames(it.values.constraintsPrev, nameMap, opts);
+          it.values.constraintsNext = replaceConstraintNames(it.values.constraintsNext, nameMap, opts);
         }
       });
 
@@ -205,27 +172,39 @@ export class DatLiveryManager {
       this.gen.collectionMgr.refreshUI();
     } else {
       const objType = this.gen.currentObjType;
+      const state = this.gen._getObjState(objType);
       const key = `single:${objType}`;
       if (!this.baseNameByKey.has(key)) {
-        this.baseNameByKey.set(key, String(this.gen.common.name || '').replace(/\([^()]*\)$/, '').trim());
+        this.baseNameByKey.set(key, stripLiverySuffix(this.gen.common.name || ''));
       }
       const baseHint = this.baseNameByKey.get(key);
-      this.gen.common.name = applyLiveryToName(this.gen.common.name, liveryName, objType, baseHint);
+      const singleList = [{ objType, common: { ...this.gen.common }, values: { ...state } }];
+      const { allNamesByStrip, singleStripMap } = buildLiveryConstraintMaps(
+        singleList, maskItems, getLivFn, this.baseNameByKey, liveryName
+      );
+      const oldName = this.gen.common.name;
+      const nextName = applyLiveryToName(oldName, liveryName, objType, baseHint);
+      const nameMap = new Map([[oldName, nextName]]);
+      this.gen.common.name = nextName;
       const jaKey = `ja:single:${objType}`;
       if (!this.baseNameByKey.has(jaKey) && this.gen.common.jaName) {
-        this.baseNameByKey.set(jaKey, String(this.gen.common.jaName).replace(/\([^()]*\)$/, '').trim());
+        this.baseNameByKey.set(jaKey, stripLiverySuffix(this.gen.common.jaName));
       }
       if (this.baseNameByKey.has(jaKey)) {
         this.gen.common.jaName = applyLiveryToName(this.gen.common.jaName, liveryName, objType, this.baseNameByKey.get(jaKey));
       }
       this.gen.common.imgPrefix = nextImgPrefix;
+      if (objType === 'vehicle') {
+        const opts = { mixAll, allNamesByStrip, singleStripMap };
+        state.constraintsPrev = replaceConstraintNames(state.constraintsPrev, nameMap, opts);
+        state.constraintsNext = replaceConstraintNames(state.constraintsNext, nameMap, opts);
+        this.gen._renderDynamicFields?.();
+      }
       this.gen._syncCommonInputsFromState();
     }
 
     this.refreshUI();
-    if (regenerate) {
-      this.gen.regenerateOutput();
-    }
+    if (regenerate) this.gen.regenerateOutput();
   }
 
   // 全登録マスク（塗装）分をベーススペック・画像位置を維持したまま --- 区切りで一括出力
@@ -253,11 +232,18 @@ export class DatLiveryManager {
         values: { ...this.gen._getObjState(objType) }
       }];
     }
+    this._rememberBaseNames(baseItems);
+
+    const maskItems = maskMgr.items;
+    const mixAll = Boolean(this.mixLiveryConsist && maskItems.length > 1);
+    const getLivFn = (m, i, opts) => this.getLiveryNameForMask(m, i, opts);
+    const { allNamesByStrip } = buildLiveryConstraintMaps(baseItems, maskItems, getLivFn, this.baseNameByKey, '');
 
     const blocks = [];
-    maskMgr.items.forEach((maskItem, mIdx) => {
-      const liveryName = this.getLiveryNameForMask(maskItem, mIdx);
+    maskItems.forEach((maskItem, mIdx) => {
+      const liveryName = this.getLiveryNameForMask(maskItem, mIdx, { allowEmpty: maskItems.length <= 1 });
       const imgPrefix = buildMaskImagePrefix(app, maskItem, this.useBatchImgNaming);
+      const { singleStripMap } = buildLiveryConstraintMaps(baseItems, maskItems, getLivFn, this.baseNameByKey, liveryName);
 
       const nameMap = new Map();
       const cloned = baseItems.map((src, sIdx) => {
@@ -277,19 +263,20 @@ export class DatLiveryManager {
 
       cloned.forEach(item => {
         if (item.objType === 'vehicle') {
-          item.values.constraintsPrev = replaceConstraintNames(item.values.constraintsPrev, nameMap);
-          item.values.constraintsNext = replaceConstraintNames(item.values.constraintsNext, nameMap);
+          const opts = { mixAll, allNamesByStrip, singleStripMap };
+          item.values.constraintsPrev = replaceConstraintNames(item.values.constraintsPrev, nameMap, opts);
+          item.values.constraintsNext = replaceConstraintNames(item.values.constraintsNext, nameMap, opts);
         }
         blocks.push(serializeDatObject(item.objType, item.values, item.common).trimEnd());
       });
     });
 
     const txt = document.getElementById('txt-dat-output');
-    if (txt) {
-      txt.value = blocks.join('\n---\n') + '\n';
-    }
+    if (txt) txt.value = blocks.join('\n---\n') + '\n';
     this.gen.autoSync = false;
-    this.gen._updateSyncBadge(`全${maskMgr.items.length}塗装 一括生成済み`);
+    this.gen._updateSyncBadge(
+      mixAll ? `全${maskItems.length}塗装 混結対応で一括生成済み` : `全${maskItems.length}塗装 一括生成済み`
+    );
   }
 
   exportState() {
@@ -304,7 +291,8 @@ export class DatLiveryManager {
       liveries,
       baseNameByKey: Array.from(this.baseNameByKey.entries()),
       followMaskChange: this.followMaskChange,
-      useBatchImgNaming: this.useBatchImgNaming
+      useBatchImgNaming: this.useBatchImgNaming,
+      mixLiveryConsist: this.mixLiveryConsist
     };
   }
 
@@ -314,32 +302,31 @@ export class DatLiveryManager {
     if (!data) {
       this.followMaskChange = true;
       this.useBatchImgNaming = true;
-      return;
+      this.mixLiveryConsist = false;
+    } else {
+      this.followMaskChange = data.followMaskChange !== undefined ? Boolean(data.followMaskChange) : true;
+      this.useBatchImgNaming = data.useBatchImgNaming !== undefined ? Boolean(data.useBatchImgNaming) : true;
+      this.mixLiveryConsist = Boolean(data.mixLiveryConsist);
+      if (Array.isArray(data.baseNameByKey)) this.baseNameByKey = new Map(data.baseNameByKey);
+
+      const maskItems = this.gen.app?.maskMgr?.items || [];
+      if (Array.isArray(data.liveries)) {
+        data.liveries.forEach((entry) => {
+          const byIdx = typeof entry.index === 'number' ? maskItems[entry.index] : null;
+          const target = (byIdx && byIdx.name === entry.name)
+            ? byIdx
+            : (maskItems.find(m => m.name === entry.name) || byIdx);
+          if (target && entry.livery !== undefined && entry.livery !== null) {
+            this.liveryByMaskId.set(target.id, String(entry.livery));
+          }
+        });
+      }
     }
 
-    this.followMaskChange = data.followMaskChange !== undefined ? Boolean(data.followMaskChange) : true;
-    this.useBatchImgNaming = data.useBatchImgNaming !== undefined ? Boolean(data.useBatchImgNaming) : true;
-    if (Array.isArray(data.baseNameByKey)) {
-      this.baseNameByKey = new Map(data.baseNameByKey);
-    }
-
-    const maskItems = this.gen.app?.maskMgr?.items || [];
-    if (Array.isArray(data.liveries)) {
-      data.liveries.forEach((entry) => {
-        const byIdx = typeof entry.index === 'number' ? maskItems[entry.index] : null;
-        const target = (byIdx && byIdx.name === entry.name)
-          ? byIdx
-          : (maskItems.find(m => m.name === entry.name) || byIdx);
-        if (target && entry.livery !== undefined && entry.livery !== null) {
-          this.liveryByMaskId.set(target.id, String(entry.livery));
-        }
-      });
-    }
-
-    const chkFollow = document.getElementById('chk-dat-livery-follow');
-    if (chkFollow) chkFollow.checked = this.followMaskChange;
-    const chkBatch = document.getElementById('chk-dat-livery-batch-img');
-    if (chkBatch) chkBatch.checked = this.useBatchImgNaming;
+    const setChk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
+    setChk('chk-dat-livery-follow', this.followMaskChange);
+    setChk('chk-dat-livery-batch-img', this.useBatchImgNaming);
+    setChk('chk-dat-livery-mix-consist', this.mixLiveryConsist);
     this.refreshUI();
   }
 }
