@@ -1,5 +1,6 @@
 // Simutrans makeobj 用 dat テキスト生成シリアライザ
-import { buildFormattedImages } from './dat-image-formats.js';
+import { buildFormattedImages, resolveCursorIconModes } from './dat-image-formats.js';
+import { supportsCursorIcon } from './dat-icon-generator.js';
 
 function pushIfPresent(lines, key, val) {
   if (val === undefined || val === null) return;
@@ -55,6 +56,19 @@ function serializeImages(lines, objType, v, common) {
       lines.push(`${e.key}=${imgRef(entryPrefix, e.row, e.col, offsetStr)}`);
     }
   });
+
+  if (supportsCursorIcon(objType)) {
+    const { iconMode, cursorMode } = resolveCursorIconModes(v);
+    if (cursorMode === 'external' && v.cursorExternalName) {
+      const curPrefix = String(v.cursorExternalName).replace(/\.png$/i, '').trim();
+      const curR = Math.max(0, parseInt(v.cursorExternalRow, 10) || 0);
+      const curC = Math.max(0, parseInt(v.cursorExternalCol, 10) || 0);
+      if (curPrefix) lines.push(`Cursor=${curPrefix}.${curR}.${curC}`);
+    }
+    if (iconMode === 'auto') {
+      lines.push(`Icon=> ${prefix}_icon.0.0`);
+    }
+  }
 }
 
 // フォーム状態から Simutrans dat テキストを生成する

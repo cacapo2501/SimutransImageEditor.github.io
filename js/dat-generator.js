@@ -12,6 +12,7 @@ import {
 import { DatImagePicker } from './dat-image-picker.js';
 import { DatLiveryManager, buildMaskImagePrefix } from './dat-livery-manager.js';
 import { computeSeasonPrefixes, renderSeasonMaskPanel } from './dat-season-masks.js';
+import { renderIconCursorForGenerator } from './dat-icon-cursor-ui.js';
 import { populateImageFormatSelect } from './dat-image-formats.js';
 import { renderDatAuxPanels } from './dat-factory-fields.js';
 import { buildCompositeImagePrefix } from './composite-naming.js';
@@ -300,6 +301,7 @@ export class DatGeneratorController {
       if (this.autoSync) this.regenerateOutput();
       this.app?.markDirty?.();
     });
+    renderIconCursorForGenerator(this);
   }
 
   _applyControllerStateToForm() {

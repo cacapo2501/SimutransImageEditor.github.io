@@ -4,17 +4,17 @@ export { WAYTYPE_OPTIONS, CLIMATE_OPTIONS };
 
 // 建物用プリセット定義
 export const BUILDING_PRESETS = {
-  res: { label: '住宅 (res)', values: { type: 'res', level: '10', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true } },
-  com: { label: '商業 (com)', values: { type: 'com', level: '10', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true } },
-  ind: { label: '工業 (ind)', values: { type: 'ind', level: '10', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true } },
-  cur: { label: '観光名所 (cur)', values: { type: 'cur', level: '25', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true } },
-  mon: { label: '記念碑 (mon)', values: { type: 'mon', level: '20', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true } },
-  hq:  { label: '本社 (hq)', values: { type: 'hq', level: '30', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true } },
-  tow: { label: '市庁舎 (tow)', values: { type: 'tow', level: '20', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true } },
-  stop: { label: '駅・停留所 (stop)', values: { type: 'stop', level: '4', waytype: 'track', enables_pax: true, enables_post: false, enables_ware: false, capacity: '32', cost: '20000', maintenance: '400', needs_ground: false } },
-  extension: { label: '駅拡張施設 (extension)', values: { type: 'extension', level: '4', waytype: '', enables_pax: true, enables_post: true, enables_ware: false, capacity: '64', cost: '25000', maintenance: '500', needs_ground: true } },
-  depot: { label: '車庫 (depot)', values: { type: 'depot', level: '2', waytype: 'track', enables_pax: false, enables_post: false, enables_ware: false, cost: '50000', maintenance: '1000', needs_ground: false } },
-  harbour: { label: '港 (harbour)', values: { type: 'harbour', level: '6', waytype: 'water', enables_pax: true, enables_post: true, enables_ware: true, capacity: '128', cost: '80000', maintenance: '1200', needs_ground: true } }
+  res: { label: '住宅 (res)', values: { type: 'res', level: '10', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true, iconMode: 'none' } },
+  com: { label: '商業 (com)', values: { type: 'com', level: '10', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true, iconMode: 'none' } },
+  ind: { label: '工業 (ind)', values: { type: 'ind', level: '10', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true, iconMode: 'none' } },
+  cur: { label: '観光名所 (cur)', values: { type: 'cur', level: '25', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true, iconMode: 'auto' } },
+  mon: { label: '記念碑 (mon)', values: { type: 'mon', level: '20', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true, iconMode: 'auto' } },
+  hq:  { label: '本社 (hq)', values: { type: 'hq', level: '30', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true, iconMode: 'auto' } },
+  tow: { label: '市庁舎 (tow)', values: { type: 'tow', level: '20', waytype: '', enables_pax: false, enables_post: false, enables_ware: false, needs_ground: true, iconMode: 'auto' } },
+  stop: { label: '駅・停留所 (stop)', values: { type: 'stop', level: '4', waytype: 'track', enables_pax: true, enables_post: false, enables_ware: false, capacity: '32', cost: '20000', maintenance: '400', needs_ground: false, iconMode: 'auto' } },
+  extension: { label: '駅拡張施設 (extension)', values: { type: 'extension', level: '4', waytype: '', enables_pax: true, enables_post: true, enables_ware: false, capacity: '64', cost: '25000', maintenance: '500', needs_ground: true, iconMode: 'auto' } },
+  depot: { label: '車庫 (depot)', values: { type: 'depot', level: '2', waytype: 'track', enables_pax: false, enables_post: false, enables_ware: false, cost: '50000', maintenance: '1000', needs_ground: false, iconMode: 'auto' } },
+  harbour: { label: '港 (harbour)', values: { type: 'harbour', level: '6', waytype: 'water', enables_pax: true, enables_post: true, enables_ware: true, capacity: '128', cost: '80000', maintenance: '1200', needs_ground: true, iconMode: 'auto' } }
 };
 
 export const CORE_DAT_TEMPLATES = {
@@ -50,7 +50,14 @@ export const CORE_DAT_TEMPLATES = {
       intro_month: '1',
       retire_year: '',
       retire_month: '',
-      climates: ['temperate', 'mediterran', 'tropic', 'desert']
+      climates: ['temperate', 'mediterran', 'tropic', 'desert'],
+      iconMode: 'none',
+      iconSampleMode: 'auto',
+      cursorMode: 'none',
+      cursorExternalName: '',
+      cursorExternalDataUrl: '',
+      cursorExternalRow: '0',
+      cursorExternalCol: '0'
     },
     fields: [
       { key: 'type', label: '建物種別 (type)', type: 'select', options: [

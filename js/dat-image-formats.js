@@ -65,6 +65,22 @@ function hasExternalSeason(v, s) {
   return Boolean(ref && ref !== '__self__');
 }
 
+// 旧 includeCursorIcon と新 iconMode / cursorMode を統一解決する
+export function resolveCursorIconModes(v = {}) {
+  const legacy = Boolean(v.includeCursorIcon);
+  return {
+    iconMode: v.iconMode ?? (legacy ? 'sheet' : 'none'),
+    cursorMode: v.cursorMode ?? (legacy ? 'sheet' : 'none')
+  };
+}
+
+function appendSheetCursorIcon(entries, v, row, col) {
+  const { iconMode, cursorMode } = resolveCursorIconModes(v);
+  let nextCol = col;
+  if (cursorMode === 'sheet') entries.push({ key: 'Cursor', row, col: nextCol++ });
+  if (iconMode === 'sheet') entries.push({ key: 'Icon', row, col: nextCol, isIcon: true });
+}
+
 function buildBuildingEntries(objType, v, startRow, startCol, forcedLayer = null) {
   const entries = [];
   const dimsW = Math.max(1, parseInt(v.dimsW, 10) || 1);
@@ -101,6 +117,9 @@ function buildBuildingEntries(objType, v, startRow, startCol, forcedLayer = null
 
   if (layerMode === 'back' || layerMode === 'both') pushLayer('BackImage');
   if (layerMode === 'front' || layerMode === 'both') pushLayer('FrontImage');
+  if (objType === 'building') {
+    appendSheetCursorIcon(entries, v, startRow + seasons * frames * heightTiles, startCol);
+  }
   return entries;
 }
 
@@ -125,10 +144,7 @@ function buildInfraEntries(objType, v, startRow, startCol) {
       ['3', '6', '9', '12'].forEach((d, i) => entries.push({ key: `ImageUp2[${d}]`, row: nextRow, col: startCol + i }));
       nextRow += 1;
     }
-    if (v.includeCursorIcon) {
-      entries.push({ key: 'Cursor', row: nextRow, col: startCol });
-      entries.push({ key: 'Icon', row: nextRow, col: startCol + 1, isIcon: true });
-    }
+    appendSheetCursorIcon(entries, v, nextRow, startCol);
   } else if (objType === 'way-object') {
     const dirs = ['NS', 'EW', 'NE', 'SE', 'NW', 'SW', 'N', 'S', 'E', 'W'];
     dirs.forEach((d, i) => entries.push({ key: `FrontImage[${d}]`, row: startRow, col: startCol + i }));
@@ -137,10 +153,7 @@ function buildInfraEntries(objType, v, startRow, startCol) {
       ['NE', 'SE', 'NW', 'SW'].forEach((d, i) => entries.push({ key: `Diagonal[${d}]`, row: nextRow, col: startCol + i }));
       nextRow += 1;
     }
-    if (v.includeCursorIcon) {
-      entries.push({ key: 'Cursor', row: nextRow, col: startCol });
-      entries.push({ key: 'Icon', row: nextRow, col: startCol + 1, isIcon: true });
-    }
+    appendSheetCursorIcon(entries, v, nextRow, startCol);
   } else if (objType === 'bridge') {
     entries.push({ key: 'BackImage[NS]', row: startRow, col: startCol });
     entries.push({ key: 'BackImage[EW]', row: startRow, col: startCol + 1 });
@@ -148,10 +161,7 @@ function buildInfraEntries(objType, v, startRow, startCol) {
     ['N', 'S', 'E', 'W'].forEach((d, i) => entries.push({ key: `BackRamp[${d}]`, row: startRow + 2, col: startCol + i }));
     entries.push({ key: 'BackPillar[S]', row: startRow + 3, col: startCol });
     entries.push({ key: 'BackPillar[W]', row: startRow + 3, col: startCol + 1 });
-    if (v.includeCursorIcon) {
-      entries.push({ key: 'Cursor', row: startRow + 3, col: startCol + 2 });
-      entries.push({ key: 'Icon', row: startRow + 3, col: startCol + 3, isIcon: true });
-    }
+    appendSheetCursorIcon(entries, v, startRow + 3, startCol + 2);
   } else if (objType === 'tunnel') {
     const portalMode = v.tunnelPortalMode || 'single';
     let nextRow = startRow;
@@ -168,10 +178,7 @@ function buildInfraEntries(objType, v, startRow, startCol) {
       wideDirs.forEach((wd, i) => entries.push({ key: `FrontImage[${wd}]`, row: nextRow + 1, col: startCol + i }));
       nextRow += 2;
     }
-    if (v.includeCursorIcon) {
-      entries.push({ key: 'Cursor', row: nextRow, col: startCol });
-      entries.push({ key: 'Icon', row: nextRow, col: startCol + 1, isIcon: true });
-    }
+    appendSheetCursorIcon(entries, v, nextRow, startCol);
   } else if (objType === 'crossing') {
     entries.push({ key: 'openimage[NS][0]', row: startRow, col: startCol });
     entries.push({ key: 'openimage[EW][0]', row: startRow, col: startCol + 1 });
@@ -202,10 +209,7 @@ function buildInfraEntries(objType, v, startRow, startCol) {
       }
       nextRow += 1;
     }
-    if (v.includeCursorIcon) {
-      entries.push({ key: 'Cursor', row: nextRow, col: startCol });
-      entries.push({ key: 'Icon', row: nextRow, col: startCol + 1, isIcon: true });
-    }
+    appendSheetCursorIcon(entries, v, nextRow, startCol);
   }
   return entries;
 }

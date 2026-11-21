@@ -135,6 +135,7 @@ export function renderDatModalUI() {
                   </div>
                 </div>
                 <div class="dat-field full-width" id="dat-season-masks-box" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
+                <div class="dat-field full-width" id="dat-icon-cursor-box" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
                 <div class="dat-field">
                   <label>開始行 (Y)</label>
                   <input type="number" id="inp-dat-start-row" value="0" min="0">
@@ -250,6 +251,7 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
     const state = gen._getObjState('building');
     Object.assign(state, preset.values);
     gen._renderDynamicFields();
+    gen._renderSeasonMaskPanel();
     if (gen.autoSync) gen.regenerateOutput();
   };
 

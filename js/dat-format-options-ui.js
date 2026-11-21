@@ -64,9 +64,6 @@ export function renderFormatOptionsPanel(container, { objType, common, values, o
         v.includeSlopes2 = ck; onChange();
       });
     }
-    appendCheck(container, 'Cursor / Icon を出力', Boolean(v.includeCursorIcon), (ck) => {
-      v.includeCursorIcon = ck; onChange();
-    });
     const legend = document.createElement('div');
     legend.className = 'info-text';
     legend.textContent = '方角目安: N=右上↗ / E=右下↘ / S=左下↙ / W=左上↖';
@@ -90,9 +87,6 @@ export function renderFormatOptionsPanel(container, { objType, common, values, o
     sel.value = v.tunnelPortalMode || 'single';
     sel.onchange = () => { v.tunnelPortalMode = sel.value; onChange(); };
     appendField(container, '坑口パターン (単線 / Nl,Nm,Nr複線以上)', sel);
-    appendCheck(container, 'Cursor / Icon を出力', Boolean(v.includeCursorIcon), (ck) => {
-      v.includeCursorIcon = ck; onChange();
-    });
     const legend = document.createElement('div');
     legend.className = 'info-text';
     legend.textContent = '方角目安: N=右上↗ / E=右下↘ / S=左下↙ / W=左上↖ (l=左, m=中央, r=右)';
@@ -125,9 +119,6 @@ export function renderFormatOptionsPanel(container, { objType, common, values, o
       inpDiag.oninput = () => { v.diagonalStates = inpDiag.value; onChange(); };
       appendField(container, `斜め画像コマ数 (makeobj推奨 Image×2 = ${baseCount * 2})`, inpDiag);
     }
-    appendCheck(container, 'Cursor / Icon を出力', Boolean(v.includeCursorIcon), (ck) => {
-      v.includeCursorIcon = ck; onChange();
-    });
     return;
   }
 

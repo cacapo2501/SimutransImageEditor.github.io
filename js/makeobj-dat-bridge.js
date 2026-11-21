@@ -3,6 +3,13 @@ import { resolveSpecialColorConflicts } from './color-utils.js';
 import { buildMaskImagePrefix } from './dat-livery-manager.js';
 import { buildCompositeImagePrefix } from './composite-naming.js';
 import { openMakeobjLicenseModal, runMakeobjCompile } from './makeobj-service.js';
+import { resolveCursorIconModes } from './dat-image-formats.js';
+import {
+  supportsCursorIcon,
+  generateAutoIconCanvas,
+  canvasToPngBytes,
+  dataUrlToPngBytes
+} from './dat-icon-generator.js';
 
 function renderCompositePngBytes(app) {
   return new Promise((resolve, reject) => {
@@ -165,11 +172,46 @@ export class MakeobjDatBridge {
           }
         }
       }
+
+      // 自動生成 Icon PNG (32x32 ボタン合成) および外部指定 Cursor PNG を収集する
+      await this._attachIconAndCursorPngs(filesMap, neededPrefixes, activePrefix);
     }
 
     // ユーザーが明示的に添付した PNG で上書き可能
     this.extraPngMap.forEach((bytes, name) => filesMap.set(name, bytes));
     return Array.from(filesMap.entries()).map(([name, data]) => ({ name, data }));
+  }
+
+  async _attachIconAndCursorPngs(filesMap, neededPrefixes, activePrefix) {
+    const app = this.gen.app;
+    const entriesToCheck = this.gen.collectionMgr?.hasCollection?.()
+      ? this.gen.collectionMgr.items
+      : [{ objType: this.gen.currentObjType, common: this.gen.common, values: this.gen._getObjState(this.gen.currentObjType) }];
+
+    for (const item of entriesToCheck) {
+      if (!item || !supportsCursorIcon(item.objType)) continue;
+      const v = item.values || {};
+      const { iconMode, cursorMode } = resolveCursorIconModes(v);
+
+      if (cursorMode === 'external' && v.cursorExternalName && v.cursorExternalDataUrl) {
+        const curPrefix = String(v.cursorExternalName).replace(/\.png$/i, '').trim();
+        const bytes = dataUrlToPngBytes(v.cursorExternalDataUrl);
+        if (bytes && curPrefix) filesMap.set(`${curPrefix}.png`, bytes);
+      }
+
+      if (iconMode === 'auto') {
+        const candPrefixes = new Set([
+          `${item.common?.imgPrefix || ''}_icon`,
+          `${activePrefix}_icon`
+        ]);
+        for (const iconPref of candPrefixes) {
+          if (iconPref !== '_icon' && neededPrefixes.has(iconPref) && !filesMap.has(`${iconPref}.png`)) {
+            const iconCanvas = await generateAutoIconCanvas(app, item.objType, v, item.common);
+            filesMap.set(`${iconPref}.png`, await canvasToPngBytes(iconCanvas));
+          }
+        }
+      }
+    }
   }
 
   async compileCurrentDat() {

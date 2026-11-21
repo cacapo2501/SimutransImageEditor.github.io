@@ -49,7 +49,13 @@ export const EXTRA_DAT_TEMPLATES = {
       intro_month: '1',
       retire_year: '',
       retire_month: '',
-      includeCursorIcon: true,
+      iconMode: 'auto',
+      iconSampleMode: 'auto',
+      cursorMode: 'none',
+      cursorExternalName: '',
+      cursorExternalDataUrl: '',
+      cursorExternalRow: '0',
+      cursorExternalCol: '0',
       includePoints: false,
       includeDiagonal: true,
       includeSlopes: true,
@@ -73,8 +79,7 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'includePoints', label: '分岐ポイント画像 (NSE1〜NSEW2) を出力', type: 'checkbox' },
       { key: 'includeDiagonal', label: '斜め画像 (Diagonal) を出力', type: 'checkbox' },
       { key: 'includeSlopes', label: '坂道画像 (ImageUp) を出力', type: 'checkbox' },
-      { key: 'includeSlopes2', label: '2段坂画像 (ImageUp2) を出力', type: 'checkbox' },
-      { key: 'includeCursorIcon', label: 'Cursor / Icon を出力', type: 'checkbox' }
+      { key: 'includeSlopes2', label: '2段坂画像 (ImageUp2) を出力', type: 'checkbox' }
     ]
   },
 
@@ -94,7 +99,13 @@ export const EXTRA_DAT_TEMPLATES = {
       retire_year: '',
       retire_month: '',
       includeDiagonal: true,
-      includeCursorIcon: true
+      iconMode: 'auto',
+      iconSampleMode: 'auto',
+      cursorMode: 'none',
+      cursorExternalName: '',
+      cursorExternalDataUrl: '',
+      cursorExternalRow: '0',
+      cursorExternalCol: '0'
     },
     fields: [
       { key: 'waytype', label: '対象軌道 (waytype)', type: 'select', options: WAYTYPE_OPTIONS },
@@ -106,8 +117,7 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
       { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },
       { key: 'retire_month', label: '引退月 (retire_month)', type: 'number', min: 1, max: 12 },
-      { key: 'includeDiagonal', label: '斜め画像 (Diagonal) を出力', type: 'checkbox' },
-      { key: 'includeCursorIcon', label: 'Cursor / Icon を出力', type: 'checkbox' }
+      { key: 'includeDiagonal', label: '斜め画像 (Diagonal) を出力', type: 'checkbox' }
     ]
   },
 
@@ -129,7 +139,13 @@ export const EXTRA_DAT_TEMPLATES = {
       intro_month: '1',
       retire_year: '',
       retire_month: '',
-      includeCursorIcon: true
+      iconMode: 'auto',
+      iconSampleMode: 'auto',
+      cursorMode: 'none',
+      cursorExternalName: '',
+      cursorExternalDataUrl: '',
+      cursorExternalRow: '0',
+      cursorExternalCol: '0'
     },
     fields: [
       { key: 'waytype', label: '軌道種別 (waytype)', type: 'select', options: WAYTYPE_OPTIONS },
@@ -143,8 +159,7 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'intro_year', label: '登場年 (intro_year)', type: 'number', min: 1 },
       { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
       { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },
-      { key: 'retire_month', label: '引退月 (retire_month)', type: 'number', min: 1, max: 12 },
-      { key: 'includeCursorIcon', label: 'Cursor / Icon を出力', type: 'checkbox' }
+      { key: 'retire_month', label: '引退月 (retire_month)', type: 'number', min: 1, max: 12 }
     ]
   },
 
@@ -166,7 +181,13 @@ export const EXTRA_DAT_TEMPLATES = {
       intro_month: '1',
       retire_year: '',
       retire_month: '',
-      includeCursorIcon: true
+      iconMode: 'auto',
+      iconSampleMode: 'auto',
+      cursorMode: 'none',
+      cursorExternalName: '',
+      cursorExternalDataUrl: '',
+      cursorExternalRow: '0',
+      cursorExternalCol: '0'
     },
     fields: [
       { key: 'waytype', label: '軌道種別 (waytype)', type: 'select', options: WAYTYPE_OPTIONS },
@@ -185,8 +206,7 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'intro_year', label: '登場年 (intro_year)', type: 'number', min: 1 },
       { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
       { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },
-      { key: 'retire_month', label: '引退月 (retire_month)', type: 'number', min: 1, max: 12 },
-      { key: 'includeCursorIcon', label: 'Cursor / Icon を出力', type: 'checkbox' }
+      { key: 'retire_month', label: '引退月 (retire_month)', type: 'number', min: 1, max: 12 }
     ]
   },
 
@@ -242,7 +262,13 @@ export const EXTRA_DAT_TEMPLATES = {
       includeDiagonal: false,
       includeFrontDiagonal: false,
       diagonalStates: '8',
-      includeCursorIcon: true
+      iconMode: 'auto',
+      iconSampleMode: 'auto',
+      cursorMode: 'none',
+      cursorExternalName: '',
+      cursorExternalDataUrl: '',
+      cursorExternalRow: '0',
+      cursorExternalCol: '0'
     },
     fields: [
       { key: 'waytype', label: '軌道種別 (waytype)', type: 'select', options: WAYTYPE_OPTIONS },
@@ -265,8 +291,7 @@ export const EXTRA_DAT_TEMPLATES = {
       { key: 'single_way', label: '一方通行 (single_way=1)', type: 'checkbox' },
       { key: 'includeFrontImage', label: '前面画像 (FrontImage[0..N-1]) を出力', type: 'checkbox' },
       { key: 'includeDiagonal', label: '斜め画像 (Diagonal[0..M-1]) を出力', type: 'checkbox' },
-      { key: 'includeFrontDiagonal', label: '斜め前面画像 (FrontDiagonal[0..M-1]) を出力', type: 'checkbox' },
-      { key: 'includeCursorIcon', label: 'Cursor / Icon を出力', type: 'checkbox' }
+      { key: 'includeFrontDiagonal', label: '斜め前面画像 (FrontDiagonal[0..M-1]) を出力', type: 'checkbox' }
     ]
   },
 

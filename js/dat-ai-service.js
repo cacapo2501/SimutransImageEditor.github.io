@@ -104,7 +104,7 @@ const IMAGE_LAYOUT_VALUE_KEYS = [
   'dimsW', 'dimsH', 'dimsViews', 'heightTiles', 'frames', 'seasons', 'imageLayer',
   'includePoints', 'includeDiagonal', 'includeSlopes', 'includeSlopes2', 'includeCursorIcon',
   'includeFrontImage', 'includeFrontDiagonal', 'signalStates', 'diagonalStates',
-  'tunnelPortalMode', 'way', 'ageCount', 'has_snow'
+  'tunnelPortalMode', 'way', 'ageCount', 'has_snow', 'iconMode', 'iconSampleMode', 'cursorMode', 'cursorExternalName', 'cursorExternalDataUrl', 'cursorExternalRow', 'cursorExternalCol'
 ];
 
 function applyPreservedImageValues(values, fallbackValues) {

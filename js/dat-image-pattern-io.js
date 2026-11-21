@@ -7,7 +7,8 @@ const IMAGE_FORMAT_VALUE_KEYS = [
   'directions', 'hasFreightImage', 'freightRow', 'freightTypeName',
   'reverseRowMode', 'reverseRow', 'reverseFlipDir', 'includeNoElectric', 'noElectricRow',
   'imageLayer', 'dimsW', 'dimsH', 'dimsViews', 'heightTiles', 'frames', 'seasons',
-  'signalStates', 'ageCount', 'has_snow'
+  'signalStates', 'ageCount', 'has_snow',
+  'iconMode', 'iconSampleMode', 'cursorMode', 'cursorExternalName', 'cursorExternalDataUrl', 'cursorExternalRow', 'cursorExternalCol'
 ];
 
 export function buildImagePatternData({ objType, common, values, tileW = null, tileH = null }) {

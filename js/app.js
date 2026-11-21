@@ -30,7 +30,7 @@ import {
 } from './project-reset.js';
 
 // アプリケーションバージョン
-export const APP_VERSION = '5.6.0';
+export const APP_VERSION = '5.7.0';
 
 class AdvancedMultiplyApp {
   constructor() {
