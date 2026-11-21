@@ -195,7 +195,7 @@ export class VehicleLayoutController {
     const nextMaskName = swapLayoutTagInName(app.maskName, tagChar);
 
     if (newBaseCanvas) {
-      app.applyBaseImage(newBaseCanvas, nextBaseName, { resetMask: false });
+      app.applyBaseImage(newBaseCanvas, nextBaseName, { resetMask: false, resetDat: false, isTransform: true });
     }
     if (newMaskCanvas) {
       app.applyMaskImage(newMaskCanvas, nextMaskName);

@@ -42,10 +42,20 @@ body {
   border-right: 1px solid #3d3d3d;
   display: flex;
   flex-direction: column;
-  padding: 8px 8px 0 8px;
-  overflow-y: auto;
-  gap: 8px;
+  padding: 0;
+  overflow: hidden;
   position: relative;
+}
+
+.sidebar-scroll-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
 }
 
 .accordion-panel {
@@ -81,6 +91,7 @@ body {
 }
 
 .panel-body::-webkit-scrollbar,
+.sidebar-scroll-area::-webkit-scrollbar,
 #sidebar::-webkit-scrollbar,
 #paint-sidebar::-webkit-scrollbar,
 #layer-listbox::-webkit-scrollbar,
@@ -89,6 +100,7 @@ body {
   width: 6px;
 }
 .panel-body::-webkit-scrollbar-track,
+.sidebar-scroll-area::-webkit-scrollbar-track,
 #sidebar::-webkit-scrollbar-track,
 #paint-sidebar::-webkit-scrollbar-track,
 #layer-listbox::-webkit-scrollbar-track,
@@ -98,6 +110,7 @@ body {
   border-radius: 3px;
 }
 .panel-body::-webkit-scrollbar-thumb,
+.sidebar-scroll-area::-webkit-scrollbar-thumb,
 #sidebar::-webkit-scrollbar-thumb,
 #paint-sidebar::-webkit-scrollbar-thumb,
 #layer-listbox::-webkit-scrollbar-thumb,

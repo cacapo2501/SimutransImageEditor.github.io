@@ -353,8 +353,10 @@ export class AircraftMapperController {
       .replace(/\.png$/i, '_def.png');
     const maskOutName = baseOutName.replace(/_def\.png$/i, '_paint.png');
 
-    app.applyBaseImage(baseCanvas, baseOutName, { resetMask: false });
+    const reset = !document.getElementById('chk-keep-state-on-base-load')?.checked;
+    app.applyBaseImage(baseCanvas, baseOutName, { resetMask: reset, resetDat: reset, skipAutoMask: true, reason: `飛行機展開: ${baseOutName}` });
     app.applyMaskImage(maskCanvas, maskOutName);
+    if (reset) app.datGenerator?.syncImagePrefixWithApp?.({ force: true });
     app.markDirty();
     app.zoomFit();
     app.render();

@@ -105,15 +105,79 @@ fieldset.sub-panel label input[type="checkbox"] {
 #tint-table tr.selected { background: #005a9e; }
 
 .sidebar-footer {
-  position: sticky;
-  bottom: 0;
   background: #262626;
-  margin-top: auto;
-  padding: 10px 0 10px 0;
+  padding: 10px 8px;
   border-top: 1px solid #3d3d3d;
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.45);
   flex-shrink: 0;
   z-index: 20;
+}
+
+.project-status-box {
+  background: #1d242b;
+  border: 1px solid #36506b;
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: background 0.25s, border-color 0.25s;
+}
+
+.project-status-box.is-reset {
+  background: #172e21;
+  border-color: #2f855a;
+}
+
+.project-status-box.is-warning {
+  background: #2f2315;
+  border-color: #9c6522;
+}
+
+.project-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.project-status-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: #9cdcfe;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-status-box.is-reset .project-status-title {
+  color: #7ee787;
+}
+
+.project-status-box.is-warning .project-status-title {
+  color: #ffca7a;
+}
+
+.project-status-detail {
+  font-size: 10px;
+  color: #b0bec5;
+  line-height: 1.35;
+}
+
+.btn-project-reset {
+  background: #3a2323;
+  border-color: #6b3838;
+  color: #ffb4b4;
+  padding: 3px 7px;
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.btn-project-reset:hover {
+  background: #522e2e;
+  border-color: #8c4646;
 }
 
 #canvas-container {

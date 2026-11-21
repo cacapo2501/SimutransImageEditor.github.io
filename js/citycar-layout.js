@@ -269,7 +269,7 @@ export class CityCarLayoutController {
         convertedMasks.push({ idx: -1, canvas: convFn(app.maskImage, false, segments), nextName: renameMask(app.maskName) });
       }
 
-      app.applyBaseImage(newBase, nextBaseName, { resetMask: false });
+      app.applyBaseImage(newBase, nextBaseName, { resetMask: false, resetDat: false, isTransform: true });
       if (app.maskMgr && app.maskMgr.items.length > 0 && convertedMasks.length > 0) {
         const origIdx = app.maskMgr.activeIndex;
         convertedMasks.forEach(({ idx, canvas, nextName }) => {

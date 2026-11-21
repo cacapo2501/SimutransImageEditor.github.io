@@ -240,7 +240,7 @@ export class DeftileBuilder {
       if (!this.generatedCanvas) this.updatePreview();
       const baseName = this.deftileName.replace(/\.[^/.]+$/, '') + '_base.png';
       const reset = !document.getElementById('chk-keep-state-on-base-load')?.checked;
-      this.app.applyBaseImage(this.generatedCanvas, baseName, { resetMask: reset, resetDat: reset });
+      this.app.applyBaseImage(this.generatedCanvas, baseName, { resetMask: reset, resetDat: reset, reason: `DEFTILE生成: ${baseName}` });
       if (reset) {
         this.app.tileCutter?.applyFromDeftile(
           this.deftileCanvas.width,

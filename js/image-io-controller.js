@@ -2,6 +2,7 @@ import { parseSpecialColorsCsv } from './color-utils.js';
 import { ProjectIO } from './project-io.js';
 import { MaskGenerator } from './mask-generator.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
+import { resetFullProjectState, updateProjectStatusUI } from './project-reset.js';
 
 export function safePickFile(accept = '.png') {
   return new Promise((resolve) => {
@@ -222,12 +223,49 @@ export class ImageIOController {
       }
     };
 
-    document.getElementById('btn-save-proj').onclick = () => ProjectIO.save(app);
-    document.getElementById('btn-save-proj-as').onclick = () => ProjectIO.save(app);
+    document.getElementById('btn-save-proj').onclick = () => ProjectIO.save(app, { saveAs: false });
+    document.getElementById('btn-save-proj-as').onclick = () => ProjectIO.save(app, { saveAs: true });
     document.getElementById('btn-load-proj').onclick = async () => {
       const f = await this.pickFileFn('.json');
       if (f) ProjectIO.load(app, f);
     };
     document.getElementById('btn-save-png').onclick = () => ProjectIO.exportPng(app);
+
+    const btnResetProj = document.getElementById('btn-reset-project');
+    if (btnResetProj) {
+      btnResetProj.onclick = () => {
+        if (!confirm('現在のプロジェクト設定（レイヤー・マスク・トーン・タイルカッター・dat編集内容・保存先ファイルの紐付け）をすべて初期状態にリセットしますか？\n（ベース画像が開かれている場合は初期マスクを再生成します）')) {
+          return;
+        }
+        const chkKeep = document.getElementById('chk-keep-state-on-base-load');
+        if (chkKeep) chkKeep.checked = false;
+        if (app.baseImage) {
+          app.applyBaseImage(app.baseImage, app.baseName, { resetMask: true, resetDat: true, reason: '手動完全リセット' });
+          app.render();
+        } else {
+          resetFullProjectState(app, { reason: '手動完全リセット', resetBase: true });
+          app.render();
+        }
+      };
+    }
+
+    const chkKeepState = document.getElementById('chk-keep-state-on-base-load');
+    if (chkKeepState) {
+      chkKeepState.onchange = (e) => {
+        if (e.target.checked) {
+          updateProjectStatusUI(app, {
+            title: '⚠️ 設定維持モード ON (リセット無効中)',
+            detail: '別のベース画像を読み込んでも現在のマスク・レイヤー・dat設定を維持します（保存先ファイル紐付けは誤上書き防止のため解除されます）',
+            mode: 'warning'
+          });
+        } else {
+          updateProjectStatusUI(app, {
+            title: app.currentProjectName ? `📂 プロジェクト: ${app.currentProjectName}` : `🖼️ 編集中ベース: ${app.baseName}`,
+            detail: '新しいベース画像を読み込むと前のプロジェクト設定・保存先は自動リセットされます',
+            mode: 'normal'
+          });
+        }
+      };
+    }
   }
 }

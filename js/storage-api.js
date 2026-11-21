@@ -3,6 +3,13 @@
 export class StorageAPI {
   constructor() {
     this.lastProjectHandle = null;
+    this.currentProjectName = null;
+  }
+
+  // 現在のプロジェクト保存先ハンドルを解除する（別プロジェクトへの無断上書きを防止）
+  clearProjectHandle() {
+    this.lastProjectHandle = null;
+    this.currentProjectName = null;
   }
 
   // JSONファイルの保存（プロジェクト保存 / 別名保存対応・iPad Safari フォールバック付き）
@@ -25,10 +32,11 @@ export class StorageAPI {
           });
           this.lastProjectHandle = handle;
         }
+        this.currentProjectName = handle.name || defaultName;
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
-        return true;
+        return this.currentProjectName;
       } catch (err) {
         if (err && err.name === 'AbortError') {
           return false; // ユーザーによるキャンセル
@@ -47,6 +55,7 @@ export class StorageAPI {
       }
     }
 
+    this.currentProjectName = filename;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -55,7 +64,7 @@ export class StorageAPI {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    return true;
+    return filename;
   }
 
   // ローカルフォルダ選択

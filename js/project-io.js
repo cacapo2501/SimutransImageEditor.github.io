@@ -1,5 +1,12 @@
 import { resolveSpecialColorConflicts } from './color-utils.js';
 import { buildCompositeImageFilename } from './composite-naming.js';
+import {
+  resetFullProjectState,
+  syncProjectEffectInputsFromApp,
+  updateProjectStatusUI,
+  createDefaultGlobalTone,
+  createDefaultWindowDarken
+} from './project-reset.js';
 
 export function canvasToDataUrl(source) {
   if (!source) return null;
@@ -86,12 +93,20 @@ export class ProjectIO {
     };
 
     const jsonStr = JSON.stringify(projData, null, 2);
-    const defaultName = app.baseName.replace(/\.png$/i, '') + '.proj.json';
+    const defaultName = app.currentProjectName || (app.baseName.replace(/\.png$/i, '') + '.proj.json');
 
-    const saved = await app.storage.saveJsonFile(jsonStr, defaultName, { saveAs });
-    if (saved) {
+    const savedName = await app.storage.saveJsonFile(jsonStr, defaultName, { saveAs });
+    if (savedName) {
+      const projName = typeof savedName === 'string' ? savedName : defaultName;
+      app.currentProjectName = projName;
       app.isDirty = false;
-      alert('プロジェクトを保存しました！');
+      updateProjectStatusUI(app, {
+        title: `💾 保存済プロジェクト: ${projName}`,
+        detail: `ベース: ${app.baseName} | 次回「プロジェクト保存」はこのファイルに保存されます（新しいベース読込で自動解除）`,
+        mode: 'normal',
+        statusBarText: `💾 プロジェクトを保存しました: ${projName}`
+      });
+      alert(`プロジェクトを保存しました！ (${projName})`);
     }
   }
 
@@ -100,8 +115,11 @@ export class ProjectIO {
     const text = await file.text();
     const data = JSON.parse(text);
 
+    // 前のプロジェクト状態・保存先ハンドルを完全にリセットしてから読み込む
+    resetFullProjectState(app, { silent: true });
+
     const baseImg = await loadImageAsync(data.base_data_url);
-    app.applyBaseImage(baseImg, data.base_name || 'base.png', { resetMask: true });
+    app.applyBaseImage(baseImg, data.base_name || 'base.png', { resetMask: false, resetDat: false, isProjectLoad: true });
 
     if (Array.isArray(data.masks) && data.masks.length > 0 && app.maskMgr) {
       app.maskMgr.clearAll();
@@ -130,8 +148,8 @@ export class ProjectIO {
       app.paletteManager.fromDict(data.palette_data);
     }
 
-    if (data.global_tone) Object.assign(app.globalTone, data.global_tone);
-    if (data.window_darken) Object.assign(app.windowDarken, data.window_darken);
+    app.globalTone = { ...createDefaultGlobalTone(), ...(data.global_tone || {}) };
+    app.windowDarken = { ...createDefaultWindowDarken(), ...(data.window_darken || {}) };
     app.enableMaskTint = data.enable_mask_tint !== undefined ? data.enable_mask_tint : true;
     app.enableBlur = data.enable_blur !== undefined ? data.enable_blur : true;
     app.blurRadius = data.blur_radius || 0.0;
@@ -178,9 +196,18 @@ export class ProjectIO {
     if (app.layerManager) app.layerManager.onMaskCollectionChanged();
     if (app.tileCutter) app.tileCutter.importProjectState(data.tile_cutter || null);
     if (app.datGenerator) app.datGenerator.importProjectState(data.dat_generator || null);
-    app.onToneTargetChanged('__ALL__');
-    app.toneTintCtrl.updateMaskCombos();
-    app.toneTintCtrl.updateTintTable();
+    syncProjectEffectInputsFromApp(app);
+    app.currentProjectName = file.name || null;
+    if (app.storage) {
+      app.storage.lastProjectHandle = null;
+      app.storage.currentProjectName = app.currentProjectName;
+    }
+    updateProjectStatusUI(app, {
+      title: `📂 読込済プロジェクト: ${file.name}`,
+      detail: `ベース: ${app.baseName} (${app.baseW}×${app.baseH}px) | 保存時は保存先確認ダイアログが開きます`,
+      mode: 'normal',
+      statusBarText: `📂 プロジェクトを読み込みました: ${file.name}`
+    });
     app.isDirty = false;
     app.zoomFit();
   }

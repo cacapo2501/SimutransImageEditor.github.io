@@ -24,6 +24,9 @@ import { renderPaintModalUI } from './ui-paint-modal.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 import { renderDeftileModalUI } from './ui-deftile-modal.js';
 import { initMakeobjStatus } from './makeobj-service.js';
+import {
+  resetFullProjectState, updateProjectStatusUI, createDefaultGlobalTone, createDefaultWindowDarken
+} from './project-reset.js';
 
 // アプリケーションバージョン
 export const APP_VERSION = '5.4.0';
@@ -51,6 +54,7 @@ class AdvancedMultiplyApp {
     this.isBgMask = null;
     this.editableMask = null;
     this.isBaseSpecialColor = null;
+    this.currentProjectName = null;
 
     this.maskImage = null;
     this.maskName = 'mask.png';
@@ -63,18 +67,9 @@ class AdvancedMultiplyApp {
     this.layers = [];
     this.activeIdx = -1;
 
-    this.globalTone = {
-      dark_color_hex: '#000018',
-      min_dark_pct: 0.0,
-      max_bright_pct: 100.0,
-      alpha_pct: 100.0,
-      dodge_color_hex: '#FFFFFF',
-      dodge_max_strength: 100.0,
-      enable_dodge: true
-    };
+    this.globalTone = createDefaultGlobalTone();
     this.maskToneOverrides = new Map();
-
-    this.windowDarken = { enabled: false, ratio_pct: 50, seed: 12345, include_all_special: false };
+    this.windowDarken = createDefaultWindowDarken();
     this.enableBlur = true;
     this.blurRadius = 0.0;
     this.pixelSnap = true;
@@ -151,39 +146,24 @@ class AdvancedMultiplyApp {
   markDirty() { this.isDirty = true; }
 
   resetMaskState() {
-    if (this.maskMgr) {
-      this.maskMgr.clearAll();
-    } else {
-      this.maskImage = null;
-      this.maskName = 'mask.png';
-      this.maskRgb = null;
-      this.maskColors = [];
-      this.maskTintColors.clear();
-      this.maskToneOverrides.clear();
+    if (this.maskMgr) this.maskMgr.clearAll();
+    else {
+      this.maskImage = null; this.maskName = 'mask.png'; this.maskRgb = null;
+      this.maskColors = []; this.maskTintColors.clear(); this.maskToneOverrides.clear();
     }
-    this.layers.forEach(l => {
-      l.targetMaskColor = null;
-      l.excludeMaskColor = false;
-    });
+    this.layers.forEach(l => { l.targetMaskColor = null; l.excludeMaskColor = false; });
     this.layerManager.syncActiveUI();
     this.toneTintCtrl.updateMaskCombos();
     this.toneTintCtrl.updateTintTable();
   }
 
   regenerateMaskFromBase() {
-    if (!this.baseImage) {
-      alert('先にベース画像を開くか、新規作成してください。');
-      return null;
-    }
-    if (!confirm('現在選択中のマスク画像を破棄し、ベース画像からマスク画像を再生成しますか？')) {
-      return null;
-    }
+    if (!this.baseImage) { alert('先にベース画像を開くか、新規作成してください。'); return null; }
+    if (!confirm('現在選択中のマスク画像を破棄し、ベース画像からマスク画像を再生成しますか？')) return null;
     MaskGenerator.analyzeBaseImage(this, this.baseImage, this.baseName);
     const keepName = this.maskMgr?.getActive()?.name || this.baseName.replace(/\.png$/i, '_paint.png');
     const generated = MaskGenerator.generateFromBase(this);
-    if (this.maskMgr) {
-      this.maskMgr.registerAnalyzedMask(generated, keepName, { addAsNew: this.maskMgr.items.length === 0 });
-    }
+    if (this.maskMgr) this.maskMgr.registerAnalyzedMask(generated, keepName, { addAsNew: this.maskMgr.items.length === 0 });
     this.toneTintCtrl.updateMaskCombos();
     this.toneTintCtrl.updateTintTable();
     this.markDirty();
@@ -191,20 +171,38 @@ class AdvancedMultiplyApp {
     return generated;
   }
 
-  applyBaseImage(img, name, { resetMask = true, resetDat = false } = {}) {
-    if (resetMask) this.resetMaskState();
+  applyBaseImage(img, name, {
+    resetMask = true, resetDat = true, isTransform = false, isProjectLoad = false, skipAutoMask = false, reason = ''
+  } = {}) {
+    if (!isTransform && !isProjectLoad) {
+      // 別画像を読み込んだ際は常に前プロジェクトファイルへの上書きリンクを切断する
+      this.storage?.clearProjectHandle?.();
+      this.currentProjectName = null;
+    }
+    if (resetMask && resetDat) {
+      resetFullProjectState(this, { reason: reason || name || 'ベース読込', silent: isProjectLoad });
+    } else if (resetMask) {
+      this.resetMaskState();
+    } else if (!isTransform && !isProjectLoad) {
+      updateProjectStatusUI(this, {
+        title: `⚠️ 設定引継中: ${name || 'base.png'} (リセットなし)`,
+        detail: '前のマスク・レイヤー・dat設定を維持中（上書き保存先は誤上書き防止のため解除済）',
+        mode: 'warning'
+      });
+    }
     if (this.vehicleCtrl) this.vehicleCtrl.syncLengthFromFilename(name);
     MaskGenerator.analyzeBaseImage(this, img, name);
     this.setBaseName(name, { updateInput: true });
 
-    if (!this.maskImage) {
+    if (!this.maskImage && !skipAutoMask) {
       const autoName = (name || 'base.png').replace(/\.png$/i, '_paint.png');
       const generated = MaskGenerator.generateFromBase(this);
-      if (this.maskMgr && generated) {
-        this.maskMgr.registerAnalyzedMask(generated, autoName, { addAsNew: true });
-      }
+      if (this.maskMgr && generated) this.maskMgr.registerAnalyzedMask(generated, autoName, { addAsNew: true });
     }
-    if (resetDat) { this.datGenerator?.resetState?.(); this.tileCutter?.reset?.(); }
+    if (resetDat) {
+      this.datGenerator?.syncImagePrefixWithApp?.({ force: true });
+      this.datGenerator?.resetState?.();
+    }
   }
 
   async loadBaseFromFile(file) {
@@ -219,7 +217,6 @@ class AdvancedMultiplyApp {
   createNewBlankBaseImage(width, height, openPaint = true) {
     const w = Math.max(1, Math.min(2048, parseInt(width, 10) || 64));
     const h = Math.max(1, Math.min(2048, parseInt(height, 10) || 96));
-
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const ctx = c.getContext('2d');
@@ -234,21 +231,15 @@ class AdvancedMultiplyApp {
   }
 
   applyMaskImage(img, name, { addAsNew = false } = {}) {
-    if (this.maskMgr) {
-      this.maskMgr.registerAnalyzedMask(img, name, { addAsNew });
-    } else {
-      MaskGenerator.analyzeMaskImage(this, img, name);
-    }
+    if (this.maskMgr) this.maskMgr.registerAnalyzedMask(img, name, { addAsNew });
+    else MaskGenerator.analyzeMaskImage(this, img, name);
     this.toneTintCtrl.updateMaskCombos();
     this.toneTintCtrl.updateTintTable();
   }
 
   async loadMaskFromFile(file, { addAsNew = false } = {}) {
     if (!file) return;
-    if (!this.baseImage) {
-      alert('先にベース画像を開くか、新規作成してください。');
-      return;
-    }
+    if (!this.baseImage) { alert('先にベース画像を開くか、新規作成してください。'); return; }
     const img = await loadImageAsync(URL.createObjectURL(file));
     this.applyMaskImage(img, file.name, { addAsNew });
     this.markDirty();

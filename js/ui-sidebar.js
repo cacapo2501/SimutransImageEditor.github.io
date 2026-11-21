@@ -5,76 +5,86 @@ export function renderSidebarUI() {
   if (!sidebar) return;
 
   sidebar.innerHTML = `
-    <!-- セクション1: 画像・プロジェクト -->
-    <details class="accordion-panel" open>
-      <summary>画像・プロジェクト</summary>
-      <div class="panel-body">
-        <div class="btn-group">
-          <button id="btn-new-base" class="btn-primary">🆕 新規作成 (#E7FFFF)</button>
-          <button id="btn-open-deftile-builder" class="btn-primary">🏗️ DEFTILEから生成</button>
-        </div>
-        <div class="btn-group mt-05">
-          <button id="btn-load-base">ベースPNGを開く</button>
-          <button id="btn-load-mask">マスク画像を開く</button>
-        </div>
-        <label class="mt-05" title="オンにすると、別のベースPNGやDEFTILEを読み込んだ際にも現在のマスク画像・レイヤー割当・dat編集内容をリセットせず維持します">
-          <input type="checkbox" id="chk-keep-state-on-base-load"> ベース読込時にマスク・dat設定をリセットしない
-        </label>
-        <div class="btn-group mt-05">
-          <button id="btn-save-base">💾 ベースPNG保存</button>
-          <button id="btn-save-mask">💾 マスクPNG保存</button>
-        </div>
-        <div class="btn-group mt-05">
-          <button id="btn-paint-base" class="btn-primary">✏️ ベース画像を編集</button>
-          <button id="btn-paint-mask" class="btn-primary">🎭 マスク画像を編集</button>
-        </div>
-
-        <!-- ベース画像名称管理 -->
-        <fieldset class="sub-panel mt-05">
-          <legend>ベース画像名称管理</legend>
-          <div class="row">
-            <label style="min-width: 65px;">ベース名:</label>
-            <input type="text" id="inp-base-name" value="base.png" placeholder="base.png">
+    <div class="sidebar-scroll-area">
+      <!-- セクション1: 画像・プロジェクト -->
+      <details class="accordion-panel" open>
+        <summary>画像・プロジェクト</summary>
+        <div class="panel-body">
+          <!-- プロジェクト状態・リセット明示インジケータ -->
+          <div id="project-status-box" class="project-status-box">
+            <div class="project-status-header">
+              <span id="lbl-project-status-title" class="project-status-title">🆕 プロジェクト: 未読込 (初期状態)</span>
+              <button id="btn-reset-project" type="button" class="btn-project-reset" title="現在の設定・レイヤー・マスク・トーン・dat設定・保存先リンクを完全にリセットします">🔄 完全リセット</button>
+            </div>
+            <div id="lbl-project-status-detail" class="project-status-detail">新しいベース画像を読み込むと前のプロジェクト設定・保存先は自動リセットされます</div>
           </div>
-          <div class="info-text" id="lbl-base-info">ベース: 未読込</div>
-        </fieldset>
 
-        <!-- 複数マスク画像管理 -->
-        <fieldset class="sub-panel mt-05">
-          <legend>🎭 マスク画像管理 (複数保持・切替・複製・削除)</legend>
-          <div class="row">
-            <label style="min-width: 65px;">選択マスク:</label>
-            <select id="sel-active-mask">
-              <option value="-1">(マスク未登録)</option>
-            </select>
-          </div>
-          <div class="row mt-05">
-            <label style="min-width: 65px;">マスク名:</label>
-            <input type="text" id="inp-mask-name" value="" placeholder="mask.png" disabled>
+          <div class="btn-group">
+            <button id="btn-new-base" class="btn-primary">🆕 新規作成 (#E7FFFF)</button>
+            <button id="btn-open-deftile-builder" class="btn-primary">🏗️ DEFTILEから生成</button>
           </div>
           <div class="btn-group mt-05">
-            <button id="btn-mask-add-file" title="新しいマスクPNGを追加登録">＋ 画像追加</button>
-            <button id="btn-mask-add-from-base" title="ベース画像から新規マスクを生成して追加">＋ ベース生成</button>
+            <button id="btn-load-base">ベースPNGを開く</button>
+            <button id="btn-load-mask">マスク画像を開く</button>
+          </div>
+          <label class="mt-05" title="オンにすると、別のベースPNGやDEFTILEを読み込んだ際にも現在のマスク画像・レイヤー割当・dat編集内容をリセットせず維持します">
+            <input type="checkbox" id="chk-keep-state-on-base-load"> ベース読込時にマスク・dat設定をリセットしない
+          </label>
+          <div class="btn-group mt-05">
+            <button id="btn-save-base">💾 ベースPNG保存</button>
+            <button id="btn-save-mask">💾 マスクPNG保存</button>
           </div>
           <div class="btn-group mt-05">
-            <button id="btn-regen-mask" title="現在選択中のマスクをベース画像から再生成して上書き">🔄 再生成</button>
-            <button id="btn-mask-duplicate" title="現在選択中のマスク画像と設定を複製">📋 複製</button>
-            <button id="btn-mask-delete" style="color:#ff8888;" title="現在選択中のマスク画像を削除">🗑️ 削除</button>
+            <button id="btn-paint-base" class="btn-primary">✏️ ベース画像を編集</button>
+            <button id="btn-paint-mask" class="btn-primary">🎭 マスク画像を編集</button>
           </div>
-          <div class="info-text" id="lbl-mask-info">マスク: 未読込 (0件)</div>
-        </fieldset>
 
-        <div class="btn-group mt-05">
-          <button id="btn-load-folder">📁 ローカルフォルダ</button>
-          <button id="btn-google-drive">☁️ Google Drive</button>
+          <!-- ベース画像名称管理 -->
+          <fieldset class="sub-panel mt-05">
+            <legend>ベース画像名称管理</legend>
+            <div class="row">
+              <label style="min-width: 65px;">ベース名:</label>
+              <input type="text" id="inp-base-name" value="base.png" placeholder="base.png">
+            </div>
+            <div class="info-text" id="lbl-base-info">ベース: 未読込</div>
+          </fieldset>
+
+          <!-- 複数マスク画像管理 -->
+          <fieldset class="sub-panel mt-05">
+            <legend>🎭 マスク画像管理 (複数保持・切替・複製・削除)</legend>
+            <div class="row">
+              <label style="min-width: 65px;">選択マスク:</label>
+              <select id="sel-active-mask">
+                <option value="-1">(マスク未登録)</option>
+              </select>
+            </div>
+            <div class="row mt-05">
+              <label style="min-width: 65px;">マスク名:</label>
+              <input type="text" id="inp-mask-name" value="" placeholder="mask.png" disabled>
+            </div>
+            <div class="btn-group mt-05">
+              <button id="btn-mask-add-file" title="新しいマスクPNGを追加登録">＋ 画像追加</button>
+              <button id="btn-mask-add-from-base" title="ベース画像から新規マスクを生成して追加">＋ ベース生成</button>
+            </div>
+            <div class="btn-group mt-05">
+              <button id="btn-regen-mask" title="現在選択中のマスクをベース画像から再生成して上書き">🔄 再生成</button>
+              <button id="btn-mask-duplicate" title="現在選択中のマスク画像と設定を複製">📋 複製</button>
+              <button id="btn-mask-delete" style="color:#ff8888;" title="現在選択中のマスク画像を削除">🗑️ 削除</button>
+            </div>
+            <div class="info-text" id="lbl-mask-info">マスク: 未読込 (0件)</div>
+          </fieldset>
+
+          <div class="btn-group mt-05">
+            <button id="btn-load-folder">📁 ローカルフォルダ</button>
+            <button id="btn-google-drive">☁️ Google Drive</button>
+          </div>
+          <div class="btn-group mt-05">
+            <button id="btn-save-proj">プロジェクト保存</button>
+            <button id="btn-save-proj-as">別名保存</button>
+            <button id="btn-load-proj">再開 (読込)</button>
+          </div>
         </div>
-        <div class="btn-group mt-05">
-          <button id="btn-save-proj">プロジェクト保存</button>
-          <button id="btn-save-proj-as">別名保存</button>
-          <button id="btn-load-proj">再開 (読込)</button>
-        </div>
-      </div>
-    </details>
+      </details>
 
     <!-- セクション2: レイヤー・変形操作 -->
     <details class="accordion-panel" id="accordion-layer">
@@ -272,6 +282,7 @@ export function renderSidebarUI() {
     </details>
 
     ${renderSidebarToolAccordions()}
+    </div>
 
     <div class="sidebar-footer">
       <label style="display:flex; align-items:center; gap:6px; font-size:11px; margin-bottom:4px; cursor:pointer;">
