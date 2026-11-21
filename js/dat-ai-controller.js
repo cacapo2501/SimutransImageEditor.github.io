@@ -125,7 +125,7 @@ export class DatAiController {
       tileW = tc.tileSize || 64;
       tileH = tileW;
       imgW = Math.max(1, (tc.dimsViews || 1) * (tc.dimsW || 1) * (tc.dimsH || 1)) * tileW;
-      imgH = Math.max(1, (tc.seasons || 1) * (tc.frames || 1) * (tc.heightTiles || 1)) * tileH;
+      imgH = Math.max(1, tc.getTotalOutputRows ? tc.getTotalOutputRows() : ((tc.seasons || 1) * (tc.frames || 1) * (tc.heightTiles || 1))) * tileH;
     } else {
       const [gw, gh] = guessInitialTileSize(imgW, imgH, objType, tc);
       tileW = gw;

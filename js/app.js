@@ -29,7 +29,7 @@ import {
 } from './project-reset.js';
 
 // アプリケーションバージョン
-export const APP_VERSION = '5.4.3';
+export const APP_VERSION = '5.5.0';
 
 class AdvancedMultiplyApp {
   constructor() {

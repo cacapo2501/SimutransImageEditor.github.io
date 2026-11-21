@@ -172,13 +172,18 @@ export function renderSidebarToolAccordions() {
         </div>
         <div class="row mt-05" style="gap:4px;">
           <label style="font-size:11px;">向き:</label>
-          <input type="number" id="inp-tilecut-views" value="4" min="1" max="255" style="width:52px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
-          <label style="font-size:11px;">ずらしX/Y:</label>
-          <input type="number" id="inp-tilecut-ox" value="0" style="width:44px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
-          <input type="number" id="inp-tilecut-oy" value="0" style="width:44px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
+          <input type="number" id="inp-tilecut-views" value="4" min="1" max="255" style="width:46px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
+          <label style="font-size:11px;" title="縦に並んだ複数建物・バリエーション行の分割数">行数:</label>
+          <input type="number" id="inp-tilecut-rows" value="1" min="1" max="64" style="width:46px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
+          <label style="font-size:11px;">X/Y:</label>
+          <input type="number" id="inp-tilecut-ox" value="0" style="width:40px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
+          <input type="number" id="inp-tilecut-oy" value="0" style="width:40px; background:#1e1e1e; border:1px solid #444; color:#eee; padding:2px 4px;">
         </div>
         <label class="mt-05"><input type="checkbox" id="chk-tilecut-mask-v" checked> 底面菱形の下端外側を #E7FFFF で切り抜く</label>
-        <button type="button" id="btn-tilecut-sync-dat" class="w-100 mt-05">🔄 datの建物設定から取得</button>
+        <div class="btn-group mt-05">
+          <button type="button" id="btn-tilecut-sync-dat">🔄 dat設定から取得</button>
+          <button type="button" id="btn-tilecut-push-dat" title="指定行数に合わせてdat側の複数オブジェクト作成・startRow連番を反映します">📋 行数をdatへ反映</button>
+        </div>
         <div class="info-text" id="lbl-tilecut-status">OFF (通常結合出力)</div>
       </div>
     </details>

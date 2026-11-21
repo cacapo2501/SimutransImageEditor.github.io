@@ -119,7 +119,7 @@ export function renderDatModalUI() {
                   <label class="dat-check-item">
                     <input type="checkbox" id="chk-dat-tilecut-enable"> 🧱 複数タイル建物: PNG出力時にタイルカッターで分割 (_cut.png)
                   </label>
-                  <div class="row mt-05" style="gap:6px;">
+                  <div class="row mt-05" style="gap:6px; flex-wrap:wrap;">
                     <label style="font-size:11px; white-space:nowrap;">タイルサイズ:</label>
                     <select id="sel-dat-tilecut-size" style="width:110px;">
                       <option value="64">64px (pak64)</option>
@@ -128,6 +128,9 @@ export function renderDatModalUI() {
                       <option value="192">192px (pak192)</option>
                       <option value="256">256px</option>
                     </select>
+                    <label style="font-size:11px; white-space:nowrap;">分割行数:</label>
+                    <input type="number" id="inp-dat-tilecut-rows" value="1" min="1" max="64" style="width:52px;">
+                    <button type="button" id="btn-dat-tilecut-sync-rows" title="分割行数に合わせてdatを複製・startRow連番を同期します">📋 行数でdat連番連携</button>
                     <button type="button" id="btn-dat-tilecut-export" style="margin-left:auto;">✂️ カットPNG保存</button>
                   </div>
                 </div>
@@ -337,6 +340,24 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
     const tc = gen.app?.tileCutter;
     if (!tc) return;
     tc.tileSize = parseInt(e.target.value, 10) || 64;
+    tc.syncUI();
+    gen.app?.markDirty?.();
+  });
+  document.getElementById('inp-dat-tilecut-rows')?.addEventListener('input', (e) => {
+    const tc = gen.app?.tileCutter;
+    if (!tc) return;
+    const v = parseInt(e.target.value, 10);
+    tc.sourceRows = Number.isFinite(v) ? Math.max(1, Math.min(64, v)) : 1;
+    if (tc.sourceRows > 1 && tc.manualOverride === null) tc.enabled = true;
+    tc.pushToDatState(gen.currentObjType);
+    tc.syncUI();
+    gen.app?.markDirty?.();
+  });
+  document.getElementById('btn-dat-tilecut-sync-rows')?.addEventListener('click', () => {
+    const tc = gen.app?.tileCutter;
+    if (!tc) return;
+    if (tc.sourceRows > 1 && !tc.enabled) { tc.enabled = true; tc.manualOverride = true; }
+    tc.pushToDatState(gen.currentObjType, { expandCollection: true });
     tc.syncUI();
     gen.app?.markDirty?.();
   });

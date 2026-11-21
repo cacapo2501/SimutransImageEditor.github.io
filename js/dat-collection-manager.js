@@ -117,6 +117,7 @@ export class DatCollectionManager {
     this.items.splice(this.activeIndex + 1, 0, cur);
     this.activeIndex += 1;
     this._loadItemIntoController(cur);
+    this.gen.app?.tileCutter?.syncFromDat?.(this.gen.currentObjType, this.gen._getObjState(this.gen.currentObjType), { syncRowCountFromCollection: true });
     this.refreshUI();
     if (this.gen.autoSync) this.gen.regenerateOutput();
   }
@@ -129,6 +130,7 @@ export class DatCollectionManager {
     this.items.splice(this.activeIndex, 1);
     this.activeIndex = Math.min(this.activeIndex, this.items.length - 1);
     this._loadItemIntoController(this.items[this.activeIndex]);
+    this.gen.app?.tileCutter?.syncFromDat?.(this.gen.currentObjType, this.gen._getObjState(this.gen.currentObjType), { syncRowCountFromCollection: true });
     this.refreshUI();
     if (this.gen.autoSync) this.gen.regenerateOutput();
   }
