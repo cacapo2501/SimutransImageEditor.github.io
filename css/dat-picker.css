@@ -90,7 +90,7 @@
 }
 
 #sel-dat-picker-format {
-  max-width: 240px;
+  max-width: min(360px, 100%);
   min-width: 140px;
 }
 

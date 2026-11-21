@@ -53,9 +53,10 @@ export function getImageFormatOptionsForObjType(objType) {
 export function populateImageFormatSelect(selectEl, objType, currentVal = 'auto') {
   if (!selectEl) return 'auto';
   const opts = getImageFormatOptionsForObjType(objType);
-  selectEl.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+  selectEl.innerHTML = opts.map(o => `<option value="${o.value}" title="${o.label}">${o.label}</option>`).join('');
   const next = opts.some(o => o.value === currentVal) ? currentVal : 'auto';
   selectEl.value = next;
+  selectEl.title = opts.find(o => o.value === next)?.label || '';
   return next;
 }
 

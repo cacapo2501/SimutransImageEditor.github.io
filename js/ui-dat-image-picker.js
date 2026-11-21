@@ -125,11 +125,13 @@ export function renderDatPickerItemsList(items, activeIdx, onSelect) {
     row.className = 'dat-picker-item-row' + (idx === activeIdx ? ' active' : '');
     const name = item.common?.name || `Item_${idx + 1}`;
     const fmt = item.common?.imageFormat || 'auto';
+    const fmtLabel = IMAGE_FORMAT_OPTIONS.find(o => o.value === fmt)?.label || fmt;
     const shortFmt = fmt === 'vehicle_otrp_reverse' ? 'Rev'
       : (fmt === 'vehicle_otrp_reverse_only' ? 'Revのみ'
         : (fmt.startsWith('vehicle_freight') ? 'Frt' : fmt === 'auto' ? '標準' : fmt.replace('vehicle_', '')));
     const sr = item.common?.startRow || '0';
     const sc = item.common?.startCol || '0';
+    row.title = `#${idx + 1} [${item.objType}] ${name}\n形式: ${fmtLabel} (開始行=${sr}, 開始列=${sc})`;
     row.innerHTML = `<span class="item-title">#${idx + 1} [${item.objType}] ${name}</span><span class="item-meta">${shortFmt} (${sr},${sc})</span>`;
     row.onclick = () => onSelect(idx);
     listEl.appendChild(row);
@@ -171,6 +173,7 @@ export function syncDatPickerPerKeyBar(activeItem, entries, selectedKeyIdx, mode
   const lbl = document.getElementById('lbl-dat-picker-active-key');
   if (lbl) {
     lbl.textContent = `${mode === 'per_key' ? '🎯' : '🔎'} ${target.key}${isCustom ? ' [個別★]' : ' [自動]'}`;
+    lbl.title = lbl.textContent;
   }
   const inpR = document.getElementById('inp-dat-picker-key-row');
   const inpC = document.getElementById('inp-dat-picker-key-col');
@@ -227,7 +230,7 @@ export function renderDatPickerKeyList(activeItem, entries, selectedKeyIdx, onSe
     const isCustom = Boolean(customCoords[entry.key]);
     const hint = getImageKeyHint(activeItem.objType, entry.key, { large: false });
     rowEl.className = 'dat-picker-key-item' + (isSelected ? ' active' : '') + (isCustom ? ' custom' : '');
-    if (hint) rowEl.title = hint.label;
+    rowEl.title = hint ? `${entry.key} (${entry.row}.${entry.col}) - ${hint.label}` : `${entry.key} (${entry.row}.${entry.col})`;
     rowEl.innerHTML = `<span class="k-left">${hint ? hint.svg : ''}<span class="k-name">${entry.key}</span></span><span class="k-coord">.${entry.row}.${entry.col}${isCustom ? ' ★' : ''}</span>`;
     rowEl.onclick = () => onSelectKey(idx);
     listEl.appendChild(rowEl);

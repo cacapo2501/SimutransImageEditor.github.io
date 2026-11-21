@@ -124,6 +124,7 @@ export class DatImagePicker {
     const sizeLbl = document.getElementById('lbl-dat-picker-img-size');
     if (sizeLbl) {
       sizeLbl.textContent = `編集中画像: ${src.width}×${src.height}px (${this.gen.app.baseName})`;
+      sizeLbl.title = sizeLbl.textContent;
     }
 
     const modal = document.getElementById('modal-dat-image-picker');
@@ -340,6 +341,8 @@ export class DatImagePicker {
       if (!active) return;
       const fmt = e.target.value;
       active.common.imageFormat = fmt;
+      const optText = e.target.options?.[e.target.selectedIndex]?.textContent;
+      if (optText) e.target.title = optText;
       // FreightImage と OTRP Reverse の排他性を保つ
       if (fmt === 'vehicle_otrp_reverse' || fmt === 'vehicle_otrp_reverse_only' || fmt.startsWith('vehicle_empty')) {
         active.values.hasFreightImage = false;

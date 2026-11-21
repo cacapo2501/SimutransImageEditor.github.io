@@ -15,12 +15,13 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  overflow-y: auto;
+  overflow: auto;
 }
 
 .dat-picker-sidebar::-webkit-scrollbar,
 #dat-picker-items-list::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 .dat-picker-sidebar::-webkit-scrollbar-track,
@@ -109,14 +110,16 @@
   flex-direction: column;
   gap: 3px;
   max-height: 145px;
-  overflow-y: auto;
+  overflow: auto;
 }
 
 .dat-picker-item-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-width: 100%;
+  width: max-content;
   padding: 4px 7px;
   border-radius: 3px;
   border: 1px solid #353944;
@@ -137,10 +140,8 @@
 }
 
 .dat-picker-item-row .item-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  flex: 1 0 auto;
 }
 
 .dat-picker-item-row .item-meta {
