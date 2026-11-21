@@ -43,7 +43,7 @@ export function extractSelectionCanvas(ed) {
     c.width = ed.width;
     c.height = ed.height;
     c.getContext('2d').putImageData(srcData, 0, 0);
-    return { canvas: c, width: ed.width, height: ed.height, srcX: 0, srcY: 0, isFull: true };
+    return { canvas: c, width: ed.width, height: ed.height, srcX: 0, srcY: 0, isFull: true, mask: null };
   }
 
   const bounds = getSelectionBounds(ed.selectionMask, ed.width, ed.height);
@@ -55,12 +55,15 @@ export function extractSelectionCanvas(ed) {
   c.height = h;
   const cCtx = c.getContext('2d');
   const outData = cCtx.createImageData(w, h);
+  const localMask = new Uint8Array(w * h);
 
   for (let sy = 0; sy < h; sy++) {
     for (let sx = 0; sx < w; sx++) {
       const gIdx = (minY + sy) * ed.width + (minX + sx);
-      const dIdx = (sy * w + sx) * 4;
+      const lIdx = sy * w + sx;
+      const dIdx = lIdx * 4;
       if (ed.selectionMask[gIdx]) {
+        localMask[lIdx] = 1;
         outData.data[dIdx] = srcData.data[gIdx * 4];
         outData.data[dIdx + 1] = srcData.data[gIdx * 4 + 1];
         outData.data[dIdx + 2] = srcData.data[gIdx * 4 + 2];
@@ -72,13 +75,16 @@ export function extractSelectionCanvas(ed) {
   }
 
   cCtx.putImageData(outData, 0, 0);
-  return { canvas: c, width: w, height: h, srcX: minX, srcY: minY, isFull: false };
+  return { canvas: c, width: w, height: h, srcX: minX, srcY: minY, isFull: false, mask: localMask };
 }
 
-export function compositeFloatingWithSelectionMask(ed, fl) {
+// フローティングレイヤーをキャンバスへ焼き込む（32bit画像のアルファ値も消さずにそのまま保持）
+export function compositeFloatingWithSelectionMask(ed, fl, { ignoreSelectionMask = false } = {}) {
   const flData = fl.canvas.getContext('2d').getImageData(0, 0, fl.width, fl.height).data;
   const dstImg = ed.ctx.getImageData(0, 0, ed.width, ed.height);
   const dd = dstImg.data;
+  const hasSelMask = !ignoreSelectionMask && Boolean(ed.selectionMask);
+
   for (let sy = 0; sy < fl.height; sy++) {
     const gy = fl.y + sy;
     if (gy < 0 || gy >= ed.height) continue;
@@ -86,14 +92,44 @@ export function compositeFloatingWithSelectionMask(ed, fl) {
       const gx = fl.x + sx;
       if (gx < 0 || gx >= ed.width) continue;
       const gPos = gy * ed.width + gx;
-      if (!ed.selectionMask[gPos]) continue;
-      const sIdx = (sy * fl.width + sx) * 4;
-      if (flData[sIdx + 3] > 0) {
-        const dIdx = gPos * 4;
-        dd[dIdx] = flData[sIdx];
-        dd[dIdx + 1] = flData[sIdx + 1];
-        dd[dIdx + 2] = flData[sIdx + 2];
-        dd[dIdx + 3] = 255;
+      if (hasSelMask && !ed.selectionMask[gPos]) continue;
+
+      const lPos = sy * fl.width + sx;
+      const sIdx = lPos * 4;
+      const sa = flData[sIdx + 3];
+      const dIdx = gPos * 4;
+
+      if (fl.isText) {
+        // 文字配置時は文字ピクセル(sa > 0)のみを背景の上に重ねる
+        if (sa > 0) {
+          dd[dIdx] = flData[sIdx];
+          dd[dIdx + 1] = flData[sIdx + 1];
+          dd[dIdx + 2] = flData[sIdx + 2];
+          dd[dIdx + 3] = sa;
+        }
+      } else if (fl.isImported) {
+        if (fl.hasNativeAlpha) {
+          // 32bit RGBA外部画像: 元画像のR,G,B,Aをそのまま貼り付ける（半透明・透明アルファを消さない）
+          dd[dIdx] = flData[sIdx];
+          dd[dIdx + 1] = flData[sIdx + 1];
+          dd[dIdx + 2] = flData[sIdx + 2];
+          dd[dIdx + 3] = sa;
+        } else if (sa > 0) {
+          // 24bit外部画像: 透過色(#E7FFFF)以外のピクセルを alpha=255 で貼り付ける
+          dd[dIdx] = flData[sIdx];
+          dd[dIdx + 1] = flData[sIdx + 1];
+          dd[dIdx + 2] = flData[sIdx + 2];
+          dd[dIdx + 3] = 255;
+        }
+      } else {
+        // コピー＆ペースト時: 選択範囲内のピクセルは元の32bitアルファ(0〜255)ごとそのまま転写
+        const inCopyMask = !fl.copyMask || fl.copyMask[lPos] === 1;
+        if (inCopyMask) {
+          dd[dIdx] = flData[sIdx];
+          dd[dIdx + 1] = flData[sIdx + 1];
+          dd[dIdx + 2] = flData[sIdx + 2];
+          dd[dIdx + 3] = sa;
+        }
       }
     }
   }

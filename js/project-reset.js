@@ -103,6 +103,8 @@ export function resetFullProjectState(app, {
   app.maskImage = null;
   app.maskName = 'mask.png';
   app.maskRgb = null;
+  app.maskAlpha = null;
+  app.maskHasAlpha = false;
   app.maskColors = [];
   app.maskTintColors.clear();
   app.maskToneOverrides.clear();
@@ -155,6 +157,7 @@ export function resetFullProjectState(app, {
     app.baseH = 0;
     app.baseRgb = null;
     app.baseAlpha = null;
+    app.baseHasAlpha = false;
     app.isBgMask = null;
     app.editableMask = null;
     app.isBaseSpecialColor = null;

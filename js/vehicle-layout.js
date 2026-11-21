@@ -89,6 +89,7 @@ export function compressVehicleCanvas(srcImg, bodyLength, fillBgHex = '#000000')
     for (const r of rects) {
       const stdY = r.y + row * 64;
       if (r.x + r.w <= srcW && stdY + r.h <= srcH) {
+        ctx.clearRect(cmpX, cmpY, r.w, r.h);
         ctx.drawImage(srcImg, r.x, stdY, r.w, r.h, cmpX, cmpY, r.w, r.h);
       }
       cmpX += r.w + 1;
@@ -119,6 +120,7 @@ export function expandVehicleCanvas(srcImg, bodyLength, isBaseOrCombined = true)
     for (const r of rects) {
       const stdY = r.y + row * 64;
       if (cmpX + r.w <= srcW && cmpY + r.h <= srcH) {
+        ctx.clearRect(r.x, stdY, r.w, r.h);
         ctx.drawImage(srcImg, cmpX, cmpY, r.w, r.h, r.x, stdY, r.w, r.h);
       }
       cmpX += r.w + 1;

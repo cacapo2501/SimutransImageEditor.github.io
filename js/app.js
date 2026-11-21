@@ -50,7 +50,7 @@ class AdvancedMultiplyApp {
     this.baseImage = null;
     this.baseName = 'base.png';
     this.baseW = 0; this.baseH = 0;
-    this.baseRgb = null; this.baseAlpha = null;
+    this.baseRgb = null; this.baseAlpha = null; this.baseHasAlpha = false;
     this.isBgMask = null;
     this.editableMask = null;
     this.isBaseSpecialColor = null;
@@ -58,7 +58,7 @@ class AdvancedMultiplyApp {
 
     this.maskImage = null;
     this.maskName = 'mask.png';
-    this.maskRgb = null;
+    this.maskRgb = null; this.maskAlpha = null; this.maskHasAlpha = false;
     this.maskColors = [];
     this.maskTintColors = new Map();
     this.enableMaskTint = true;
@@ -138,7 +138,8 @@ class AdvancedMultiplyApp {
     }
     const info = document.getElementById('lbl-base-info');
     if (info && this.baseW && this.baseH) {
-      info.textContent = `ベース: ${this.baseName} (${this.baseW}×${this.baseH}px)`;
+      const bitTag = this.baseHasAlpha ? '32bit RGBA' : '24bit RGB';
+      info.textContent = `ベース: ${this.baseName} (${this.baseW}×${this.baseH}px / ${bitTag})`;
     }
     this.datGenerator?.syncImagePrefixWithApp?.();
   }

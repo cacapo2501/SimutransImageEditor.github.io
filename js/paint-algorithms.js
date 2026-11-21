@@ -21,7 +21,7 @@ export function drawLineContinuous(x0, y0, x1, y1, setPixel) {
   }
 }
 
-// 4近傍塗りつぶし (Flood Fill)
+// 4近傍塗りつぶし (Flood Fill) — 32bit画像の半透明ピクセル塗りつぶし時は元のアルファを維持、完全透明(0)または255時は255で塗る
 export function floodFill(ctx, width, height, startX, startY, fillHex, selectionMask = null) {
   if (selectionMask && !selectionMask[startY * width + startX]) return;
 
@@ -30,7 +30,8 @@ export function floodFill(ctx, width, height, startX, startY, fillHex, selection
   const startIdx = (startY * width + startX) * 4;
   const [sr, sg, sb, sa] = [d[startIdx], d[startIdx + 1], d[startIdx + 2], d[startIdx + 3]];
   const [fr, fg, fb] = hexToRgb(fillHex);
-  if (sr === fr && sg === fg && sb === fb && sa === 255) return;
+  const targetA = (sa > 0 && sa < 255) ? sa : 255;
+  if (sr === fr && sg === fg && sb === fb && sa === targetA) return;
 
   const queue = [[startX, startY]];
   const visited = new Uint8Array(width * height);
@@ -39,7 +40,9 @@ export function floodFill(ctx, width, height, startX, startY, fillHex, selection
   while (queue.length > 0) {
     const [cx, cy] = queue.pop();
     const idx = (cy * width + cx) * 4;
-    d[idx] = fr; d[idx + 1] = fg; d[idx + 2] = fb; d[idx + 3] = 255;
+    const origA = d[idx + 3];
+    d[idx] = fr; d[idx + 1] = fg; d[idx + 2] = fb;
+    d[idx + 3] = (origA > 0 && origA < 255) ? origA : 255;
 
     const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
     for (const [nx, ny] of neighbors) {

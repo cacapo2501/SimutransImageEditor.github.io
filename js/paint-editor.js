@@ -275,7 +275,7 @@ export class PaintEditor {
     }
 
     if (this.targetType === 'base') {
-      this.app.applyBaseImage(outCanvas, this.app.baseName, { resetMask: false });
+      this.app.applyBaseImage(outCanvas, this.app.baseName, { resetMask: false, resetDat: false, isTransform: true });
     } else {
       this.app.applyMaskImage(outCanvas, this.app.maskName);
     }

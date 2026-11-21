@@ -27,6 +27,17 @@ export function flipEditorTransform(editor, clipMgr, flipH, flipV) {
     cCtx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
     cCtx.drawImage(fl.canvas, 0, 0);
     fl.canvas = c;
+    if (fl.copyMask) {
+      const nextMask = new Uint8Array(fl.width * fl.height);
+      for (let y = 0; y < fl.height; y++) {
+        for (let x = 0; x < fl.width; x++) {
+          const dx = flipH ? (fl.width - 1 - x) : x;
+          const dy = flipV ? (fl.height - 1 - y) : y;
+          nextMask[dy * fl.width + dx] = fl.copyMask[y * fl.width + x];
+        }
+      }
+      fl.copyMask = nextMask;
+    }
     editor._drawOverlay();
     return;
   }
@@ -60,6 +71,7 @@ export function flipEditorTransform(editor, clipMgr, flipH, flipV) {
   const origMask = new Uint8Array(editor.selectionMask);
   const newMask = new Uint8Array(editor.selectionMask);
 
+  const hasBaseAlpha = Boolean(editor.app?.baseHasAlpha && editor.app?.baseAlpha && editor.app.baseAlpha.length === editor.width * editor.height);
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
       const idx = y * editor.width + x;
@@ -68,7 +80,7 @@ export function flipEditorTransform(editor, clipMgr, flipH, flipV) {
         imgData.data[idx * 4] = 231;
         imgData.data[idx * 4 + 1] = 255;
         imgData.data[idx * 4 + 2] = 255;
-        imgData.data[idx * 4 + 3] = 255;
+        imgData.data[idx * 4 + 3] = hasBaseAlpha ? editor.app.baseAlpha[idx] : 255;
       }
     }
   }

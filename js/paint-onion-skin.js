@@ -178,12 +178,21 @@ export class PaintOnionSkinManager {
     tCtx.drawImage(rawCanvas, 0, 0);
     const imgData = tCtx.getImageData(0, 0, w, h);
     const d = imgData.data;
+    let hasNativeAlpha = false;
     for (let i = 0; i < d.length; i += 4) {
-      if (d[i] === 231 && d[i + 1] === 255 && d[i + 2] === 255) {
-        d[i + 3] = 0;
+      if (d[i + 3] < 255) {
+        hasNativeAlpha = true;
+        break;
       }
     }
-    tCtx.putImageData(imgData, 0, 0);
+    if (!hasNativeAlpha) {
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] === 231 && d[i + 1] === 255 && d[i + 2] === 255) {
+          d[i + 3] = 0;
+        }
+      }
+      tCtx.putImageData(imgData, 0, 0);
+    }
 
     const id = this._nextId++;
     this.skins.push({

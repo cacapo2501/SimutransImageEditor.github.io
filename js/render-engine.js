@@ -201,11 +201,20 @@ export class RenderEngine {
     }
 
     const res = new Uint8ClampedArray(total * 4);
+    const hasAlpha = Boolean(app.baseHasAlpha);
+    const allAlphaFull = globalCfg.alpha_pct >= 100 && toneOverrideMap.size === 0;
     for (let i = 0; i < total; i++) {
       res[i * 4] = Math.round(outRgb[i * 3] * 255);
       res[i * 4 + 1] = Math.round(outRgb[i * 3 + 1] * 255);
       res[i * 4 + 2] = Math.round(outRgb[i * 3 + 2] * 255);
-      res[i * 4 + 3] = Math.round(outAlpha[i] * 255);
+      // 32bitベース画像の場合はベース画像のアルファを引き継ぎ、24bit画像（かつ出力アルファ100%）の場合は0xFF(255)固定とする
+      if (hasAlpha) {
+        res[i * 4 + 3] = structureAppliedMask[i]
+          ? Math.round(outAlpha[i] * 255)
+          : (allAlphaFull ? app.baseAlpha[i] : Math.round(outAlpha[i] * 255));
+      } else {
+        res[i * 4 + 3] = allAlphaFull ? 255 : Math.round(outAlpha[i] * 255);
+      }
     }
 
     // 7. 窓色ランダム暗転（SpecialColor一部解除）

@@ -68,6 +68,8 @@ export class MaskCollectionManager {
     cur.name = this.app.maskName;
     cur.image = this.app.maskImage;
     cur.rgb = this.app.maskRgb;
+    cur.alpha = this.app.maskAlpha;
+    cur.hasAlpha = Boolean(this.app.maskHasAlpha);
     cur.colors = [...this.app.maskColors];
     cur.tintColors = new Map(this.app.maskTintColors);
     cur.toneOverrides = new Map(
@@ -82,6 +84,8 @@ export class MaskCollectionManager {
       app.maskImage = null;
       app.maskName = 'mask.png';
       app.maskRgb = null;
+      app.maskAlpha = null;
+      app.maskHasAlpha = false;
       app.maskColors = [];
       app.maskTintColors = new Map();
       app.maskToneOverrides = new Map();
@@ -91,6 +95,8 @@ export class MaskCollectionManager {
     app.maskImage = cur.image;
     app.maskName = cur.name;
     app.maskRgb = cur.rgb;
+    app.maskAlpha = cur.alpha || null;
+    app.maskHasAlpha = Boolean(cur.hasAlpha);
     app.maskColors = [...cur.colors];
     app.maskTintColors = new Map(cur.tintColors);
     app.maskToneOverrides = new Map(
@@ -199,6 +205,8 @@ export class MaskCollectionManager {
       name: copyName,
       image: clonedCanvas,
       rgb: cur.rgb ? new Uint8Array(cur.rgb) : null,
+      alpha: cur.alpha ? new Uint8Array(cur.alpha) : null,
+      hasAlpha: Boolean(cur.hasAlpha),
       colors: cur.colors.map(c => ({ ...c })),
       tintColors: new Map(cur.tintColors),
       toneOverrides: new Map(

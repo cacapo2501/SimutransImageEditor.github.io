@@ -27,12 +27,14 @@ export class MaskGenerator {
       app.specialColors.forEach(hex => specialInts.add(hexToInt(hex)));
     }
 
+    let hasAlphaChannel = false;
     for (let i = 0; i < total; i++) {
       const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
       app.baseRgb[i * 3] = r;
       app.baseRgb[i * 3 + 1] = g;
       app.baseRgb[i * 3 + 2] = b;
       app.baseAlpha[i] = a;
+      if (a < 255) hasAlphaChannel = true;
 
       if ((r === 231 && g === 255 && b === 255) || a === 0) {
         app.isBgMask[i] = 1;
@@ -45,9 +47,13 @@ export class MaskGenerator {
         }
       }
     }
+    app.baseHasAlpha = hasAlphaChannel;
 
     const info = document.getElementById('lbl-base-info');
-    if (info) info.textContent = `ベース: ${app.baseName} (${app.baseW}x${app.baseH})`;
+    if (info) {
+      const bitTag = hasAlphaChannel ? '32bit RGBA' : '24bit RGB';
+      info.textContent = `ベース: ${app.baseName} (${app.baseW}×${app.baseH}px / ${bitTag})`;
+    }
   }
 
   // SpecialColor読み込み時の再計算（整数キーによる高速スキャン）
@@ -70,7 +76,7 @@ export class MaskGenerator {
     }
   }
 
-  // マスク画像のピクセル解析（整数キー集計により数万色でも一瞬で完了）
+  // マスク画像のピクセル解析（整数キー集計により数万色でも一瞬で完了・32bitアルファも保持）
   static analyzeMaskImage(app, img, name) {
     app.maskImage = img;
     app.maskName = name || 'mask.png';
@@ -85,16 +91,22 @@ export class MaskGenerator {
     const d = ctx.getImageData(0, 0, app.baseW, app.baseH).data;
     const total = app.baseW * app.baseH;
     app.maskRgb = new Uint8Array(total * 3);
+    app.maskAlpha = new Uint8Array(total);
+    let maskHasAlpha = false;
     const colorCountInt = new Map();
 
     for (let i = 0; i < total; i++) {
-      const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+      const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
       app.maskRgb[i * 3] = r;
       app.maskRgb[i * 3 + 1] = g;
       app.maskRgb[i * 3 + 2] = b;
+      app.maskAlpha[i] = a;
+      if (a < 255) maskHasAlpha = true;
+      if (a === 0) continue; // 完全透明ピクセルはマスク色一覧から除外
       const rgbInt = (r << 16) | (g << 8) | b;
       colorCountInt.set(rgbInt, (colorCountInt.get(rgbInt) || 0) + 1);
     }
+    app.maskHasAlpha = maskHasAlpha;
 
     const sorted = Array.from(colorCountInt.entries()).sort((a, b) => b[1] - a[1]);
     app.maskColors = sorted.map(([rgbInt, count]) => {
@@ -107,7 +119,7 @@ export class MaskGenerator {
     if (info) info.textContent = `マスク: ${app.maskName} (${app.maskColors.length}色)`;
   }
 
-  // ベース画像からマスク画像を自動生成（キャンバス直接適用で高速化）
+  // ベース画像からマスク画像を自動生成（ベース画像の32bitアルファ値をそのまま引き継ぐ）
   static generateFromBase(app) {
     if (!app.baseImage || !app.baseRgb) return null;
 
@@ -146,17 +158,17 @@ export class MaskGenerator {
     for (let i = 0; i < app.baseW * app.baseH; i++) {
       const idx = i * 4;
       const r = app.baseRgb[i * 3], g = app.baseRgb[i * 3 + 1], b = app.baseRgb[i * 3 + 2];
-      const a = app.baseAlpha[i];
+      const a = app.baseAlpha ? app.baseAlpha[i] : 255;
 
       if (app.isBgMask[i] || a === 0) {
         mData[idx] = 231; mData[idx + 1] = 255; mData[idx + 2] = 255; mData[idx + 3] = a;
       } else if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) {
-        mData[idx] = r; mData[idx + 1] = g; mData[idx + 2] = b; mData[idx + 3] = 255;
+        mData[idx] = r; mData[idx + 1] = g; mData[idx + 2] = b; mData[idx + 3] = a;
       } else if (r === g && g === b) {
-        mData[idx] = grayLutR[r]; mData[idx + 1] = grayLutG[r]; mData[idx + 2] = grayLutB[r]; mData[idx + 3] = 255;
+        mData[idx] = grayLutR[r]; mData[idx + 1] = grayLutG[r]; mData[idx + 2] = grayLutB[r]; mData[idx + 3] = a;
       } else {
-        // SpecialColorとグレー以外の色はベース画像の色をそのまま引き継ぐ
-        mData[idx] = r; mData[idx + 1] = g; mData[idx + 2] = b; mData[idx + 3] = a || 255;
+        // SpecialColorとグレー以外の色はベース画像の色とアルファをそのまま引き継ぐ
+        mData[idx] = r; mData[idx + 1] = g; mData[idx + 2] = b; mData[idx + 3] = a;
       }
     }
 

@@ -76,7 +76,8 @@ export class PaintClipboardManager {
         width: c.width,
         height: c.height,
         srcX: this.floatingLayer.x,
-        srcY: this.floatingLayer.y
+        srcY: this.floatingLayer.y,
+        mask: this.floatingLayer.copyMask ? new Uint8Array(this.floatingLayer.copyMask) : null
       };
       ed._showHint(`コピーしました (${c.width}×${c.height}px)`);
       return;
@@ -90,7 +91,8 @@ export class PaintClipboardManager {
       width: extracted.width,
       height: extracted.height,
       srcX: extracted.srcX,
-      srcY: extracted.srcY
+      srcY: extracted.srcY,
+      mask: extracted.mask || null
     };
     const label = extracted.isFull ? '全体画像をコピーしました' : '選択範囲をコピーしました';
     ed._showHint(`${label} (${extracted.width}×${extracted.height}px)`);
@@ -120,7 +122,8 @@ export class PaintClipboardManager {
       height: c.height,
       x: Math.max(0, Math.min(ed.width - c.width, this.clipboard.srcX)),
       y: Math.max(0, Math.min(ed.height - c.height, this.clipboard.srcY)),
-      isImported: false
+      isImported: false,
+      copyMask: this.clipboard.mask ? new Uint8Array(this.clipboard.mask) : null
     };
 
     this._updateFloatingBarUI();
@@ -162,7 +165,8 @@ export class PaintClipboardManager {
       height: h,
       x: initX,
       y: initY,
-      isImported: true
+      isImported: true,
+      hasNativeAlpha: srcCanvas?.dataset?.hasNativeAlpha === '1'
     };
 
     this._updateFloatingBarUI();
@@ -249,12 +253,23 @@ export class PaintClipboardManager {
 
         const imgData = cCtx.getImageData(0, 0, w, h);
         const d = imgData.data;
+        let hasNativeAlpha = false;
         for (let i = 0; i < d.length; i += 4) {
-          if (d[i] === 231 && d[i + 1] === 255 && d[i + 2] === 255) {
-            d[i + 3] = 0;
+          if (d[i + 3] < 255) {
+            hasNativeAlpha = true;
+            break;
           }
         }
-        cCtx.putImageData(imgData, 0, 0);
+        // 24bit画像（全ピクセルのアルファが255）の場合のみ Simutrans透過色 #E7FFFF を抜く。32bit画像は元のアルファをそのまま保持する
+        if (!hasNativeAlpha) {
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i] === 231 && d[i + 1] === 255 && d[i + 2] === 255) {
+              d[i + 3] = 0;
+            }
+          }
+          cCtx.putImageData(imgData, 0, 0);
+        }
+        c.dataset.hasNativeAlpha = hasNativeAlpha ? '1' : '0';
 
         this.lastImportedCanvas = c;
         this.lastImportedName = file.name;
@@ -290,8 +305,7 @@ export class PaintClipboardManager {
       compositeFloatingWithSelectionMask(ed, this.floatingLayer);
       if (ed.repeatMgr && before) ed.repeatMgr.applyDiff(before);
     } else {
-      ed.ctx.imageSmoothingEnabled = false;
-      ed.ctx.drawImage(this.floatingLayer.canvas, this.floatingLayer.x, this.floatingLayer.y);
+      compositeFloatingWithSelectionMask(ed, this.floatingLayer, { ignoreSelectionMask: true });
     }
 
     this.floatingLayer = null;
@@ -308,8 +322,16 @@ export class PaintClipboardManager {
     this.editor._showHint('貼り付けをキャンセルしました');
   }
 
-  flipHorizontal() { flipEditorTransform(this.editor, this, true, false); }
-  flipVertical() { flipEditorTransform(this.editor, this, false, true); }
+  flipHorizontal() {
+    const prevAlpha = this.floatingLayer?.hasNativeAlpha;
+    flipEditorTransform(this.editor, this, true, false);
+    if (this.floatingLayer && prevAlpha !== undefined) this.floatingLayer.hasNativeAlpha = prevAlpha;
+  }
+  flipVertical() {
+    const prevAlpha = this.floatingLayer?.hasNativeAlpha;
+    flipEditorTransform(this.editor, this, false, true);
+    if (this.floatingLayer && prevAlpha !== undefined) this.floatingLayer.hasNativeAlpha = prevAlpha;
+  }
 
   handlePointerDown(px, py) {
     if (!this.floatingLayer) return false;

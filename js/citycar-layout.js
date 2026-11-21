@@ -121,6 +121,7 @@ export function compressCityCarCanvas(srcImg, isBaseOrCombined = true, precomput
     outCtx.fillRect(curX, 0, seg.sw, outH);
 
     const dyOffset = anc.type.endsWith('bottom') ? (outH - seg.sh) : 0;
+    outCtx.clearRect(curX, dyOffset, seg.sw, seg.sh);
     outCtx.drawImage(srcImg, seg.sx, seg.sy, seg.sw, seg.sh, curX, dyOffset, seg.sw, seg.sh);
     curX += seg.sw + 1;
   }
@@ -220,6 +221,7 @@ export function expandCityCarCanvas(srcImg, isBaseOrCombined = true, precomputed
       dy = anc.ay;
     }
 
+    outCtx.clearRect(dx, dy, seg.w, seg.h);
     outCtx.drawImage(srcImg, seg.x0, 0, seg.w, seg.h, dx, dy, seg.w, seg.h);
   }
 

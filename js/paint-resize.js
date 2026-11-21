@@ -34,6 +34,7 @@ export function resizeSourceCanvas(srcSource, oldW, oldH, newW, newH, mode, anch
     dx = Math.floor((newW - oldW) / 2);
     dy = Math.floor((newH - oldH) / 2);
   }
+  ctx.clearRect(dx, dy, oldW, oldH);
   ctx.drawImage(srcSource, dx, dy);
   return out;
 }

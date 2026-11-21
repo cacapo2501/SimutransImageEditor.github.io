@@ -34,6 +34,29 @@ function downloadBlob(blob, filename) {
   a.click();
 }
 
+// ソース画像のRGBにベース画像のアルファ値（32bit時はbaseAlpha、24bit時は0xFF固定）を適用した出力用Canvasを生成する
+export function buildAlphaPreservedCanvas(source, app) {
+  const w = app.baseW || source.naturalWidth || source.width;
+  const h = app.baseH || source.naturalHeight || source.height;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(source, 0, 0, w, h);
+
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+  const total = w * h;
+  const hasBaseAlpha = Boolean(app.baseHasAlpha && app.baseAlpha && app.baseAlpha.length === total);
+
+  for (let i = 0; i < total; i++) {
+    d[i * 4 + 3] = hasBaseAlpha ? app.baseAlpha[i] : 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return c;
+}
+
 export class ProjectIO {
   static async save(app, { saveAs = false } = {}) {
     if (!app.baseImage) {
@@ -214,20 +237,34 @@ export class ProjectIO {
 
   static exportBasePng(app) {
     if (!app.baseImage) return alert('ベース画像が読み込まれていません。');
-    const c = document.createElement('canvas');
-    c.width = app.baseW;
-    c.height = app.baseH;
-    c.getContext('2d').drawImage(app.baseImage, 0, 0);
+    const c = buildAlphaPreservedCanvas(app.baseImage, app);
     const filename = app.baseName.toLowerCase().endsWith('.png') ? app.baseName : `${app.baseName}.png`;
     c.toBlob(blob => downloadBlob(blob, filename), 'image/png');
   }
 
   static exportMaskPng(app) {
     if (!app.maskImage) return alert('マスク画像が読み込まれていません。');
+    const w = app.baseW || app.maskImage.naturalWidth || app.maskImage.width;
+    const h = app.baseH || app.maskImage.naturalHeight || app.maskImage.height;
     const c = document.createElement('canvas');
-    c.width = app.baseW;
-    c.height = app.baseH;
-    c.getContext('2d').drawImage(app.maskImage, 0, 0);
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(app.maskImage, 0, 0, w, h);
+
+    // マスク画像自身に32bitアルファがない場合で、ベース画像が32bitの場合はベース画像のアルファを引き継ぎ、24bitの場合はFF固定とする
+    if (!app.maskHasAlpha) {
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const d = imgData.data;
+      const total = w * h;
+      const hasBaseAlpha = Boolean(app.baseHasAlpha && app.baseAlpha && app.baseAlpha.length === total);
+      for (let i = 0; i < total; i++) {
+        d[i * 4 + 3] = hasBaseAlpha ? app.baseAlpha[i] : 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
     const filename = app.maskName.toLowerCase().endsWith('.png') ? app.maskName : `${app.maskName}.png`;
     c.toBlob(blob => downloadBlob(blob, filename), 'image/png');
   }

@@ -69,7 +69,11 @@ export class PaintSelectionMover {
         baseData.data[idx] = fillRgb[0];
         baseData.data[idx + 1] = fillRgb[1];
         baseData.data[idx + 2] = fillRgb[2];
-        baseData.data[idx + 3] = 255;
+        // 32bit編集時（元ピクセルが透明だった場合など）は、ベース画像のアルファがあればそれを維持、なければ255
+        const baseA = (ed.app?.baseHasAlpha && ed.app?.baseAlpha && ed.app.baseAlpha.length === w * h)
+          ? ed.app.baseAlpha[i]
+          : 255;
+        baseData.data[idx + 3] = baseA;
       }
     }
 

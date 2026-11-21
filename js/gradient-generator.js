@@ -205,7 +205,7 @@ export class GradientGeneratorController {
     const { canvas, divisions, totalHues } = generateGradientOnBase(app.baseImage, split8);
 
     const nextName = app.baseName.replace(/_predef\.png$/i, '_def.png');
-    app.applyBaseImage(canvas, nextName, { resetMask: true });
+    app.applyBaseImage(canvas, nextName, { resetMask: true, resetDat: false, isTransform: true });
     app.markDirty();
     app.render();
 
