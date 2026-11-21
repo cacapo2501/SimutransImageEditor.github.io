@@ -29,6 +29,7 @@ export class MaskCollectionManager {
         this._refreshSelectOptionsOnly();
         this._updateInfoLabel();
         if (this.app.layerManager) this.app.layerManager._updateTargetMaskDropdownOptions();
+        if (this.app.datGenerator?.liveryMgr) this.app.datGenerator.liveryMgr.onAppMaskChanged();
         this.app.markDirty();
       };
     }
@@ -176,6 +177,7 @@ export class MaskCollectionManager {
     }
     this.refreshUI();
     if (app.layerManager) app.layerManager.onMaskCollectionChanged();
+    if (app.datGenerator?.liveryMgr) app.datGenerator.liveryMgr.onAppMaskChanged();
     app.markDirty();
     app.render();
   }
@@ -239,6 +241,7 @@ export class MaskCollectionManager {
     }
     this.refreshUI();
     if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
+    if (this.app.datGenerator?.liveryMgr) this.app.datGenerator.liveryMgr.onAppMaskChanged();
     this.app.markDirty();
     this.app.render();
   }
@@ -274,6 +277,7 @@ export class MaskCollectionManager {
     }
     this.refreshUI();
     if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
+    if (this.app.datGenerator?.liveryMgr) this.app.datGenerator.liveryMgr.onAppMaskChanged();
     this.app.markDirty();
     this.app.render();
   }

@@ -23,11 +23,11 @@ export function renderDatAiSectionHtml() {
             </select>
           </div>
           <div class="dat-field" id="dat-ai-vehicle-mode-wrap">
-            <label>鉄道車両の取得単位</label>
+            <label>車両・編成の取得単位</label>
             <select id="sel-dat-ai-vehicle-mode">
-              <option value="consist" selected>編成単位 (Constraint自動連結)</option>
-              <option value="series">形式単位 (代表車種＋Constraint)</option>
-              <option value="single">単一車両のみ</option>
+              <option value="consist" selected>編成・フル構成 (Constraint自動連結)</option>
+              <option value="series">形式・車種単位 (主要車種＋Constraint)</option>
+              <option value="single">単一車両のみ (1オブジェクト)</option>
             </select>
           </div>
         </div>
@@ -38,8 +38,8 @@ export function renderDatAiSectionHtml() {
             <input type="number" id="inp-dat-ai-car-count" min="1" max="30" placeholder="例: 10">
           </div>
           <div class="dat-field" style="justify-content:flex-end;">
-            <label class="dat-check-item" title="生成された複数車両の startRow を 0, 1, 2... に連番設定します">
-              <input type="checkbox" id="chk-dat-ai-seq-rows" checked> 画像行(Y)を0から連番
+            <label class="dat-check-item" title="編集中画像の有効行数に合わせ、生成された複数車両の startRow を自動で割り当てます">
+              <input type="checkbox" id="chk-dat-ai-seq-rows" checked> 画像行(Y)を自動連番/車種割当
             </label>
           </div>
         </div>
@@ -73,7 +73,7 @@ export function renderDatAiSectionHtml() {
 
         <div class="dat-field mt-05">
           <label>生成したい実車・建物・設備名や特徴</label>
-          <textarea id="inp-dat-ai-prompt" placeholder="例: JR東日本 E233系0番台 中央線 10両編成 / または 昭和レトロな木造駅舎"></textarea>
+          <textarea id="inp-dat-ai-prompt" placeholder="例: JR東日本 E233系0番台 中央快速線 10両編成 / 国鉄 EF65形1000番台＋コキ104形 / いすゞエルガ 都営バス / B787-8 / 昭和レトロな木造駅舎"></textarea>
         </div>
 
         <details class="dat-ai-api-details mt-05" id="details-dat-ai-key">

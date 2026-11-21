@@ -6,12 +6,8 @@ import { renderFormatOptionsPanel } from './ui-dat-image-picker.js';
 import { DatAiController } from './dat-ai-controller.js';
 import { DatCollectionManager, bindDatOutputActions } from './dat-collection-manager.js';
 import {
-  createDefaultDatCommon,
-  cloneObjDefaults,
-  serializeDatProjectState,
-  restoreDatProjectState,
-  applyPendingDatProjectUi,
-  applyDefaultVehicleReverse
+  createDefaultDatCommon, cloneObjDefaults, serializeDatProjectState,
+  restoreDatProjectState, applyPendingDatProjectUi, applyDefaultVehicleReverse
 } from './dat-project-state.js';
 import { DatImagePicker } from './dat-image-picker.js';
 import { DatLiveryManager, buildMaskImagePrefix } from './dat-livery-manager.js';
@@ -38,6 +34,7 @@ export class DatGeneratorController {
     this.makeobjBridge = new MakeobjDatBridge(this);
     this.makeobjModalCtrl = new MakeobjModalController(app);
     this._pendingProjectUi = null;
+    this._lastAutoPrefix = 'base_combined';
     this.common = createDefaultDatCommon();
   }
 
@@ -51,9 +48,10 @@ export class DatGeneratorController {
     const inpFile = document.getElementById('inp-dat-filename');
     if (inpFile) delete inpFile.dataset.userEdited;
     restoreDatProjectState(this, null);
+    this.common.imgPrefix = this._deriveImagePrefixFromApp();
+    this._lastAutoPrefix = this.common.imgPrefix;
+    this.common.name = this._deriveAddonNameFromApp(this.currentObjType);
     if (this.initialized) {
-      this.common.imgPrefix = this._deriveImagePrefixFromApp();
-      this.common.name = this._deriveAddonNameFromApp(this.currentObjType);
       this._applyControllerStateToForm();
       this.regenerateOutput();
     }
@@ -62,10 +60,7 @@ export class DatGeneratorController {
   }
 
   bindEvents() {
-    // サイドバーから開く際は現在保持している currentObjType を維持する
-    document.getElementById('btn-open-dat-generator')?.addEventListener('click', () => {
-      this.open();
-    });
+    document.getElementById('btn-open-dat-generator')?.addEventListener('click', () => this.open());
     this.makeobjModalCtrl.bindEvents();
   }
 
@@ -98,11 +93,39 @@ export class DatGeneratorController {
     return buildCompositeImagePrefix(this.app?.baseName || 'base.png', '', { useCut });
   }
 
+  // 現在のベース画像・マスク・タイルカッター状態に合わせて指定画像名 (imgPrefix) を同期する
+  syncImagePrefixWithApp({ force = false } = {}) {
+    const nextPrefix = this._deriveImagePrefixFromApp();
+    const isAuto = (v) => !v || v === 'base_combined' || v === 'image_combined'
+      || /^new_\d+x\d+_(combined|cut)$/i.test(v) || v === this._lastAutoPrefix;
+
+    let changed = false;
+    if (force || isAuto(this.common.imgPrefix)) {
+      if (this.common.imgPrefix !== nextPrefix) changed = true;
+      this.common.imgPrefix = nextPrefix;
+    }
+    if (this.collectionMgr.hasCollection()) {
+      this.collectionMgr.items.forEach((it) => {
+        if (it?.common && (force || isAuto(it.common.imgPrefix))) {
+          if (it.common.imgPrefix !== nextPrefix) changed = true;
+          it.common.imgPrefix = nextPrefix;
+        }
+      });
+    }
+    this._lastAutoPrefix = nextPrefix;
+    if (this.initialized && changed) {
+      const inp = document.getElementById('inp-dat-img-prefix');
+      if (inp) inp.value = this.common.imgPrefix;
+      if (this.autoSync) this.regenerateOutput();
+    }
+    return nextPrefix;
+  }
+
   _deriveAddonNameFromApp(objType) {
     const raw = (this.app && this.app.baseName) ? this.app.baseName : '';
     const cleaned = raw
       .replace(/\.png$/i, '')
-      .replace(/(_combined|_def|_paint|_base)$/i, '')
+      .replace(/(_combined|_cut|_s?def|_s?paint|_base)$/i, '')
       .replace(/[^a-zA-Z0-9_-]/g, '_');
     if (cleaned && cleaned !== 'base' && !/^new_\d+x\d+$/i.test(cleaned)) {
       return cleaned;
@@ -117,31 +140,25 @@ export class DatGeneratorController {
       this.currentObjType = initialObjType;
     }
 
-    if (!this.hasOpenedOnce) {
-      this.common.imgPrefix = this._deriveImagePrefixFromApp();
+    this.syncImagePrefixWithApp();
+    const defaultObjName = DAT_OBJECT_TEMPLATES[this.currentObjType]?.defaults?.name;
+    if (!this.hasOpenedOnce || !this.common.name || this.common.name === 'new_building' || this.common.name === defaultObjName) {
       this.common.name = this._deriveAddonNameFromApp(this.currentObjType);
-
-      // 車両長入力欄があれば初期同期
+    }
+    if (!this.hasOpenedOnce) {
       const vehLen = document.getElementById('inp-vehicle-length')?.value;
-      if (vehLen) {
-        this._getObjState('vehicle').length = vehLen;
-      }
+      if (vehLen) this._getObjState('vehicle').length = vehLen;
       this.hasOpenedOnce = true;
     }
 
     this._applyControllerStateToForm();
     this.liveryMgr.refreshUI();
-    if (this.autoSync) {
-      this.regenerateOutput();
-    }
+    if (this.autoSync) this.regenerateOutput();
 
     const modal = document.getElementById('modal-dat-generator');
     if (!modal) return;
-    if (typeof modal.showModal === 'function') {
-      modal.showModal();
-    } else {
-      modal.setAttribute('open', '');
-    }
+    if (typeof modal.showModal === 'function') modal.showModal();
+    else modal.setAttribute('open', '');
   }
 
   _syncCommonInputsFromState() {
@@ -208,7 +225,6 @@ export class DatGeneratorController {
     });
   }
 
-  // ピッカーで編集した単体または全編成アイテムを一括反映する
   applyImagePickerResult({ items, activeIndex = 0, commonPatch, valuesPatch }) {
     if (Array.isArray(items) && items.length > 0) {
       if (this.collectionMgr.hasCollection() || items.length > 1) {
@@ -234,22 +250,11 @@ export class DatGeneratorController {
 
   _updatePresetVisibility() {
     const tpl = DAT_OBJECT_TEMPLATES[this.currentObjType];
-    const presetRow = document.getElementById('dat-building-preset-row');
-    if (presetRow) {
-      presetRow.style.display = this.currentObjType === 'building' ? '' : 'none';
-    }
-    const tileCutRow = document.getElementById('dat-tilecut-row');
-    if (tileCutRow) {
-      tileCutRow.style.display = (this.currentObjType === 'building' || this.currentObjType === 'factory') ? '' : 'none';
-    }
-    const flipLbl = document.getElementById('lbl-dat-flip-directions');
-    if (flipLbl) {
-      flipLbl.style.display = (this.currentObjType === 'vehicle' || this.currentObjType === 'citycar') ? '' : 'none';
-    }
-    const imgFieldset = document.getElementById('fs-dat-image-settings');
-    if (imgFieldset && tpl) {
-      imgFieldset.style.display = tpl.supportsImages === false ? 'none' : '';
-    }
+    const setDisp = (id, show) => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; };
+    setDisp('dat-building-preset-row', this.currentObjType === 'building');
+    setDisp('dat-tilecut-row', this.currentObjType === 'building' || this.currentObjType === 'factory');
+    setDisp('lbl-dat-flip-directions', this.currentObjType === 'vehicle' || this.currentObjType === 'citycar');
+    if (tpl) setDisp('fs-dat-image-settings', tpl.supportsImages !== false);
   }
 
   _updateSyncBadge(statusText = null) {
@@ -271,10 +276,7 @@ export class DatGeneratorController {
         const prevCut = this.app?.tileCutter?.shouldCutOnExport?.();
         this.app?.tileCutter?.syncFromDat(this.currentObjType, state);
         const nextCut = this.app?.tileCutter?.shouldCutOnExport?.();
-        if (prevCut !== nextCut && (!this.common.imgPrefix || /(_combined|_cut)$/i.test(this.common.imgPrefix))) {
-          this.common.imgPrefix = this._deriveImagePrefixFromApp();
-          this._syncCommonInputsFromState();
-        }
+        if (prevCut !== nextCut) this.syncImagePrefixWithApp({ force: /(_combined|_cut)$/i.test(this.common.imgPrefix) });
       }
       if (['way', 'way-object', 'tunnel', 'roadsign', 'field'].includes(this.currentObjType)) {
         this._renderMainFormatOptions();
@@ -320,25 +322,23 @@ export class DatGeneratorController {
     this._updateSyncBadge();
     this.liveryMgr.clearBaseNameCache();
 
-    const activeMask = this.liveryMgr.getActiveMaskItem();
-    const maskImgPrefix = activeMask
-      ? buildMaskImagePrefix(this.app, activeMask, this.liveryMgr.useBatchImgNaming)
-      : null;
+    const appImgPrefix = this._deriveImagePrefixFromApp();
+    this._lastAutoPrefix = appImgPrefix;
 
     if (parsed.objects.length > 1) {
-      const list = parsed.objects.map((o, idx) => applyDefaultVehicleReverse({
+      const list = parsed.objects.map((o) => applyDefaultVehicleReverse({
         ...o,
-        common: { ...o.common, imgPrefix: maskImgPrefix || o.common.imgPrefix, customImageCoords: null },
+        common: { ...o.common, imgPrefix: appImgPrefix || o.common.imgPrefix, customImageCoords: null },
         values: { ...o.values, ...(Array.isArray(o.values?.climates) ? { climates: [...o.values.climates] } : {}) }
-      }, idx, parsed.objects.length));
+      }));
       this.collectionMgr.setItems(list);
     } else {
       const raw = parsed.objects[0];
       const item = applyDefaultVehicleReverse({
         ...raw,
-        common: { ...raw.common, imgPrefix: maskImgPrefix || raw.common.imgPrefix, customImageCoords: null },
+        common: { ...raw.common, imgPrefix: appImgPrefix || raw.common.imgPrefix },
         values: { ...raw.values, ...(Array.isArray(raw.values?.climates) ? { climates: [...raw.values.climates] } : {}) }
-      }, 0, 1);
+      });
       this.collectionMgr.items = [];
       this.collectionMgr.activeIndex = -1;
       this.collectionMgr.refreshUI();
@@ -349,10 +349,7 @@ export class DatGeneratorController {
     }
     if (this.currentObjType === 'building' || this.currentObjType === 'factory') {
       this.app?.tileCutter?.syncFromDat(this.currentObjType, this._getObjState(this.currentObjType));
-      if (this.app?.tileCutter?.shouldCutOnExport?.() && (!this.common.imgPrefix || /(_combined|_cut)$/i.test(this.common.imgPrefix))) {
-        this.common.imgPrefix = this._deriveImagePrefixFromApp();
-        this._syncCommonInputsFromState();
-      }
+      this.syncImagePrefixWithApp({ force: /(_combined|_cut)$/i.test(this.common.imgPrefix) });
     }
     this.liveryMgr.refreshUI();
     this.regenerateOutput();

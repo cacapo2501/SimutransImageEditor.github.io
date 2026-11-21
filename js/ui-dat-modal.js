@@ -289,9 +289,10 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
   });
 
   document.getElementById('btn-dat-sync-img-name').onclick = () => {
-    gen.common.imgPrefix = gen._deriveImagePrefixFromApp();
+    gen.syncImagePrefixWithApp({ force: true });
     document.getElementById('inp-dat-img-prefix').value = gen.common.imgPrefix;
     if (gen.autoSync) gen.regenerateOutput();
+    gen.app?.markDirty?.();
   };
   document.getElementById('btn-dat-open-img-picker').onclick = () => gen.imagePicker.open();
   document.getElementById('btn-dat-open-makeobj-modal')?.addEventListener('click', () => {

@@ -131,10 +131,7 @@ class AdvancedMultiplyApp {
   _bindBaseNameEvents() {
     const inpBase = document.getElementById('inp-base-name');
     if (inpBase) {
-      inpBase.oninput = (e) => {
-        this.setBaseName(e.target.value, { updateInput: false });
-        this.markDirty();
-      };
+      inpBase.oninput = (e) => { this.setBaseName(e.target.value, { updateInput: false }); this.markDirty(); };
     }
   }
 
@@ -148,6 +145,7 @@ class AdvancedMultiplyApp {
     if (info && this.baseW && this.baseH) {
       info.textContent = `ベース: ${this.baseName} (${this.baseW}×${this.baseH}px)`;
     }
+    this.datGenerator?.syncImagePrefixWithApp?.();
   }
 
   markDirty() { this.isDirty = true; }

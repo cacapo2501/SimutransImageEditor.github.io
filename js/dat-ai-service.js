@@ -38,14 +38,9 @@ export function loadGeminiConfig() {
 
 export function saveGeminiConfig({ apiKey, model, saveKey }) {
   try {
-    if (saveKey && apiKey) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ apiKey, model }));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  } catch (e) {
-    // localStorage 利用不可時は無視
-  }
+    if (saveKey && apiKey) localStorage.setItem(STORAGE_KEY, JSON.stringify({ apiKey, model }));
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch (e) { /* localStorage 利用不可時は無視 */ }
 }
 
 export function extractJsonText(rawText) {
@@ -204,8 +199,7 @@ function resolveSmartStartRows(items, { baseRow = 0, autoSeqRows = true, gridRow
     return;
   }
 
-  // 車両数が画像の行数より多い場合（例: 4行の車種別画像に対して10両編成）：
-  // 先頭車=0, 中間車=1..gridRows-2 (形式/動力グループ別), 後尾車=gridRows-1 にマッピングする
+  // 車両数が画像の行数より多い場合: 先頭車=0, 中間車=1..gridRows-2(形式/動力別), 後尾車=gridRows-1
   const midSlots = Math.max(1, gridRows - 2);
   const typeGroupMap = new Map();
   let nextGroupIdx = 0;
@@ -216,17 +210,13 @@ function resolveSmartStartRows(items, { baseRow = 0, autoSeqRows = true, gridRow
     } else if (idx === total - 1) {
       it.common.startRow = String(gridRows - 1);
     } else if (gridRows === 2) {
-      const pwr = parseInt(it.values?.power, 10) || 0;
-      it.common.startRow = pwr > 0 ? '1' : '0';
+      it.common.startRow = (parseInt(it.values?.power, 10) || 0) > 0 ? '1' : '0';
     } else {
       const rawName = String(it.common.name || '').replace(/\([^()]*\)$/, '').replace(/_\d+$/, '');
       const pwrTag = (parseInt(it.values?.power, 10) || 0) > 0 ? 'M' : 'T';
       const groupKey = `${rawName}:${pwrTag}`;
-      if (!typeGroupMap.has(groupKey)) {
-        typeGroupMap.set(groupKey, nextGroupIdx++);
-      }
-      const gIdx = typeGroupMap.get(groupKey);
-      it.common.startRow = String(1 + (gIdx % midSlots));
+      if (!typeGroupMap.has(groupKey)) typeGroupMap.set(groupKey, nextGroupIdx++);
+      it.common.startRow = String(1 + (typeGroupMap.get(groupKey) % midSlots));
     }
   });
 }
@@ -262,9 +252,7 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
     const defaults = tpl ? { ...tpl.defaults } : {};
     const values = { ...defaults };
 
-    if (objType === fallbackObjType) {
-      applyPreservedImageValues(values, fallbackValues);
-    }
+    if (objType === fallbackObjType) applyPreservedImageValues(values, fallbackValues);
 
     if (item.values && typeof item.values === 'object') {
       Object.entries(item.values).forEach(([k, v]) => {
@@ -305,7 +293,6 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
     const resolvedCol = (baseCol > 0)
       ? baseCol
       : (Number.isFinite(rawCol) && rawCol >= 0 ? (gridCols > 0 ? Math.min(rawCol, gridCols - 1) : rawCol) : baseCol);
-
     const resolvedOffset = String(rawCommon.imgOffset || fallbackCommon.imgOffset || '').trim();
     const resolvedFlip = rawCommon.flipDirections !== undefined
       ? (rawCommon.flipDirections === true || rawCommon.flipDirections === 'true' || rawCommon.flipDirections === 1)
