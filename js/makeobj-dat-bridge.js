@@ -7,6 +7,7 @@ import { resolveCursorIconModes } from './dat-image-formats.js';
 import {
   supportsCursorIcon,
   generateAutoIconCanvas,
+  parsePakArgSize,
   canvasToPngBytes,
   dataUrlToPngBytes
 } from './dat-icon-generator.js';
@@ -131,7 +132,7 @@ export class MakeobjDatBridge {
     el.style.color = isError ? '#ff9999' : '#b7e8b7';
   }
 
-  async _collectReferencedPngFiles(datText) {
+  async _collectReferencedPngFiles(datText, { pakSize = 64 } = {}) {
     const filesMap = new Map();
     const app = this.gen.app;
     const neededPrefixes = extractDatImagePrefixes(datText);
@@ -173,8 +174,8 @@ export class MakeobjDatBridge {
         }
       }
 
-      // 自動生成 Icon PNG (32x32 ボタン合成) および外部指定 Cursor PNG を収集する
-      await this._attachIconAndCursorPngs(filesMap, neededPrefixes, activePrefix);
+      // 自動生成 Icon PNG (pakサイズに合わせて余白#E7FFFF・左上32x32ボタン合成) および外部指定 Cursor PNG を収集する
+      await this._attachIconAndCursorPngs(filesMap, neededPrefixes, activePrefix, pakSize);
     }
 
     // ユーザーが明示的に添付した PNG で上書き可能
@@ -182,7 +183,7 @@ export class MakeobjDatBridge {
     return Array.from(filesMap.entries()).map(([name, data]) => ({ name, data }));
   }
 
-  async _attachIconAndCursorPngs(filesMap, neededPrefixes, activePrefix) {
+  async _attachIconAndCursorPngs(filesMap, neededPrefixes, activePrefix, pakSize = 64) {
     const app = this.gen.app;
     const entriesToCheck = this.gen.collectionMgr?.hasCollection?.()
       ? this.gen.collectionMgr.items
@@ -206,7 +207,7 @@ export class MakeobjDatBridge {
         ]);
         for (const iconPref of candPrefixes) {
           if (iconPref !== '_icon' && neededPrefixes.has(iconPref) && !filesMap.has(`${iconPref}.png`)) {
-            const iconCanvas = await generateAutoIconCanvas(app, item.objType, v, item.common);
+            const iconCanvas = await generateAutoIconCanvas(app, item.objType, v, item.common, { pakSize });
             filesMap.set(`${iconPref}.png`, await canvasToPngBytes(iconCanvas));
           }
         }
@@ -236,7 +237,8 @@ export class MakeobjDatBridge {
     this._setLog('仮想ファイルシステムへ画像を準備して makeobj を実行しています...');
 
     try {
-      const files = await this._collectReferencedPngFiles(datText);
+      const pakSize = parsePakArgSize(pakArg);
+      const files = await this._collectReferencedPngFiles(datText, { pakSize });
       const res = await runMakeobjCompile({ pakArg, pakFilename, datFilename, datText, files });
       const fileSummary = `渡したファイル: ${datFilename}, ${files.map(f => f.name).join(', ') || '(PNGなし)'}`;
       const logOut = [fileSummary, res.log || `(exit code: ${res.exitCode})`].filter(Boolean).join('\n');

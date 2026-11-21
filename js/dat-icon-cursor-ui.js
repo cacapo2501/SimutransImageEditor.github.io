@@ -3,6 +3,7 @@ import { buildFormattedImages, resolveCursorIconModes } from './dat-image-format
 import {
   supportsCursorIcon,
   generateAutoIconCanvas,
+  resolveTargetPakSize,
   canvasToPngBytes
 } from './dat-icon-generator.js';
 
@@ -91,24 +92,45 @@ export function renderIconCursorPanel(container, { app, gen, objType, values, co
     sampleRow.append(lblS, selS);
     container.appendChild(sampleRow);
 
+    const cropRow = document.createElement('div');
+    cropRow.className = 'row mt-05';
+    const lblCrop = document.createElement('label');
+    lblCrop.style.cssText = 'font-size:10px; min-width:56px;';
+    lblCrop.textContent = '抽出範囲:';
+    const selCrop = document.createElement('select');
+    [
+      { value: 'bottom_left_40', label: '左下 40×40px を抽出して 28×28 へ縮小（既定）' },
+      { value: 'fit_all', label: 'オブジェクト全体を 28×28 へ縮小' }
+    ].forEach((o) => {
+      const opt = document.createElement('option');
+      opt.value = o.value; opt.textContent = o.label;
+      selCrop.appendChild(opt);
+    });
+    selCrop.value = v.iconCropMode || 'bottom_left_40';
+    selCrop.onchange = () => { v.iconCropMode = selCrop.value; updateIconPreview(); onChange(false); };
+    cropRow.append(lblCrop, selCrop);
+    container.appendChild(cropRow);
+
+    const targetPak = resolveTargetPakSize(app, objType);
     const prevWrap = document.createElement('div');
     prevWrap.className = 'row mt-05';
     prevWrap.style.gap = '8px';
     const prevCanvas = document.createElement('canvas');
     prevCanvas.width = 64; prevCanvas.height = 64;
-    prevCanvas.title = '自動生成 Icon プレビュー (32×32 を2倍表示)';
+    prevCanvas.title = `自動生成 Icon プレビュー (左上32×32 / 出力${targetPak}×${targetPak}px)`;
     prevCanvas.style.cssText = 'width:48px; height:48px; image-rendering:pixelated; border:1px solid #49607a; background:#14181e; border-radius:3px; flex-shrink:0;';
 
     const infoCol = document.createElement('div');
     infoCol.style.cssText = 'display:flex; flex-direction:column; gap:3px; flex:1; min-width:0;';
     const fileTxt = document.createElement('div');
     fileTxt.className = 'info-text';
-    fileTxt.textContent = `出力: Icon=> ${basePrefix}_icon.0.0（縁2px除外・自動縮小）`;
+    fileTxt.textContent = `出力: Icon=> ${basePrefix}_icon.0.0 (${targetPak}×${targetPak}px / 左上32×32+余白#E7FFFF)`;
     const btnSave = document.createElement('button');
     btnSave.type = 'button';
     btnSave.textContent = `💾 ${iconFileName} 保存`;
     btnSave.onclick = async () => {
-      const generated = await generateAutoIconCanvas(app, objType, v, common);
+      const pakNow = resolveTargetPakSize(app, objType);
+      const generated = await generateAutoIconCanvas(app, objType, v, common, { pakSize: pakNow });
       const bytes = await canvasToPngBytes(generated);
       downloadBytesAsPng(bytes, iconFileName);
     };
@@ -118,7 +140,9 @@ export function renderIconCursorPanel(container, { app, gen, objType, values, co
 
     const updateIconPreview = async () => {
       try {
-        const iconCanvas = await generateAutoIconCanvas(app, objType, v, common);
+        const pakNow = resolveTargetPakSize(app, objType);
+        fileTxt.textContent = `出力: Icon=> ${basePrefix}_icon.0.0 (${pakNow}×${pakNow}px / 左上32×32+余白#E7FFFF)`;
+        const iconCanvas = await generateAutoIconCanvas(app, objType, v, common, { pakSize: pakNow });
         const pCtx = prevCanvas.getContext('2d');
         pCtx.imageSmoothingEnabled = false;
         pCtx.clearRect(0, 0, 64, 64);

@@ -8,7 +8,7 @@ const IMAGE_FORMAT_VALUE_KEYS = [
   'reverseRowMode', 'reverseRow', 'reverseFlipDir', 'includeNoElectric', 'noElectricRow',
   'imageLayer', 'dimsW', 'dimsH', 'dimsViews', 'heightTiles', 'frames', 'seasons',
   'signalStates', 'ageCount', 'has_snow',
-  'iconMode', 'iconSampleMode', 'cursorMode', 'cursorExternalName', 'cursorExternalDataUrl', 'cursorExternalRow', 'cursorExternalCol'
+  'iconMode', 'iconSampleMode', 'iconCropMode', 'cursorMode', 'cursorExternalName', 'cursorExternalDataUrl', 'cursorExternalRow', 'cursorExternalCol'
 ];
 
 export function buildImagePatternData({ objType, common, values, tileW = null, tileH = null }) {

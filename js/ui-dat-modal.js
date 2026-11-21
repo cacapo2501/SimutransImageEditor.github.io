@@ -363,6 +363,10 @@ export function bindDatModalEvents(gen, { DAT_OBJECT_TEMPLATES, BUILDING_PRESETS
     tc.syncUI();
     gen.app?.markDirty?.();
   });
+  document.getElementById('sel-dat-makeobj-pak')?.addEventListener('change', () => {
+    gen._renderSeasonMaskPanel();
+  });
+
   document.getElementById('btn-dat-tilecut-export')?.addEventListener('click', () => {
     const tc = gen.app?.tileCutter;
     if (tc && !tc.enabled) {

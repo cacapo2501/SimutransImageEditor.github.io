@@ -11,6 +11,53 @@ export function supportsCursorIcon(objType) {
   return CURSOR_ICON_OBJ_TYPES.has(objType);
 }
 
+// makeobj引数 (pak, pak64, pak128等) からターゲットのタイルサイズ(px)を解決する
+export function parsePakArgSize(pakArg) {
+  const s = String(pakArg || '').trim().toLowerCase();
+  if (s === 'pak' || s === 'pak64' || !s) return 64;
+  const m = s.match(/pak(\d+)/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (Number.isFinite(n) && n >= 16) return n;
+  }
+  return 64;
+}
+
+export function resolveTargetPakSize(app, objType = '') {
+  const mkSel = typeof document !== 'undefined' ? document.getElementById('sel-mk-pak-arg') : null;
+  const mkModal = typeof document !== 'undefined' ? document.getElementById('modal-makeobj-compile') : null;
+  const datSel = typeof document !== 'undefined' ? document.getElementById('sel-dat-makeobj-pak') : null;
+  if (mkModal?.open && mkSel?.value) return parsePakArgSize(mkSel.value);
+  if (datSel?.value && datSel.value !== 'pak') return parsePakArgSize(datSel.value);
+  if ((objType === 'building' || objType === 'factory') && app?.tileCutter?.shouldCutOnExport?.()) {
+    return Math.max(32, parseInt(app.tileCutter.tileSize, 10) || 64);
+  }
+  return parsePakArgSize(datSel?.value || 'pak');
+}
+
+// 32x32 のボタン画像を左上隅 (0,0) に配置し、コンパイルするpakサイズに合うよう余白を #E7FFFF で埋める
+export function padIconToPakCanvas(button32Canvas, pakSize = 64, createCanvasFn = null) {
+  const outSize = Math.max(32, parseInt(pakSize, 10) || 64);
+  const mk = createCanvasFn || ((w, h) => {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    return c;
+  });
+  const out = mk(outSize, outSize);
+  const ctx = out.getContext('2d');
+  const imgData = ctx.createImageData(outSize, outSize);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] = 231; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  if (button32Canvas) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(button32Canvas, 0, 0, 32, 32, 0, 0, 32, 32);
+  }
+  return out;
+}
+
 let _cachedTemplatePromise = null;
 
 // ./icon.png ロード失敗時用のフォールバックボタン画像 (32x32 立体灰枠)
@@ -89,7 +136,11 @@ export function findForegroundBounds(data, w, h, rx = 0, ry = 0, rw = w, rh = h)
 }
 
 // ./icon.png 左上 32x32 の内側(上下左右 2px を除く 28x28)へオブジェクトが映えるよう縮小合成する
-export function composeButtonIconCanvas(templateCanvas, srcCanvas, { border = 2 } = {}, createCanvasFn = null) {
+export function composeButtonIconCanvas(templateCanvas, srcCanvas, {
+  border = 2,
+  cropMode = 'bottom_left_40',
+  cropSize = 40
+} = {}, createCanvasFn = null) {
   const mk = createCanvasFn || ((w, h) => {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
@@ -107,8 +158,18 @@ export function composeButtonIconCanvas(templateCanvas, srcCanvas, { border = 2 
 
   const srcW = srcCanvas.width, srcH = srcCanvas.height;
   const srcData = srcCanvas.getContext('2d').getImageData(0, 0, srcW, srcH).data;
-  const bounds = findForegroundBounds(srcData, srcW, srcH);
-  if (!bounds) return out;
+  const rawBounds = findForegroundBounds(srcData, srcW, srcH);
+  if (!rawBounds) return out;
+
+  let bounds = rawBounds;
+  if (cropMode === 'bottom_left_40') {
+    const maxCrop = Math.max(16, Math.min(128, parseInt(cropSize, 10) || 40));
+    const blW = Math.min(maxCrop, rawBounds.w);
+    const blH = Math.min(maxCrop, rawBounds.h);
+    const blX = rawBounds.x;
+    const blY = rawBounds.y + rawBounds.h - blH;
+    bounds = findForegroundBounds(srcData, srcW, srcH, blX, blY, blW, blH) || { x: blX, y: blY, w: blW, h: blH };
+  }
 
   const scale = Math.min(innerSize / bounds.w, innerSize / bounds.h);
   const dstW = Math.max(1, Math.min(innerSize, Math.round(bounds.w * scale)));
@@ -243,10 +304,16 @@ export function extractIconSourceCanvas(app, objType, values, common) {
   return full;
 }
 
-export async function generateAutoIconCanvas(app, objType, values, common) {
+export async function generateAutoIconCanvas(app, objType, values, common, { pakSize = null } = {}) {
   const template = await loadButtonTemplateCanvas();
   const src = extractIconSourceCanvas(app, objType, values, common);
-  return composeButtonIconCanvas(template, src, { border: 2 });
+  const targetPak = pakSize || resolveTargetPakSize(app, objType);
+  const btn32 = composeButtonIconCanvas(template, src, {
+    border: 2,
+    cropMode: values?.iconCropMode || 'bottom_left_40',
+    cropSize: parseInt(values?.iconCropSize, 10) || 40
+  });
+  return padIconToPakCanvas(btn32, targetPak);
 }
 
 export function canvasToPngBytes(canvas) {

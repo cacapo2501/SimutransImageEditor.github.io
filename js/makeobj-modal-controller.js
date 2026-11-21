@@ -212,7 +212,9 @@ export class MakeobjModalController {
 
     try {
       const bridge = this.app?.datGenerator?.makeobjBridge;
-      const autoFiles = bridge ? await bridge._collectReferencedPngFiles(datText) : [];
+      const pakMatch = String(pakArg || '').match(/pak(\d+)/i);
+      const pakSize = pakMatch ? Math.max(32, parseInt(pakMatch[1], 10) || 64) : 64;
+      const autoFiles = bridge ? await bridge._collectReferencedPngFiles(datText, { pakSize }) : [];
       const merged = new Map(autoFiles.map(f => [f.name, f.data]));
       this.extraPngMap.forEach((bytes, name) => merged.set(name, bytes));
       const files = Array.from(merged.entries()).map(([name, data]) => ({ name, data }));
