@@ -4,33 +4,53 @@ import { MaskGenerator } from './mask-generator.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 import { resetFullProjectState, updateProjectStatusUI } from './project-reset.js';
 
-export function safePickFile(accept = '.png') {
+function pickFilesInternal(accept = '.png', multiple = false) {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = accept;
+    input.multiple = Boolean(multiple);
     input.style.position = 'fixed';
     input.style.left = '-9999px';
     input.style.opacity = '0';
     document.body.appendChild(input);
 
-    input.onchange = (e) => {
-      const file = e.target.files && e.target.files[0];
+    let settled = false;
+    const finish = (files) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('focus', onFocus);
       if (input.parentNode) document.body.removeChild(input);
-      resolve(file || null);
+      resolve(files);
     };
 
-    window.addEventListener('focus', () => {
+    const onFocus = () => {
       setTimeout(() => {
-        if (input.parentNode) {
-          document.body.removeChild(input);
-          resolve(null);
-        }
-      }, 500);
-    }, { once: true });
+        if (settled) return;
+        const picked = input.files ? Array.from(input.files) : [];
+        finish(picked);
+      }, 800);
+    };
+
+    input.onchange = (e) => {
+      const picked = e.target.files ? Array.from(e.target.files) : [];
+      finish(picked);
+    };
+    input.addEventListener('cancel', () => finish([]), { once: true });
+    window.addEventListener('focus', onFocus, { once: true });
 
     input.click();
   });
+}
+
+// 単一ファイル選択ダイアログを開く
+export function safePickFile(accept = '.png') {
+  return pickFilesInternal(accept, false).then(files => files[0] || null);
+}
+
+// 複数ファイル選択ダイアログを開く
+export function safePickFiles(accept = '.png') {
+  return pickFilesInternal(accept, true);
 }
 
 export class ImageIOController {

@@ -11,7 +11,8 @@ import { BatchExporter } from './batch-exporter.js';
 import { LayerManager } from './layer-manager.js';
 import { ToneTintController } from './tone-tint-controller.js';
 import { DeftileBuilder } from './deftile-builder.js';
-import { ImageIOController, safePickFile } from './image-io-controller.js';
+import { ImageIOController, safePickFile, safePickFiles } from './image-io-controller.js';
+import { BaseMergeController } from './base-merge.js';
 import { VehicleLayoutController } from './vehicle-layout.js';
 import { AircraftMapperController } from './aircraft-mapper.js';
 import { GradientGeneratorController } from './gradient-generator.js';
@@ -29,7 +30,7 @@ import {
 } from './project-reset.js';
 
 // アプリケーションバージョン
-export const APP_VERSION = '5.5.0';
+export const APP_VERSION = '5.6.0';
 
 class AdvancedMultiplyApp {
   constructor() {
@@ -97,6 +98,7 @@ class AdvancedMultiplyApp {
     this.toneTintCtrl = new ToneTintController(this);
     this.deftileBuilder = new DeftileBuilder(this, safePickFile);
     this.imageIOCtrl = new ImageIOController(this, safePickFile);
+    this.baseMergeCtrl = new BaseMergeController(this, safePickFiles);
     this.vehicleCtrl = new VehicleLayoutController(this);
     this.aircraftCtrl = new AircraftMapperController(this, safePickFile);
     this.gradientCtrl = new GradientGeneratorController(this);
@@ -109,6 +111,7 @@ class AdvancedMultiplyApp {
     this.maskMgr.bindEvents();
     this.batchExporter.bindEvents();
     this.imageIOCtrl.bindAll();
+    this.baseMergeCtrl.bindEvents();
     this.layerManager.bindEvents();
     this.toneTintCtrl.bindEvents();
     this.vehicleCtrl.bindEvents();

@@ -315,8 +315,63 @@
 #modal-resize-image::backdrop,
 #modal-trim-image::backdrop,
 #modal-palette-import::backdrop,
-#modal-palette-blend::backdrop {
+#modal-palette-blend::backdrop,
+#modal-merge-bases::backdrop {
   background: rgba(0, 0, 0, 0.65);
+}
+
+#modal-merge-bases {
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #eee;
+  padding: 16px;
+  margin: auto;
+  max-width: 94vw;
+  max-height: 90vh;
+}
+
+.merge-base-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 6px;
+  background: #1b1b1b;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+}
+
+.merge-base-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: #262930;
+  border: 1px solid #3a404d;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.merge-base-row .mb-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.merge-base-row .mb-size {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  color: #8fd3ff;
+  flex-shrink: 0;
+}
+
+.merge-base-row button {
+  padding: 2px 6px;
+  font-size: 10px;
 }
 
 #modal-palette-blend .picker-content {
