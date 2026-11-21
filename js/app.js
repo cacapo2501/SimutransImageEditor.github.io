@@ -29,7 +29,7 @@ import {
 } from './project-reset.js';
 
 // アプリケーションバージョン
-export const APP_VERSION = '5.4.0';
+export const APP_VERSION = '5.4.1';
 
 class AdvancedMultiplyApp {
   constructor() {
@@ -241,7 +241,7 @@ class AdvancedMultiplyApp {
     this.toneTintCtrl.updateTintTable();
   }
 
-  async loadMaskFromFile(file, { addAsNew = false } = {}) {
+  async loadMaskFromFile(file, { addAsNew = true } = {}) {
     if (!file) return;
     if (!this.baseImage) { alert('先にベース画像を開くか、新規作成してください。'); return; }
     const img = await loadImageAsync(URL.createObjectURL(file));

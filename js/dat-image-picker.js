@@ -98,6 +98,7 @@ export class DatImagePicker {
       }
     });
     this.selectedKeyIdx = 0;
+    this.mode = 'origin';
 
     this._syncActiveItemControls();
 
@@ -157,6 +158,7 @@ export class DatImagePicker {
     renderDatPickerItemsList(this.tempItems, this.tempActiveIdx, (idx) => {
       this.tempActiveIdx = idx;
       this.selectedKeyIdx = 0;
+      this.mode = 'origin';
       this._syncActiveItemControls();
       this.refreshAll();
     });
@@ -331,6 +333,10 @@ export class DatImagePicker {
         active.values.hasFreightImage = false;
       } else if (fmt === 'vehicle_freight' || fmt === 'vehicle_freight_typed') {
         active.values.hasFreightImage = true;
+      }
+      if (!String(fmt).startsWith('vehicle_otrp_reverse') && this.mode === 'reverse_row') {
+        this.mode = 'origin';
+        syncDatPickerModeUI(this.mode, active.objType);
       }
       this.selectedKeyIdx = 0;
       this._renderFormatOptions();

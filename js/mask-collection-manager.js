@@ -119,6 +119,8 @@ export class MaskCollectionManager {
       };
       this.items.push(entry);
       this.activeIndex = this.items.length - 1;
+      // 新規追加マスクへ前のマスクの乗算色・トーン設定を引き継がないよう同期する
+      this._syncAppFromActive();
     } else {
       const cur = this.getActive();
       cur.name = name || cur.name;
