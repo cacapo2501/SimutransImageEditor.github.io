@@ -9,6 +9,7 @@ import {
   requestDatFromGemini,
   pasteClipboardIntoTextarea
 } from './dat-ai-service.js';
+import { guessInitialTileSize } from './dat-picker-viewport.js';
 
 export class DatAiController {
   constructor(datGenerator) {
@@ -83,7 +84,42 @@ export class DatAiController {
     saveGeminiConfig(this.cfg);
   }
 
+  // 現在開いている出力画像のサイズ・タイル寸法・有効行数/列数を算出する
+  _buildCurrentImageContext(objType) {
+    const app = this.gen.app;
+    if (!app || !app.baseImage || !app.baseW || !app.baseH) {
+      return { hasImage: false, imgW: 0, imgH: 0, tileW: 64, tileH: 64, gridRows: 0, gridCols: 0, useCut: false };
+    }
+    const isBld = objType === 'building' || objType === 'factory';
+    const tc = app.tileCutter;
+    const useCut = Boolean(isBld && tc?.shouldCutOnExport?.());
+    let imgW = app.baseW;
+    let imgH = app.baseH;
+    let tileW = 64;
+    let tileH = 64;
+
+    if (useCut && tc) {
+      tileW = tc.tileSize || 64;
+      tileH = tileW;
+      const outCols = Math.max(1, (tc.dimsViews || 1) * (tc.dimsW || 1) * (tc.dimsH || 1));
+      const outRows = Math.max(1, (tc.seasons || 1) * (tc.frames || 1) * (tc.heightTiles || 1));
+      imgW = outCols * tileW;
+      imgH = outRows * tileH;
+    } else {
+      const [gw, gh] = guessInitialTileSize(imgW, imgH, objType, tc);
+      tileW = gw;
+      tileH = gh;
+    }
+
+    const gridCols = Math.max(1, Math.floor(imgW / tileW));
+    const gridRows = Math.max(1, Math.floor(imgH / tileH));
+    return { hasImage: true, imgW, imgH, tileW, tileH, gridRows, gridCols, useCut };
+  }
+
   _collectPromptOptions() {
+    this.gen.syncImagePrefixWithApp?.();
+
+    const objType = this.gen.currentObjType;
     const userPrompt = (document.getElementById('inp-dat-ai-prompt')?.value || '').trim();
     const pakset = document.getElementById('sel-dat-ai-pakset')?.value || 'pak64';
     const vehicleMode = document.getElementById('sel-dat-ai-vehicle-mode')?.value || 'consist';
@@ -92,10 +128,12 @@ export class DatAiController {
     const buildCostPct = parseInt(document.getElementById('rng-dat-ai-build-cost')?.value, 10) || 100;
     const maintCostPct = parseInt(document.getElementById('rng-dat-ai-maint-cost')?.value, 10) || 100;
     const payloadPct = parseInt(document.getElementById('rng-dat-ai-payload-eff')?.value, 10) || 100;
-    const liveryName = this.gen.liveryMgr ? this.gen.liveryMgr.getActiveLiveryName() : '';
+    const liveryName = this.gen.liveryMgr ? this.gen.liveryMgr.getActiveLiveryName({ forPrompt: true }) : '';
+    const imageContext = this._buildCurrentImageContext(objType);
+    const currentValues = { ...this.gen._getObjState(objType) };
 
     return {
-      objType: this.gen.currentObjType,
+      objType,
       userPrompt,
       pakset,
       vehicleMode,
@@ -106,7 +144,10 @@ export class DatAiController {
       liveryName,
       imgPrefix: this.gen.common.imgPrefix,
       copyright: this.gen.common.copyright,
-      autoSeqRows
+      autoSeqRows,
+      imageContext,
+      currentCommon: { ...this.gen.common },
+      currentValues
     };
   }
 
@@ -202,7 +243,12 @@ export class DatAiController {
         model: this.cfg.model,
         prompt
       });
-      const parsed = parseAiDatResponse(rawText, this.gen.currentObjType, this.gen.common);
+      const parsed = parseAiDatResponse(rawText, this.gen.currentObjType, this.gen.common, {
+        fallbackValues: opts.currentValues,
+        autoSeqRows: opts.autoSeqRows,
+        gridRows: opts.imageContext?.gridRows || 0,
+        gridCols: opts.imageContext?.gridCols || 0
+      });
       this.gen.applyAiResult(parsed);
       this._setStatus(`完了: ${parsed.summary} (${parsed.objects.length}件)`);
     } catch (err) {
@@ -288,7 +334,13 @@ export class DatAiController {
       return;
     }
     try {
-      const parsed = parseAiDatResponse(raw, this.gen.currentObjType, this.gen.common);
+      const opts = this._collectPromptOptions();
+      const parsed = parseAiDatResponse(raw, this.gen.currentObjType, this.gen.common, {
+        fallbackValues: opts.currentValues,
+        autoSeqRows: opts.autoSeqRows,
+        gridRows: opts.imageContext?.gridRows || 0,
+        gridCols: opts.imageContext?.gridCols || 0
+      });
       this.gen.applyAiResult(parsed);
       const jsonWrap = document.getElementById('dat-ai-manual-json-wrap');
       if (jsonWrap) jsonWrap.style.display = 'none';

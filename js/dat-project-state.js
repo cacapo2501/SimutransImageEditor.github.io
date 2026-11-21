@@ -173,28 +173,23 @@ export function restoreDatProjectState(gen, data) {
   }
 }
 
-// 車両の先頭車・後尾車判定を行い、デフォルトの OTRP Reverse 有効化と排他整合を適用する
-export function applyDefaultVehicleReverse(entry, idx, total) {
+// 車両の画像指定形式 (EmptyImage / FreightImage / OTRP Reverse) の排他整合を適用する
+export function applyDefaultVehicleReverse(entry) {
   if (!entry || entry.objType !== 'vehicle') return entry;
   const values = entry.values || {};
   const common = entry.common || {};
-  const hasNone = (raw) => String(raw || '').split(/\r?\n/).some(s => s.trim().toLowerCase() === 'none');
-  const isEndCar = (total > 1 && (idx === 0 || idx === total - 1))
-    || hasNone(values.constraintsPrev)
-    || hasNone(values.constraintsNext);
-
   const fmt = common.imageFormat || 'auto';
+
   if (fmt === 'vehicle_otrp_reverse' || fmt === 'vehicle_otrp_reverse_only') {
     // OTRP Reverse と標準 FreightImage の同時設定は不可
     values.hasFreightImage = false;
-  } else if (fmt === 'auto') {
-    if (values.hasFreightImage) {
-      common.imageFormat = 'vehicle_freight';
-    } else if (isEndCar) {
-      common.imageFormat = 'vehicle_otrp_reverse';
-      values.reverseRowMode = values.reverseRowMode || 'same_row';
-      values.hasFreightImage = false;
-    }
+    values.reverseRowMode = values.reverseRowMode || 'same_row';
+  } else if (fmt === 'vehicle_freight' || fmt === 'vehicle_freight_typed') {
+    values.hasFreightImage = true;
+  } else if (fmt.startsWith('vehicle_empty') || fmt === 'vehicle_image_8') {
+    values.hasFreightImage = false;
+  } else if (fmt === 'auto' && values.hasFreightImage) {
+    common.imageFormat = 'vehicle_freight';
   }
   return entry;
 }

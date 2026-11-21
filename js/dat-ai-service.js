@@ -1,13 +1,11 @@
+// Simutrans dat 生成AIサービス（Gemini API通信・JSON抽出・画像設定整合＆レスポンス正規化）
 import { DAT_OBJECT_TEMPLATES } from './dat-templates.js';
+import { getImageFormatOptionsForObjType } from './dat-image-formats.js';
+import { PAKSET_OPTIONS, describeFieldsSchema, buildDatAiPrompt } from './dat-ai-prompts.js';
+
+export { PAKSET_OPTIONS, describeFieldsSchema, buildDatAiPrompt };
 
 const STORAGE_KEY = 'simutrans_editor_gemini_cfg_v1';
-
-export const PAKSET_OPTIONS = [
-  { value: 'pak64', label: 'pak64 (標準バランス)', guide: 'pak64基準: 鉄道旅客車payload=40〜120(立席定員がある車両は座席+立席を含めた定員を基準), speed=80〜300, power=300〜5000, weight=20〜80, cost=50000〜500000, runningcost=30〜250, length=4〜10(標準8)。建物level=1〜40。' },
-  { value: 'pak128', label: 'pak128', guide: 'pak128基準: 鉄道旅客車payload=60〜200(立席定員がある車両は座席+立席を含めた定員を基準), cost=150000〜1500000, runningcost=80〜600, power=500〜8000, length=6〜16(標準8〜12)。建物level=2〜80。' },
-  { value: 'pak128.japan', label: 'pak128.japan (日本向け)', guide: 'pak128.japan基準: 実車に近い定員(立席定員がある通勤・近郊・路線バス等は座席+立席の総定員を含めた値を採用し1両payload=120〜160, 新幹線は60〜100), speedは実車km/h, powerは実車kW(電車の電動車は400〜600kW, 制御車は0), weightは実車t, length=6〜14(20m級=8〜10, 新幹線25m級=10〜12), cost=100000〜2000000, runningcost=50〜500。' },
-  { value: 'pak96', label: 'pak96 / pak96.comic', guide: 'pak96基準: pak64とpak128の中間スケール。旅客車payload=50〜140(立席定員込み基準), 建物level=2〜50。' }
-];
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-4-hydrogen';
 
@@ -48,150 +46,6 @@ export function saveGeminiConfig({ apiKey, model, saveKey }) {
   } catch (e) {
     // localStorage 利用不可時は無視
   }
-}
-
-function describeFieldsSchema(objType) {
-  const tpl = DAT_OBJECT_TEMPLATES[objType];
-  if (!tpl) return '';
-  return tpl.fields.map(f => {
-    let extra = '';
-    if (f.options) {
-      extra = ' 選択肢:[' + f.options.map(o => `"${o.value}"`).join(', ') + ']';
-    } else if (f.type === 'number_presets') {
-      const pList = (f.presets || []).map(p => `"${p.value}"`).join(', ');
-      extra = ` (数値文字列 ${f.min ?? 1}〜${f.max ?? 255}${pList ? ' / 代表値:[' + pList + ']' : ''})`;
-    } else if (f.type === 'checkbox') {
-      extra = ' (boolean: true/false)';
-    } else if (f.type === 'climates') {
-      extra = ' (配列: ["water","desert","tropic","mediterran","temperate","tundra","rocky","arctic"]から選択)';
-    }
-    return `  - "${f.key}": ${f.label}${extra}`;
-  }).join('\n');
-}
-
-const LEGACY_COST_PCT = {
-  standard: 100, cheap: 65, budget: 35, expensive: 150, luxury: 250,
-  high_eff: 65, ultra_eff: 35, heavy: 150, high_cap: 135, express: 75
-};
-
-function resolvePct(pctVal, legacyMode) {
-  if (typeof pctVal === 'number' && Number.isFinite(pctVal)) return pctVal;
-  if (legacyMode && LEGACY_COST_PCT[legacyMode]) return LEGACY_COST_PCT[legacyMode];
-  return 100;
-}
-
-// 生成AI向けプロンプトを構築する
-export function buildDatAiPrompt({
-  objType,
-  userPrompt,
-  pakset = 'pak64',
-  vehicleMode = 'consist',
-  carCount = '',
-  buildCostPct = null,
-  maintCostPct = null,
-  payloadPct = null,
-  buildCostMode = 'standard',
-  maintCostMode = 'standard',
-  payloadMode = 'standard',
-  liveryName = '',
-  imgPrefix = 'base_combined',
-  copyright = '',
-  autoSeqRows = true
-}) {
-  const bPct = resolvePct(buildCostPct, buildCostMode);
-  const mPct = resolvePct(maintCostPct, maintCostMode);
-  const pPct = resolvePct(payloadPct, payloadMode);
-  const tpl = DAT_OBJECT_TEMPLATES[objType];
-  const pakInfo = PAKSET_OPTIONS.find(p => p.value === pakset) || PAKSET_OPTIONS[0];
-  const schemaText = describeFieldsSchema(objType);
-
-  let vehicleRules = '';
-  if (objType === 'vehicle') {
-    const liveryHint = liveryName ? `（今回の塗装名: "${liveryName}"）` : '（例: Chuo, Shinkaisoku, Standard 等、リクエストに応じた塗装名）';
-    const namingRule = `- 各車両の name は必ず「鉄道会社略称_系列名_形式(塗装名)」の形式で命名してください${liveryHint}。例: "JRE_E233_KuHaE233(Chuo)", "JRE_E233_MoHaE233(Chuo)"。同一形式が編成内に複数あり区別が必要な場合は「会社略称_系列名_形式_区別(塗装名)」（例: "JRE_E233_MoHaE233_2(Chuo)"）のように末尾に "(塗装名)" を付けてください。`;
-
-    if (vehicleMode === 'consist') {
-      vehicleRules = `
-【鉄道車両・編成単位モード (重要)】
-- 指定された車両・編成を、先頭車・中間電動車(M)・中間付随車(T)・特別車・後尾車など、実際の編成を構成する各車両オブジェクトの配列("objects")として出力してください。
-- 指定両数(${carCount ? carCount + '両' : '実車または代表的な編成構成'})に合わせ、同形式の繰り返し車両も必要数生成するか、編成として連結完結するよう各車の name と constraint を設定してください。
-${namingRule}
-- constraint[prev] / constraint[next] に当たる "constraintsPrev" と "constraintsNext"（複数候補は "\\n" 区切り文字列）を全車両に必ず設定してください：
-  - 先頭車: constraintsPrev = "none", constraintsNext = 直後の車両のname
-  - 中間車: constraintsPrev = 直前の車両のname, constraintsNext = 直後の車両のname
-  - 後尾車: constraintsPrev = 直前の車両のname, constraintsNext = "none"
-  - 両運転台や増解結対応車の場合は "none" と連結相手の name の両方を "\\n" 区切りで指定可。
-- 動力車(Mc, M, 機関車)のみ power > 0 にし、制御車(Tc)・付随車(T)・客車・貨車は power = "0"（または機関車以外でもユニット構成に準拠）にしてください。`;
-    } else if (vehicleMode === 'series') {
-      vehicleRules = `
-【鉄道車両・形式単位モード (重要)】
-- 指定された鉄道車両形式に含まれる主要車種（例: 先頭制御車・中間電動車・中間付随車、または機関車・単行気動車など代表バリエーション）を "objects" 配列に出力してください。
-${namingRule}
-- 各車種の連結ルールに合わせて "constraintsPrev" と "constraintsNext"（複数候補は "\\n" 区切り）を設定してください。
-  - 例: 先頭車は constraintsPrev="none", constraintsNext="同形式の中間車群や後尾車"。中間車は前後に連結可能な同形式の車種名を列挙。単行可能な形式なら "none" と自身を含める。`;
-    } else {
-      vehicleRules = `
-【単一車両モード】
-- "objects" 配列に1つの車両オブジェクトを出力してください。
-${namingRule}
-- その車両の特性に合わせて "constraintsPrev" と "constraintsNext"（例: 単行可能なら "none", 連結相手があれば "none" 等）を適切に設定してください。`;
-    }
-    vehicleRules += '\n- 【旅客定員 (payload) ルール】実車に立席定員がある旅客車両（通勤電車・近郊型・一般形気動車・路面電車・路線バス等）は、座席定員のみではなく「座席定員＋立席定員（合計定員）」を含めた値を採用して payload を算出してください。';
-  }
-
-  const rowRule = autoSeqRows
-    ? '複数オブジェクトを出力する場合、画像開始行 "startRow" は 0, 1, 2, ... と0から連番で割り当ててください。'
-    : '画像開始行 "startRow" は基本 "0" を設定してください。';
-
-  return `あなたは Simutrans アドオン開発（makeobj 用 .dat ファイル作成）の専門家です。
-ユーザーのリクエストに基づき、Simutrans の .dat パラメータを正確な JSON 形式で生成してください。
-
-【対象オブジェクト種別】
-obj = "${objType}" (${tpl ? tpl.label : objType})
-
-【対象 pak セットと数値バランス】
-${pakInfo.label}
-${pakInfo.guide}
-【コスト・効率指定バランス】
-- 作成・購入コスト効率 (cost): pak 標準の約 ${(bPct / 100).toFixed(2)} 倍（${bPct}%）に設定
-- 輸送/維持コスト効率 (runningcost / maintenance): pak 標準の約 ${(mPct / 100).toFixed(2)} 倍（${mPct}%）に設定
-- 積載/容量効率 (payload / capacity / Productivity): 標準（旅客車両に立席定員がある場合は座席+立席の合計定員基準）の約 ${(pPct / 100).toFixed(2)} 倍（${pPct}%）に設定
-${vehicleRules}
-
-【画像・共通設定】
-- imgPrefix のベース名: "${imgPrefix || 'base_combined'}"
-- copyright: "${copyright || ''}"
-- ${rowRule}
-- 登場年(intro_year)・引退年(retire_year)・最高速度(speed/topspeed)・重量・積載量などは実在モデルや一般的な仕様に合わせて現実的に設定してください（現役車両は retire_year を空文字 "" にする）。
-
-【values オブジェクトで使用可能なキー一覧】
-${schemaText}
-
-【出力JSONスキーマ（厳守・Markdown不要・純粋なJSONのみ）】
-{
-  "summary": "生成内容の短い日本語要約",
-  "objects": [
-    {
-      "obj": "${objType}",
-      "common": {
-        "name": "addon_unique_name",
-        "jaName": "日本語での表示名（ja.tab用・自然な日本語）",
-        "copyright": "${copyright || ''}",
-        "imgPrefix": "${imgPrefix || 'base_combined'}",
-        "startRow": "0",
-        "startCol": "0",
-        "imgOffset": "",
-        "extraLines": ""
-      },
-      "values": {
-        "...": "..."
-      }
-    }
-  ]
-}
-
-【ユーザーからの生成リクエスト】
-${userPrompt}`;
 }
 
 export function extractJsonText(rawText) {
@@ -248,8 +102,137 @@ function normalizeStringList(val) {
   return String(val);
 }
 
+// フォームで設定済みの画像構成系パラメータを退避・初期値として引き継ぐキー一覧
+const IMAGE_LAYOUT_VALUE_KEYS = [
+  'directions', 'hasFreightImage', 'freightRow', 'freightTypeName',
+  'reverseRowMode', 'reverseRow', 'reverseFlipDir', 'includeNoElectric', 'noElectricRow',
+  'dimsW', 'dimsH', 'dimsViews', 'heightTiles', 'frames', 'seasons', 'imageLayer',
+  'includePoints', 'includeDiagonal', 'includeSlopes', 'includeSlopes2', 'includeCursorIcon',
+  'includeFrontImage', 'includeFrontDiagonal', 'signalStates', 'diagonalStates',
+  'tunnelPortalMode', 'way', 'ageCount', 'has_snow'
+];
+
+function applyPreservedImageValues(values, fallbackValues) {
+  if (!fallbackValues || typeof fallbackValues !== 'object') return;
+  IMAGE_LAYOUT_VALUE_KEYS.forEach((k) => {
+    if (fallbackValues[k] !== undefined) {
+      values[k] = fallbackValues[k];
+    }
+  });
+  if (fallbackValues.seasonMasks && typeof fallbackValues.seasonMasks === 'object') {
+    values.seasonMasks = { ...fallbackValues.seasonMasks };
+  }
+  if (Array.isArray(fallbackValues.fieldRefs)) {
+    values.fieldRefs = fallbackValues.fieldRefs.map(f => ({ ...f }));
+  }
+}
+
+// 建物・インフラ等の画像構成が編集中画像のグリッド寸法を超える場合に現在の安全な画像構成へ戻す
+function clampImageLayoutToGrid(objType, values, fallbackValues, gridRows, gridCols) {
+  if (!fallbackValues || gridRows <= 0 || gridCols <= 0) return;
+
+  if (objType === 'building' || objType === 'factory') {
+    const w = Math.max(1, parseInt(values.dimsW, 10) || 1);
+    const h = Math.max(1, parseInt(values.dimsH, 10) || 1);
+    const views = Math.max(1, parseInt(values.dimsViews, 10) || 1);
+    const ht = Math.max(1, parseInt(values.heightTiles, 10) || 1);
+    const fr = objType === 'factory' ? 1 : Math.max(1, parseInt(values.frames, 10) || 1);
+    const se = Math.max(1, parseInt(values.seasons, 10) || 1);
+    const needCols = views * w * h;
+    const needRows = se * fr * ht;
+    if (needCols > gridCols || needRows > gridRows) {
+      ['dimsW', 'dimsH', 'dimsViews', 'heightTiles', 'frames', 'seasons', 'imageLayer'].forEach((k) => {
+        if (fallbackValues[k] !== undefined) values[k] = fallbackValues[k];
+      });
+    }
+  } else if (['way', 'way-object', 'bridge', 'tunnel', 'roadsign', 'tree', 'groundobj', 'field'].includes(objType)) {
+    ['includePoints', 'includeDiagonal', 'includeSlopes', 'includeSlopes2', 'includeCursorIcon',
+      'includeFrontImage', 'includeFrontDiagonal', 'tunnelPortalMode', 'signalStates', 'diagonalStates',
+      'seasons', 'ageCount', 'has_snow'].forEach((k) => {
+      if (fallbackValues[k] !== undefined) values[k] = fallbackValues[k];
+    });
+  }
+}
+
+// 複数車両時の画像行 (startRow) を編集中画像の有効行数 (gridRows) と車種構成に合わせてスマートに割り当てる
+function resolveSmartStartRows(items, { baseRow = 0, autoSeqRows = true, gridRows = 0 }) {
+  const total = items.length;
+  if (total === 0) return;
+
+  if (!autoSeqRows) {
+    const fixedRow = gridRows > 0 ? Math.min(baseRow, gridRows - 1) : baseRow;
+    items.forEach(it => { it.common.startRow = String(fixedRow); });
+    return;
+  }
+
+  if (total === 1) {
+    const r0 = parseInt(items[0].common.startRow, 10);
+    const validR0 = Number.isFinite(r0) && r0 >= 0 ? r0 : baseRow;
+    items[0].common.startRow = String(gridRows > 0 ? Math.min(validR0, gridRows - 1) : validR0);
+    return;
+  }
+
+  // 画像が1行のみの場合は全車両 row=0 とする
+  if (gridRows === 1) {
+    items.forEach((it) => { it.common.startRow = '0'; });
+    return;
+  }
+
+  const parsedRows = items.map(it => {
+    const n = parseInt(it.common.startRow, 10);
+    return Number.isFinite(n) && n >= 0 ? n : -1;
+  });
+  const allSameRow = parsedRows.every(r => r === parsedRows[0]);
+  const allWithinGrid = gridRows > 0 && parsedRows.every(r => r >= 0 && r < gridRows);
+
+  // AIが既に画像の有効行数内で車種別に異なる行を割り振っている場合はそれを尊重する
+  if (gridRows > 1 && allWithinGrid && !allSameRow) {
+    items.forEach((it, i) => { it.common.startRow = String(parsedRows[i]); });
+    return;
+  }
+
+  // 車両数が画像の行数以下（または画像未読込）の場合
+  if (gridRows <= 0 || total <= gridRows) {
+    if (!allSameRow && gridRows <= 0 && parsedRows.every(r => r >= 0)) {
+      items.forEach((it, i) => { it.common.startRow = String(parsedRows[i]); });
+    } else {
+      items.forEach((it, i) => {
+        const nextR = baseRow + i;
+        it.common.startRow = String(gridRows > 0 ? Math.min(gridRows - 1, nextR) : nextR);
+      });
+    }
+    return;
+  }
+
+  // 車両数が画像の行数より多い場合（例: 4行の車種別画像に対して10両編成）：
+  // 先頭車=0, 中間車=1..gridRows-2 (形式/動力グループ別), 後尾車=gridRows-1 にマッピングする
+  const midSlots = Math.max(1, gridRows - 2);
+  const typeGroupMap = new Map();
+  let nextGroupIdx = 0;
+
+  items.forEach((it, idx) => {
+    if (idx === 0) {
+      it.common.startRow = '0';
+    } else if (idx === total - 1) {
+      it.common.startRow = String(gridRows - 1);
+    } else if (gridRows === 2) {
+      const pwr = parseInt(it.values?.power, 10) || 0;
+      it.common.startRow = pwr > 0 ? '1' : '0';
+    } else {
+      const rawName = String(it.common.name || '').replace(/\([^()]*\)$/, '').replace(/_\d+$/, '');
+      const pwrTag = (parseInt(it.values?.power, 10) || 0) > 0 ? 'M' : 'T';
+      const groupKey = `${rawName}:${pwrTag}`;
+      if (!typeGroupMap.has(groupKey)) {
+        typeGroupMap.set(groupKey, nextGroupIdx++);
+      }
+      const gIdx = typeGroupMap.get(groupKey);
+      it.common.startRow = String(1 + (gIdx % midSlots));
+    }
+  });
+}
+
 // AI返却JSONを検証・正規化してアプリ内部フォーマットに変換する
-export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallbackCommon = {}) {
+export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallbackCommon = {}, options = {}) {
   const jsonStr = extractJsonText(rawText);
   let parsed;
   try {
@@ -265,11 +248,23 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
     throw new Error('AIの応答に有効な objects 配列が含まれていません。');
   }
 
+  const fallbackValues = options.fallbackValues || null;
+  const autoSeqRows = options.autoSeqRows !== undefined ? Boolean(options.autoSeqRows) : true;
+  const gridRows = Math.max(0, parseInt(options.gridRows, 10) || 0);
+  const gridCols = Math.max(0, parseInt(options.gridCols, 10) || 0);
+  const baseRow = Math.max(0, parseInt(fallbackCommon.startRow, 10) || 0);
+  const baseCol = Math.max(0, parseInt(fallbackCommon.startCol, 10) || 0);
+  const activeImgPrefix = String(fallbackCommon.imgPrefix || '').trim();
+
   const normalized = rawObjects.map((item, idx) => {
     const objType = DAT_OBJECT_TEMPLATES[item.obj] ? item.obj : fallbackObjType;
     const tpl = DAT_OBJECT_TEMPLATES[objType];
     const defaults = tpl ? { ...tpl.defaults } : {};
     const values = { ...defaults };
+
+    if (objType === fallbackObjType) {
+      applyPreservedImageValues(values, fallbackValues);
+    }
 
     if (item.values && typeof item.values === 'object') {
       Object.entries(item.values).forEach(([k, v]) => {
@@ -288,25 +283,56 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
       });
     }
 
+    if (objType === fallbackObjType) {
+      clampImageLayoutToGrid(objType, values, fallbackValues, gridRows, gridCols);
+    }
+
     const rawCommon = item.common && typeof item.common === 'object' ? item.common : {};
+    const allowedFmts = getImageFormatOptionsForObjType(objType).map(o => o.value);
+    const curFmt = String(fallbackCommon.imageFormat || 'auto');
+    const aiFmt = String(rawCommon.imageFormat || '').trim();
+    const resolvedFmt = (aiFmt && allowedFmts.includes(aiFmt) && !(curFmt === 'auto' && aiFmt.startsWith('vehicle_otrp_reverse')))
+      ? aiFmt
+      : (allowedFmts.includes(curFmt) ? curFmt : 'auto');
+
+    // 画像プレフィックスは現在のエディタ出力名(activeImgPrefix)を最優先し、AIの架空ファイル名によるリンク切れを防ぐ
+    const rawPrefix = String(rawCommon.imgPrefix || '').trim();
+    const resolvedPrefix = (activeImgPrefix && activeImgPrefix !== 'base_combined')
+      ? activeImgPrefix
+      : (rawPrefix || activeImgPrefix || 'base_combined');
+
+    const rawCol = parseInt(rawCommon.startCol, 10);
+    const resolvedCol = (baseCol > 0)
+      ? baseCol
+      : (Number.isFinite(rawCol) && rawCol >= 0 ? (gridCols > 0 ? Math.min(rawCol, gridCols - 1) : rawCol) : baseCol);
+
+    const resolvedOffset = String(rawCommon.imgOffset || fallbackCommon.imgOffset || '').trim();
+    const resolvedFlip = rawCommon.flipDirections !== undefined
+      ? (rawCommon.flipDirections === true || rawCommon.flipDirections === 'true' || rawCommon.flipDirections === 1)
+      : Boolean(fallbackCommon.flipDirections);
+
     const common = {
       name: String(rawCommon.name || `${defaults.name || 'addon'}_${idx + 1}`),
       jaName: String(rawCommon.jaName || ''),
-      copyright: String(rawCommon.copyright ?? fallbackCommon.copyright ?? ''),
+      copyright: String(rawCommon.copyright || fallbackCommon.copyright || ''),
       includeImages: fallbackCommon.includeImages !== undefined ? Boolean(fallbackCommon.includeImages) : true,
-      imageFormat: String(fallbackCommon.imageFormat || 'auto'),
+      imageFormat: resolvedFmt,
       customImgFormat: String(fallbackCommon.customImgFormat || 'EmptyImage[{dir}][0]={prefix}.{row}.{col}{offset}'),
-      flipDirections: Boolean(fallbackCommon.flipDirections),
-      imgPrefix: String(rawCommon.imgPrefix || fallbackCommon.imgPrefix || 'base_combined'),
-      startRow: String(rawCommon.startRow ?? idx),
-      startCol: String(rawCommon.startCol ?? fallbackCommon.startCol ?? '0'),
-      imgOffset: String(rawCommon.imgOffset ?? fallbackCommon.imgOffset ?? ''),
-      customImageCoords: null,
-      extraLines: String(rawCommon.extraLines ?? '')
+      flipDirections: resolvedFlip,
+      imgPrefix: resolvedPrefix,
+      startRow: String(rawCommon.startRow ?? (baseRow + idx)),
+      startCol: String(resolvedCol),
+      imgOffset: resolvedOffset,
+      customImageCoords: (rawObjects.length === 1 && fallbackCommon.customImageCoords)
+        ? JSON.parse(JSON.stringify(fallbackCommon.customImageCoords))
+        : null,
+      extraLines: String(rawCommon.extraLines || fallbackCommon.extraLines || '')
     };
 
     return { objType, common, values };
   });
+
+  resolveSmartStartRows(normalized, { baseRow, autoSeqRows, gridRows });
 
   return {
     summary: String(parsed.summary || `${normalized.length}件のオブジェクトを生成しました`),

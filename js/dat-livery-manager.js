@@ -1,14 +1,29 @@
 import { serializeDatObject } from './dat-serializer.js';
 import { buildCompositeImagePrefix } from './composite-naming.js';
 
-// マスクファイル名から塗装名候補を抽出する
-export function deriveLiveryName(maskName, baseName = '', idx = 0) {
-  let clean = String(maskName || '').replace(/\.png$/i, '').replace(/(_paint|_mask)$/i, '');
-  const baseRoot = String(baseName || '').replace(/\.png$/i, '').replace(/(_combined|_def|_paint|_base)$/i, '');
-  if (baseRoot && clean.toLowerCase().startsWith(baseRoot.toLowerCase() + '_')) {
+// マスクファイル名から塗装名候補を抽出する（ベース画像と同名の自動生成マスク時は空文字を返す）
+export function deriveLiveryName(maskName, baseName = '', idx = 0, { allowEmpty = false } = {}) {
+  let clean = String(maskName || '').replace(/\.png$/i, '').replace(/(_s?paint|_mask)$/i, '').trim();
+  const baseRaw = String(baseName || '').replace(/\.png$/i, '').trim();
+  const baseRoot = baseRaw
+    .replace(/(_combined|_cut|_s?def|_s?paint|_base|_mask)$/i, '')
+    .replace(/_[sc][0-9A]$/i, '')
+    .trim();
+
+  const lowerClean = clean.toLowerCase();
+  if ((baseRaw && lowerClean === baseRaw.toLowerCase()) || (baseRoot && lowerClean === baseRoot.toLowerCase())) {
+    clean = '';
+  } else if (baseRaw && lowerClean.startsWith(baseRaw.toLowerCase() + '_')) {
+    clean = clean.slice(baseRaw.length + 1);
+  } else if (baseRoot && lowerClean.startsWith(baseRoot.toLowerCase() + '_')) {
     clean = clean.slice(baseRoot.length + 1);
   }
+
   clean = clean.replace(/^_+/, '').trim();
+  if (/^(base|mask|paint|default|combined|cut)$/i.test(clean) || /^new_\d+x\d+$/i.test(clean)) {
+    clean = '';
+  }
+  if (allowEmpty) return clean;
   return clean || `Livery${idx + 1}`;
 }
 
@@ -55,21 +70,20 @@ export class DatLiveryManager {
     return this.gen.app?.maskMgr?.getActive() || null;
   }
 
-  getLiveryNameForMask(maskItem, idx = 0) {
+  getLiveryNameForMask(maskItem, idx = 0, { allowEmpty = false } = {}) {
     if (!maskItem) return '';
     if (this.liveryByMaskId.has(maskItem.id)) {
       return this.liveryByMaskId.get(maskItem.id);
     }
-    const derived = deriveLiveryName(maskItem.name, this.gen.app?.baseName, idx);
-    this.liveryByMaskId.set(maskItem.id, derived);
-    return derived;
+    return deriveLiveryName(maskItem.name, this.gen.app?.baseName, idx, { allowEmpty });
   }
 
-  getActiveLiveryName() {
+  getActiveLiveryName({ forPrompt = false } = {}) {
     const maskMgr = this.gen.app?.maskMgr;
     const active = maskMgr?.getActive();
     if (!active) return '';
-    return this.getLiveryNameForMask(active, maskMgr.activeIndex);
+    const allowEmpty = forPrompt || (maskMgr.items.length <= 1);
+    return this.getLiveryNameForMask(active, maskMgr.activeIndex, { allowEmpty });
   }
 
   _rememberBaseNames(items) {
@@ -132,7 +146,7 @@ export class DatLiveryManager {
     }
     if (inpLivery) {
       inpLivery.disabled = !active;
-      inpLivery.value = active ? this.getLiveryNameForMask(active, maskMgr.activeIndex) : '';
+      inpLivery.value = active ? this.getLiveryNameForMask(active, maskMgr.activeIndex, { allowEmpty: count <= 1 }) : '';
     }
     if (btnAll) {
       btnAll.disabled = count === 0;
@@ -147,6 +161,8 @@ export class DatLiveryManager {
     this.refreshUI();
     if (this.followMaskChange && this.gen.hasOpenedOnce) {
       this.applyActiveMaskLivery({ regenerate: this.gen.autoSync });
+    } else {
+      this.gen.syncImagePrefixWithApp?.();
     }
   }
 
@@ -156,7 +172,8 @@ export class DatLiveryManager {
     const active = maskMgr?.getActive();
     if (!active) return;
 
-    const liveryName = this.getLiveryNameForMask(active, maskMgr.activeIndex);
+    const count = maskMgr ? maskMgr.items.length : 0;
+    const liveryName = this.getLiveryNameForMask(active, maskMgr.activeIndex, { allowEmpty: count <= 1 });
     const nextImgPrefix = buildMaskImagePrefix(this.gen.app, active, this.useBatchImgNaming);
 
     if (this.gen.collectionMgr.hasCollection()) {
