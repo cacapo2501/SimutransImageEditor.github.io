@@ -326,11 +326,11 @@ export class DatGeneratorController {
     this._lastAutoPrefix = appImgPrefix;
 
     if (parsed.objects.length > 1) {
-      const list = parsed.objects.map((o) => applyDefaultVehicleReverse({
+      const list = parsed.objects.map((o, idx) => applyDefaultVehicleReverse({
         ...o,
         common: { ...o.common, imgPrefix: appImgPrefix || o.common.imgPrefix, customImageCoords: null },
         values: { ...o.values, ...(Array.isArray(o.values?.climates) ? { climates: [...o.values.climates] } : {}) }
-      }));
+      }, idx, parsed.objects.length));
       this.collectionMgr.setItems(list);
     } else {
       const raw = parsed.objects[0];
@@ -338,7 +338,7 @@ export class DatGeneratorController {
         ...raw,
         common: { ...raw.common, imgPrefix: appImgPrefix || raw.common.imgPrefix },
         values: { ...raw.values, ...(Array.isArray(raw.values?.climates) ? { climates: [...raw.values.climates] } : {}) }
-      });
+      }, 0, 1);
       this.collectionMgr.items = [];
       this.collectionMgr.activeIndex = -1;
       this.collectionMgr.refreshUI();

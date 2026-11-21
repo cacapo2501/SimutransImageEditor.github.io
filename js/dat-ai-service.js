@@ -279,7 +279,7 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
     const allowedFmts = getImageFormatOptionsForObjType(objType).map(o => o.value);
     const curFmt = String(fallbackCommon.imageFormat || 'auto');
     const aiFmt = String(rawCommon.imageFormat || '').trim();
-    const resolvedFmt = (aiFmt && allowedFmts.includes(aiFmt) && !(curFmt === 'auto' && aiFmt.startsWith('vehicle_otrp_reverse')))
+    const resolvedFmt = (aiFmt && allowedFmts.includes(aiFmt))
       ? aiFmt
       : (allowedFmts.includes(curFmt) ? curFmt : 'auto');
 

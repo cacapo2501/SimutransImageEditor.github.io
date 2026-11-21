@@ -231,7 +231,7 @@ function buildImageContextSection({
   } else if (objType === 'vehicle') {
     lines.push(
       `- 現在の車両画像設定: directions="${v.directions || '8'}", hasFreightImage=${Boolean(v.hasFreightImage)}${v.freightRow ? `, freightRow="${v.freightRow}"` : ''}`,
-      '  - 【厳守】ユーザーがリクエスト文で積載画像(FreightImage)やOTRP Reverseや4方向画像を明示的に指定していない限り、上記の設定と imageFormat を維持し、勝手に hasFreightImage=true や vehicle_otrp_reverse に変更しないでください。'
+      '  - 先頭車・後尾車・単行車（constraintsPrev または constraintsNext に "none" を含む車両）にはアプリ側で自動的に OTRP Reverse 対応 (vehicle_otrp_reverse) が適用されます。imageFormat は原則 "auto"（または先頭・後尾車は "vehicle_otrp_reverse"、積載画像あり車両は "vehicle_freight"）として出力してください。'
     );
   } else if (objType === 'way' || objType === 'way-object' || objType === 'bridge' || objType === 'tunnel' || objType === 'roadsign') {
     const imgFlags = [];
