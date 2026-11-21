@@ -32,6 +32,11 @@
   height: 16px;
   border: 1px solid #666;
   vertical-align: middle;
+  background-color: #2a2a2a;
+  background-image:
+    linear-gradient(var(--swatch-color, #ffffff), var(--swatch-color, #ffffff)),
+    conic-gradient(#777 90deg, #444 90deg 180deg, #777 180deg 270deg, #444 270deg);
+  background-size: 100% 100%, 8px 8px;
 }
 
 .hsv-sliders,

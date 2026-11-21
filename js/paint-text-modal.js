@@ -88,7 +88,8 @@ export class PaintTextController {
     if (!this.modal) return;
     this.isReediting = false;
     this.targetPos = [px, py];
-    this.config.colorHex = (this.editor.currentColor || '#FFFFFF').toUpperCase();
+    const rawHex = (this.editor.currentColor || '#FFFFFF').toUpperCase();
+    this.config.colorHex = rawHex.length >= 7 ? rawHex.slice(0, 7) : '#FFFFFF';
     this._openModalCommon();
   }
 

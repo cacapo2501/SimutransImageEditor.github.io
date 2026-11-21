@@ -109,13 +109,14 @@ export function resetFullProjectState(app, {
   app.maskTintColors.clear();
   app.maskToneOverrides.clear();
 
-  // 4. トーン・ぼかし・窓暗転・ピクセルスナップを初期値へ戻す
+  // 4. トーン・ぼかし・窓暗転・ピクセルスナップ・ベースパレットを初期値へ戻す
   app.globalTone = createDefaultGlobalTone();
   app.windowDarken = createDefaultWindowDarken();
   app.enableMaskTint = true;
   app.enableBlur = true;
   app.blurRadius = 0.0;
   app.pixelSnap = true;
+  app.paletteManager?.generateBasePalette?.({ keepAlphaColors: false });
   if (app.toneTintCtrl) {
     app.toneTintCtrl.selectedMaskTint = null;
   }

@@ -105,7 +105,7 @@ export class ColorSwatchDropdown {
     } else {
       if (labelEl) labelEl.textContent = this.value || '(全体 / マスクなし)';
       if (swatchEl) {
-        swatchEl.style.background = /^#[0-9A-Fa-f]{6}$/.test(this.value)
+        swatchEl.style.background = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(this.value)
           ? this.value
           : 'linear-gradient(135deg, #333 45%, #888 50%, #333 55%)';
       }

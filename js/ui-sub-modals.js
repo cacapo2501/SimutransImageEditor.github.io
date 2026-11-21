@@ -282,6 +282,12 @@ export function renderSubModalsUI() {
               <input type="range" id="picker-b" min="0" max="255" step="1" value="255">
               <input type="number" id="picker-b-val" min="0" max="255" value="255">
             </div>
+            <div class="rgb-row" id="picker-alpha-row" style="display:none;">
+              <span style="width:30px; color:#e0b0ff; font-weight:bold;">A:</span>
+              <input type="range" id="picker-a" min="0" max="255" step="1" value="255">
+              <input type="number" id="picker-a-val" min="0" max="255" value="255">
+              <span id="picker-a-pct" style="width:36px; text-align:right; color:#bbb;">100%</span>
+            </div>
           </div>
           <div class="quick-palette" id="picker-palette"></div>
           <div class="btn-group mt-1">

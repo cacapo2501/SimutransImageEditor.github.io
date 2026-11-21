@@ -1,11 +1,12 @@
 // パレットの色追加・削除・高さ段階生成・JSON入出力・イベントバインド
-import { rgbToHsv, hsvToHex } from './color-utils.js';
+import { rgbToHsv, hsvToHex, normalizeColorHex } from './color-utils.js';
 import {
   getCurrentPaletteColors,
   addColorToCurrentPalette,
   renderEditorPaletteUI,
   getAircraftTotalHeightMeters,
-  syncAircraftRampUI
+  syncAircraftRampUI,
+  isAlphaSupportedTarget
 } from './paint-palette-ui.js';
 
 function clamp(val, min, max) {
@@ -124,11 +125,11 @@ export function importPaletteFromFile(editor) {
         const parsed = JSON.parse(reader.result);
         const rawColors = Array.isArray(parsed) ? parsed : (parsed.colors || []);
         const validColors = rawColors
-          .filter(c => typeof c === 'string' && /^#[0-9A-Fa-f]{6}$/.test(c.trim()))
-          .map(c => c.trim().toUpperCase());
+          .map(c => (typeof c === 'string' ? normalizeColorHex(c) : null))
+          .filter(Boolean);
 
         if (validColors.length === 0) {
-          alert('有効なカラーコード (#RRGGBB) が含まれていません。');
+          alert('有効なカラーコード (#RRGGBB / #RRGGBBAA) が含まれていません。');
           return;
         }
 
@@ -190,7 +191,9 @@ export function bindPaletteControls(editor) {
   };
 
   const pickAndAddColor = async () => {
-    const picked = await editor.app.colorPicker.open(editor.currentColor || '#FFFFFF');
+    const picked = await editor.app.colorPicker.open(editor.currentColor || '#FFFFFF', {
+      enableAlpha: isAlphaSupportedTarget(editor.targetType)
+    });
     if (picked) {
       const added = addColorToCurrentPalette(editor, picked);
       editor._showHint(added ? `🎨 ${picked.toUpperCase()} をパレットに追加しました` : `ℹ️ ${picked.toUpperCase()} は既にパレットに登録されています`);
@@ -221,7 +224,7 @@ export function bindPaletteControls(editor) {
     pm.basePaletteConfig.brightestHex = document.getElementById('inp-gray-max').value.trim() || '#FEFEFE';
     pm.basePaletteConfig.darkestHex = document.getElementById('inp-gray-min').value.trim() || '#404040';
     pm.basePaletteConfig.steps = parseInt(document.getElementById('inp-gray-steps').value, 10) || 16;
-    pm.generateBasePalette();
+    pm.generateBasePalette({ keepAlphaColors: true });
     editor.customDeftilePalette = null;
     editor._renderPaletteUI();
   });

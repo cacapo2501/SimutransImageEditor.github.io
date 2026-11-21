@@ -1,11 +1,13 @@
-import { hexToRgb, rgbToHex, rgbToHsv, hsvToRgb, hexToInt } from './color-utils.js';
-import { getCurrentPaletteColors, renderEditorPaletteUI } from './paint-palette-ui.js';
+import {
+  parseHexColor, rgbaToHex, colorHexToCss, rgbToHsv, hsvToRgb, hexToInt
+} from './color-utils.js';
+import { getCurrentPaletteColors, renderEditorPaletteUI, isAlphaSupportedTarget } from './paint-palette-ui.js';
 import { ColorSwatchDropdown } from './color-dropdown.js';
 
-export function computeIntermediateColors(hex1, hex2, steps, space = 'rgb', avoidSpecialSet = null) {
+export function computeIntermediateColors(hex1, hex2, steps, space = 'rgb', avoidSpecialSet = null, enableAlpha = true) {
   const count = Math.max(1, Math.min(16, parseInt(steps, 10) || 1));
-  const [r1, g1, b1] = hexToRgb(hex1);
-  const [r2, g2, b2] = hexToRgb(hex2);
+  const [r1, g1, b1, a1] = parseHexColor(hex1);
+  const [r2, g2, b2, a2] = parseHexColor(hex2);
   const [h1, s1, v1] = rgbToHsv(r1, g1, b1);
   const [h2, s2, v2] = rgbToHsv(r2, g2, b2);
 
@@ -22,6 +24,7 @@ export function computeIntermediateColors(hex1, hex2, steps, space = 'rgb', avoi
   for (let i = 1; i <= count; i++) {
     const t = i / (count + 1);
     let r, g, b;
+    const a = enableAlpha ? Math.round(a1 + (a2 - a1) * t) : 255;
 
     if (space === 'hsv') {
       const h = (h1 + dh * t + 360) % 360;
@@ -34,7 +37,7 @@ export function computeIntermediateColors(hex1, hex2, steps, space = 'rgb', avoi
       b = Math.round(b1 + (b2 - b1) * t);
     }
 
-    if (avoidSpecialSet) {
+    if (avoidSpecialSet && a === 255) {
       let rgbInt = (r << 16) | (g << 8) | b;
       let guard = 0;
       while (specialInts.has(rgbInt) && guard < 10) {
@@ -44,7 +47,7 @@ export function computeIntermediateColors(hex1, hex2, steps, space = 'rgb', avoi
       }
     }
 
-    results.push(rgbToHex(r, g, b));
+    results.push(rgbaToHex(r, g, b, a));
   }
   return results;
 }
@@ -95,7 +98,7 @@ export class PaintPaletteBlendController {
     const opts = colors.map((hex, idx) => ({
       value: hex,
       label: `${idx + 1}: ${hex}`,
-      colorHex: hex
+      colorHex: colorHexToCss(hex)
     }));
 
     this.ddColor1.setOptions(opts);
@@ -125,7 +128,8 @@ export class PaintPaletteBlendController {
     const avoid = Boolean(document.getElementById('chk-blend-avoid-special')?.checked);
 
     const avoidSet = avoid ? this.editor.app.specialColors : null;
-    this.generatedColors = computeIntermediateColors(c1, c2, steps, space, avoidSet);
+    const allowAlpha = isAlphaSupportedTarget(this.editor.targetType);
+    this.generatedColors = computeIntermediateColors(c1, c2, steps, space, avoidSet, allowAlpha);
 
     const wrap = document.getElementById('blend-preview-swatches');
     if (!wrap) return;
@@ -135,8 +139,9 @@ export class PaintPaletteBlendController {
       const isEnd = idx === 0 || idx === allSeq.length - 1;
       const border = isEnd ? '1px solid #888' : '2px solid #00ff88';
       const tag = isEnd ? '端色' : `中間${idx}`;
+      const css = colorHexToCss(hex);
       return `<div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
-        <span style="display:inline-block; width:30px; height:22px; background:${hex}; border:${border}; border-radius:3px;" title="${hex} (${tag})"></span>
+        <span style="display:inline-block; width:30px; height:22px; background-color:#242424; background-image:linear-gradient(${css},${css}),conic-gradient(#777 90deg,#444 90deg 180deg,#777 180deg 270deg,#444 270deg); background-size:100% 100%,8px 8px; border:${border}; border-radius:3px;" title="${hex} (${tag})"></span>
         <span style="font-size:9px; font-family:Consolas,monospace; color:${isEnd ? '#999' : '#55ffaa'};">${hex}</span>
       </div>`;
     }).join('');

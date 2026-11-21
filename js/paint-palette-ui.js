@@ -1,4 +1,8 @@
-import { rgbToHsv } from './color-utils.js';
+import { rgbToHsv, normalizeColorHex, parseHexColor, colorHexToCss } from './color-utils.js';
+
+export function isAlphaSupportedTarget(targetType) {
+  return targetType === 'base' || targetType === 'mask';
+}
 
 export function getAircraftTotalHeightMeters() {
   const raw = parseFloat(document.getElementById('inp-aircraft-height')?.value);
@@ -73,44 +77,49 @@ export function getCurrentPaletteColors(editor) {
   return [...pm.maskPalette];
 }
 
-// 現在の編集対象パレットへ任意の色を追加する
+// 現在の編集対象パレットへ任意の色を追加する (#RRGGBB / #RRGGBBAA 両対応)
 export function addColorToCurrentPalette(editor, hex) {
-  const up = String(hex || '').trim().toUpperCase();
-  if (!/^#[0-9A-F]{6}$/.test(up)) return false;
+  const up = normalizeColorHex(hex);
+  if (!up) return false;
   const pm = editor.app.paletteManager;
   let added = false;
 
   if (editor.targetType === 'aircraftPlan') {
     const ac = editor.app.aircraftCtrl;
+    const rgb6 = up.slice(0, 7);
     if (ac) {
       if (!ac.planPalette) ac.planPalette = [...DEFAULT_AIRCRAFT_PALETTE];
-      if (!ac.planPalette.includes(up)) {
-        ac.planPalette.push(up);
+      if (!ac.planPalette.includes(rgb6)) {
+        ac.planPalette.push(rgb6);
         added = true;
       }
     }
+    editor.currentColor = rgb6;
   } else if (editor.targetType === 'deftile') {
+    const rgb6 = up.slice(0, 7);
     if (!editor.customDeftilePalette || editor.customDeftilePalette.length === 0) {
       editor.customDeftilePalette = getCurrentPaletteColors(editor);
     }
-    if (!editor.customDeftilePalette.includes(up)) {
-      editor.customDeftilePalette.push(up);
+    if (!editor.customDeftilePalette.includes(rgb6)) {
+      editor.customDeftilePalette.push(rgb6);
       added = true;
     }
+    editor.currentColor = rgb6;
   } else if (editor.targetType === 'mask') {
     added = pm.addColorToMaskPalette(up);
+    editor.currentColor = up;
   } else {
     added = pm.addColorToBasePalette(up);
+    editor.currentColor = up;
   }
 
-  editor.currentColor = up;
   renderEditorPaletteUI(editor);
   return added;
 }
 
 // 現在の編集対象パレットから色を削除する
 export function removeColorFromCurrentPalette(editor, hex) {
-  const up = String(hex || '').trim().toUpperCase();
+  const up = normalizeColorHex(hex) || String(hex || '').trim().toUpperCase();
   const pm = editor.app.paletteManager;
   if (editor.targetType === 'mask') {
     pm.removeColorFromMaskPalette(up);
@@ -153,34 +162,41 @@ export function renderEditorPaletteUI(editor) {
   const editableLimit = editor.targetType === 'base' ? pm.basePalette.length : colors.length;
 
   colors.forEach((hex, idx) => {
+    const [r, g, b, a] = parseHexColor(hex);
+    const pct = Math.round((a / 255) * 100);
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'palette-color-btn';
-    btn.style.backgroundColor = hex;
+    btn.style.setProperty('--swatch-color', colorHexToCss(hex));
+    if (a < 255) {
+      const badge = document.createElement('span');
+      badge.className = 'palette-alpha-badge';
+      badge.textContent = a === 0 ? '透明' : `${pct}%`;
+      btn.appendChild(badge);
+    }
 
     const isEditable = idx < editableLimit;
+    const alphaDesc = a < 255 ? ` [A:${a} / ${pct}%]` : '';
     if (editor.targetType === 'aircraftPlan') {
-      const r = parseInt(hex.slice(1, 3), 16) || 0;
-      const g = parseInt(hex.slice(3, 5), 16) || 0;
-      const b = parseInt(hex.slice(5, 7), 16) || 0;
       const [h, , v] = rgbToHsv(r, g, b);
       const meters = ((v / 100) * totalHeightM).toFixed(2);
       btn.title = `${hex} (色相H=${h}° / 高さV=${v}% ≈ ${meters}m | ダブルクリック・長タップで編集 / 右クリックで削除)`;
     } else if (editor.targetType === 'deftile') {
-      const val = parseInt(hex.slice(1, 3), 16);
+      const val = r;
       const fl = ((val / 255) * maxFloors).toFixed(1);
       btn.title = `${hex} (${fl}階相当 / ダブルクリック・長タップで編集 / 右クリックで削除)`;
     } else if (editor.targetType === 'mask') {
-      btn.title = `${hex} (ダブルクリック・長タップで編集 / 右クリックで削除)`;
+      btn.title = `${hex}${alphaDesc} (ダブルクリック・長タップで編集 / 右クリックで削除)`;
     } else {
-      btn.title = isEditable ? `${hex} (ダブルクリック・長タップで編集 / 右クリックで削除)` : `${hex} (特殊色)`;
+      btn.title = isEditable ? `${hex}${alphaDesc} (ダブルクリック・長タップで編集 / 右クリックで削除)` : `${hex} (特殊色)`;
     }
 
     const openColorEdit = async () => {
       if (!isEditable) return;
-      const picked = await editor.app.colorPicker.open(hex);
+      const allowAlpha = isAlphaSupportedTarget(editor.targetType);
+      const picked = await editor.app.colorPicker.open(hex, { enableAlpha: allowAlpha });
       if (!picked) return;
-      const up = picked.toUpperCase();
+      const up = normalizeColorHex(picked) || picked.toUpperCase();
       if (editor.targetType === 'aircraftPlan') {
         const ac = editor.app.aircraftCtrl;
         if (ac && ac.planPalette) ac.planPalette[idx] = up;
@@ -248,6 +264,10 @@ export function renderEditorPaletteUI(editor) {
 export function updateEditorCurrentColorUI(editor) {
   const sw = document.getElementById('paint-current-color-swatch');
   const hx = document.getElementById('paint-current-color-hex');
-  if (sw) sw.style.backgroundColor = editor.currentColor;
-  if (hx) hx.textContent = editor.currentColor;
+  const hex = normalizeColorHex(editor.currentColor) || editor.currentColor || '#FFFFFF';
+  const [, , , a] = parseHexColor(hex);
+  if (sw) sw.style.setProperty('--swatch-color', colorHexToCss(hex));
+  if (hx) {
+    hx.textContent = a < 255 ? `${hex} (A:${a} / ${Math.round((a / 255) * 100)}%)` : hex;
+  }
 }

@@ -231,17 +231,46 @@
 }
 
 .palette-color-btn {
+  position: relative;
   width: 100%;
   height: 26px;
   border: 1px solid #444;
   border-radius: 2px;
   cursor: pointer;
   padding: 0;
+  overflow: hidden;
+  background-color: #242424;
+  background-image:
+    linear-gradient(var(--swatch-color, #ffffff), var(--swatch-color, #ffffff)),
+    conic-gradient(#777 90deg, #444 90deg 180deg, #777 180deg 270deg, #444 270deg);
+  background-size: 100% 100%, 8px 8px;
 }
 
 .palette-color-btn:hover {
   border-color: #fff;
   transform: scale(1.05);
+}
+
+.palette-alpha-badge {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  font-size: 8px;
+  line-height: 1.1;
+  padding: 0 2px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffe08a;
+  border-radius: 2px;
+  pointer-events: none;
+  font-family: Consolas, monospace;
+}
+
+#paint-current-color-swatch {
+  background-color: #242424;
+  background-image:
+    linear-gradient(var(--swatch-color, #ffffff), var(--swatch-color, #ffffff)),
+    conic-gradient(#777 90deg, #444 90deg 180deg, #777 180deg 270deg, #444 270deg);
+  background-size: 100% 100%, 8px 8px;
 }
 
 #paint-viewport {
@@ -268,6 +297,12 @@
   top: 0;
   left: 0;
   image-rendering: pixelated;
+}
+
+#paint-canvas {
+  background-color: #1f1f1f;
+  background-image: conic-gradient(#2c2c2c 90deg, #1d1d1d 90deg 180deg, #2c2c2c 180deg 270deg, #1d1d1d 270deg);
+  background-size: 8px 8px;
 }
 
 #paint-overlay-canvas {

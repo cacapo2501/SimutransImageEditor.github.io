@@ -4,25 +4,65 @@ export function rgbToHex(r, g, b) {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-// HEX -> RGB
-export function hexToRgb(hex) {
-  let clean = hex.replace('#', '').trim();
-  if (clean.length === 3) {
-    clean = clean.split('').map(c => c + c).join('');
-  }
-  const num = parseInt(clean, 16);
-  if (isNaN(num)) return [255, 255, 255];
-  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+// RGBA -> HEX (#RRGGBB または alpha<255時は #RRGGBBAA)
+export function rgbaToHex(r, g, b, a = 255) {
+  const toHex = (c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, '0').toUpperCase();
+  const alpha = Math.max(0, Math.min(255, Math.round(a)));
+  return alpha >= 255
+    ? `#${toHex(r)}${toHex(g)}${toHex(b)}`
+    : `#${toHex(r)}${toHex(g)}${toHex(b)}${toHex(alpha)}`;
 }
 
-// HEX -> 24bit整数キー
-export function hexToInt(hex) {
-  let clean = hex.replace('#', '').trim();
+// #RRGGBB または #RRGGBBAA の妥当性判定
+export function isValidColorHex(hex) {
+  return /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(String(hex || '').trim());
+}
+
+// #RRGGBB / #RRGGBBAA 解析 -> [r, g, b, a] (6桁時は a=255)
+export function parseHexColor(hex) {
+  let clean = String(hex || '').replace('#', '').trim();
   if (clean.length === 3) {
     clean = clean.split('').map(c => c + c).join('');
+  } else if (clean.length === 4) {
+    clean = clean.split('').map(c => c + c).join('');
   }
-  const num = parseInt(clean, 16);
-  return isNaN(num) ? 0xFFFFFF : (num & 0xFFFFFF);
+  if (clean.length >= 8) {
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+    const a = parseInt(clean.slice(6, 8), 16);
+    if ([r, g, b, a].some(Number.isNaN)) return [255, 255, 255, 255];
+    return [r, g, b, a];
+  }
+  const num = parseInt(clean.slice(0, 6), 16);
+  if (Number.isNaN(num)) return [255, 255, 255, 255];
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255, 255];
+}
+
+// カラーコードを正規化（#RRGGBBAA のうち AA===FF は #RRGGBB へ、大文字統一）
+export function normalizeColorHex(hex) {
+  if (!isValidColorHex(hex)) return null;
+  const [r, g, b, a] = parseHexColor(hex);
+  return rgbaToHex(r, g, b, a);
+}
+
+// HEX -> CSS rgba()/rgb 表記へ変換
+export function colorHexToCss(hex) {
+  const [r, g, b, a] = parseHexColor(hex);
+  if (a >= 255) return rgbToHex(r, g, b);
+  return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(4)})`;
+}
+
+// HEX -> RGB (#RRGGBBAA が渡された場合も先頭6桁を正しく解釈)
+export function hexToRgb(hex) {
+  const [r, g, b] = parseHexColor(hex);
+  return [r, g, b];
+}
+
+// HEX -> 24bit整数キー (#RRGGBBAA が渡された場合も上位24bitを返す)
+export function hexToInt(hex) {
+  const [r, g, b] = parseHexColor(hex);
+  return ((r << 16) | (g << 8) | b) & 0xFFFFFF;
 }
 
 // 24bit整数キー -> HEX

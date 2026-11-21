@@ -209,8 +209,16 @@ export class PaintEditor {
     this.overlayCanvas.width = this.width;
     this.overlayCanvas.height = this.height;
 
+    this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.drawImage(srcImg, 0, 0);
+
+    // 32bit画像の場合は含まれる透明・半透明アルファ色を自動的にパレットへ追加
+    let autoAlphaInfo = null;
+    if (targetType === 'base' || targetType === 'mask') {
+      const px = this.ctx.getImageData(0, 0, this.width, this.height).data;
+      autoAlphaInfo = this.app.paletteManager.autoRegisterAlphaColors(targetType, px);
+    }
 
     this.selectionMask = null;
     this.polyPoints = [];
@@ -246,6 +254,10 @@ export class PaintEditor {
       this._refreshDeftileLivePreview();
     });
     this._updateStatus();
+    if (autoAlphaInfo?.hasAlpha) {
+      const suffix = autoAlphaInfo.addedCount > 0 ? ` (${autoAlphaInfo.addedCount}色を自動追加)` : ' (登録済)';
+      this._showHint(`✨ 32bitアルファ画像を検出: 透明/半透明カラーをパレットに適用しました${suffix}`);
+    }
   }
 
   _refreshDeftileLivePreview() {

@@ -1,18 +1,22 @@
-import { hexToRgb } from './color-utils.js';
+import { hexToRgb, parseHexColor } from './color-utils.js';
 
 function hexToRgba(hex, alpha = 1.0) {
   const [r, g, b] = hexToRgb(hex || '#FFFFFF');
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// 連続直線描画 (Bresenhamアルゴリズム)
+// 連続直線描画 (Bresenhamアルゴリズム / 異常座標時の無限ループ防止ガード付き)
 export function drawLineContinuous(x0, y0, x1, y1, setPixel) {
+  x0 = Math.trunc(x0); y0 = Math.trunc(y0);
+  x1 = Math.trunc(x1); y1 = Math.trunc(y1);
+  if (![x0, y0, x1, y1].every(Number.isFinite)) return;
   let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
   let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
   let err = dx + dy;
   let curX = x0, curY = y0;
+  let guard = dx + Math.abs(y1 - y0) + 4;
 
-  while (true) {
+  while (guard-- > 0) {
     setPixel(curX, curY);
     if (curX === x1 && curY === y1) break;
     const e2 = 2 * err;
@@ -21,83 +25,145 @@ export function drawLineContinuous(x0, y0, x1, y1, setPixel) {
   }
 }
 
-// 4近傍塗りつぶし (Flood Fill) — 32bit画像の半透明ピクセル塗りつぶし時は元のアルファを維持、完全透明(0)または255時は255で塗る
+// 4近傍塗りつぶし (Flood Fill / 高速Int32Arrayスタック・32bit RGBA完全対応)
 export function floodFill(ctx, width, height, startX, startY, fillHex, selectionMask = null) {
-  if (selectionMask && !selectionMask[startY * width + startX]) return;
+  if (startX < 0 || startX >= width || startY < 0 || startY >= height) return;
+  const startPos = startY * width + startX;
+  if (selectionMask && !selectionMask[startPos]) return;
 
   const imgData = ctx.getImageData(0, 0, width, height);
   const d = imgData.data;
-  const startIdx = (startY * width + startX) * 4;
+  const startIdx = startPos * 4;
   const [sr, sg, sb, sa] = [d[startIdx], d[startIdx + 1], d[startIdx + 2], d[startIdx + 3]];
-  const [fr, fg, fb] = hexToRgb(fillHex);
-  const targetA = (sa > 0 && sa < 255) ? sa : 255;
-  if (sr === fr && sg === fg && sb === fb && sa === targetA) return;
+  const [fr, fg, fb, fa] = parseHexColor(fillHex);
+  if (sr === fr && sg === fg && sb === fb && sa === fa) return;
 
-  const queue = [[startX, startY]];
-  const visited = new Uint8Array(width * height);
-  visited[startY * width + startX] = 1;
+  const total = width * height;
+  const stack = new Int32Array(total);
+  const visited = new Uint8Array(total);
+  let sp = 0;
+  stack[sp++] = startPos;
+  visited[startPos] = 1;
 
-  while (queue.length > 0) {
-    const [cx, cy] = queue.pop();
-    const idx = (cy * width + cx) * 4;
-    const origA = d[idx + 3];
-    d[idx] = fr; d[idx + 1] = fg; d[idx + 2] = fb;
-    d[idx + 3] = (origA > 0 && origA < 255) ? origA : 255;
+  while (sp > 0) {
+    const pos = stack[--sp];
+    const idx = pos * 4;
+    d[idx] = fr; d[idx + 1] = fg; d[idx + 2] = fb; d[idx + 3] = fa;
 
-    const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
-    for (const [nx, ny] of neighbors) {
-      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-      const nPos = ny * width + nx;
-      if (visited[nPos]) continue;
-      if (selectionMask && !selectionMask[nPos]) continue;
+    const cx = pos % width;
+    const cy = (pos - cx) / width;
 
-      const nIdx = nPos * 4;
-      if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
-        visited[nPos] = 1;
-        queue.push([nx, ny]);
+    if (cx + 1 < width) {
+      const nPos = pos + 1;
+      if (!visited[nPos] && (!selectionMask || selectionMask[nPos])) {
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
+          visited[nPos] = 1; stack[sp++] = nPos;
+        }
+      }
+    }
+    if (cx > 0) {
+      const nPos = pos - 1;
+      if (!visited[nPos] && (!selectionMask || selectionMask[nPos])) {
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
+          visited[nPos] = 1; stack[sp++] = nPos;
+        }
+      }
+    }
+    if (cy + 1 < height) {
+      const nPos = pos + width;
+      if (!visited[nPos] && (!selectionMask || selectionMask[nPos])) {
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
+          visited[nPos] = 1; stack[sp++] = nPos;
+        }
+      }
+    }
+    if (cy > 0) {
+      const nPos = pos - width;
+      if (!visited[nPos] && (!selectionMask || selectionMask[nPos])) {
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
+          visited[nPos] = 1; stack[sp++] = nPos;
+        }
       }
     }
   }
   ctx.putImageData(imgData, 0, 0);
 }
 
-// 自動選択マスク生成 (Magic Wand)
+// 自動選択マスク生成 (Magic Wand / 32bit RGBA一致判定・高速Int32Arrayスタック)
 export function magicWandMask(ctx, width, height, startX, startY) {
+  const total = width * height;
+  const mask = new Uint8Array(total);
+  if (startX < 0 || startX >= width || startY < 0 || startY >= height) return mask;
+
   const d = ctx.getImageData(0, 0, width, height).data;
-  const sIdx = (startY * width + startX) * 4;
-  const [sr, sg, sb] = [d[sIdx], d[sIdx + 1], d[sIdx + 2]];
+  const startPos = startY * width + startX;
+  const sIdx = startPos * 4;
+  const [sr, sg, sb, sa] = [d[sIdx], d[sIdx + 1], d[sIdx + 2], d[sIdx + 3]];
 
-  const mask = new Uint8Array(width * height);
-  const queue = [[startX, startY]];
-  mask[startY * width + startX] = 1;
+  const stack = new Int32Array(total);
+  let sp = 0;
+  stack[sp++] = startPos;
+  mask[startPos] = 1;
 
-  while (queue.length > 0) {
-    const [cx, cy] = queue.pop();
-    const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
-    for (const [nx, ny] of neighbors) {
-      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-      const nPos = ny * width + nx;
-      if (mask[nPos]) continue;
+  while (sp > 0) {
+    const pos = stack[--sp];
+    const cx = pos % width;
+    const cy = (pos - cx) / width;
 
-      const nIdx = nPos * 4;
-      if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb) {
-        mask[nPos] = 1;
-        queue.push([nx, ny]);
+    if (cx + 1 < width) {
+      const nPos = pos + 1;
+      if (!mask[nPos]) {
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
+          mask[nPos] = 1; stack[sp++] = nPos;
+        }
+      }
+    }
+    if (cx > 0) {
+      const nPos = pos - 1;
+      if (!mask[nPos]) {
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
+          mask[nPos] = 1; stack[sp++] = nPos;
+        }
+      }
+    }
+    if (cy + 1 < height) {
+      const nPos = pos + width;
+      if (!mask[nPos]) {
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
+          mask[nPos] = 1; stack[sp++] = nPos;
+        }
+      }
+    }
+    if (cy > 0) {
+      const nPos = pos - width;
+      if (!mask[nPos]) {
+        const nIdx = nPos * 4;
+        if (d[nIdx] === sr && d[nIdx + 1] === sg && d[nIdx + 2] === sb && d[nIdx + 3] === sa) {
+          mask[nPos] = 1; stack[sp++] = nPos;
+        }
       }
     }
   }
   return mask;
 }
 
-// 同色選択マスク生成
+// 同色選択マスク生成 (32bit RGBA一致判定)
 export function colorSelectMask(ctx, width, height, startX, startY) {
+  const mask = new Uint8Array(width * height);
+  if (startX < 0 || startX >= width || startY < 0 || startY >= height) return mask;
   const d = ctx.getImageData(0, 0, width, height).data;
   const sIdx = (startY * width + startX) * 4;
-  const [sr, sg, sb] = [d[sIdx], d[sIdx + 1], d[sIdx + 2]];
+  const [sr, sg, sb, sa] = [d[sIdx], d[sIdx + 1], d[sIdx + 2], d[sIdx + 3]];
 
-  const mask = new Uint8Array(width * height);
   for (let i = 0; i < width * height; i++) {
-    if (d[i * 4] === sr && d[i * 4 + 1] === sg && d[i * 4 + 2] === sb) {
+    if (d[i * 4] === sr && d[i * 4 + 1] === sg && d[i * 4 + 2] === sb && d[i * 4 + 3] === sa) {
       mask[i] = 1;
     }
   }

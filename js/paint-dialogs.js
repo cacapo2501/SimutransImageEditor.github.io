@@ -1,4 +1,4 @@
-import { rgbToHex } from './color-utils.js';
+import { rgbaToHex, colorHexToCss } from './color-utils.js';
 import { PaintColorReplaceController } from './paint-color-replace.js';
 import { PaintPaletteBlendController } from './paint-palette-blend.js';
 
@@ -165,11 +165,9 @@ export class PaintDialogs {
 
         if (px >= 0 && px < this.samplerCanvas.width && py >= 0 && py < this.samplerCanvas.height) {
           const p = this.samplerCtx.getImageData(px, py, 1, 1).data;
-          if (p[3] > 0) {
-            const hex = rgbToHex(p[0], p[1], p[2]);
-            this.samplerPickedColors.add(hex);
-            this._renderSamplerPickedUI();
-          }
+          const hex = p[3] === 0 ? '#00000000' : rgbaToHex(p[0], p[1], p[2], p[3]);
+          this.samplerPickedColors.add(hex);
+          this._renderSamplerPickedUI();
         }
       }
     });
@@ -225,7 +223,9 @@ export class PaintDialogs {
     this.samplerPickedColors.forEach(hex => {
       const b = document.createElement('span');
       b.className = 'color-swatch';
-      b.style.backgroundColor = hex;
+      const css = colorHexToCss(hex);
+      b.style.background = `linear-gradient(${css},${css}),conic-gradient(#777 90deg,#444 90deg 180deg,#777 180deg 270deg,#444 270deg)`;
+      b.style.backgroundSize = '100% 100%, 8px 8px';
       b.title = `${hex} (クリックで解除)`;
       b.style.cursor = 'pointer';
       b.onclick = () => {

@@ -1,5 +1,5 @@
-import { hexToRgb, rgbToHex } from './color-utils.js';
-import { getCurrentPaletteColors } from './paint-palette-ui.js';
+import { parseHexColor, rgbaToHex, colorHexToCss, normalizeColorHex } from './color-utils.js';
+import { getCurrentPaletteColors, isAlphaSupportedTarget } from './paint-palette-ui.js';
 import { ColorSwatchDropdown } from './color-dropdown.js';
 
 export class PaintColorReplaceController {
@@ -72,7 +72,7 @@ export class PaintColorReplaceController {
 
     const sw = document.getElementById('replace-pick-preview-swatch');
     const lbl = document.getElementById('replace-pick-preview-hex');
-    if (sw) sw.style.backgroundColor = this.candidateHex || '#000000';
+    if (sw) sw.style.background = colorHexToCss(this.candidateHex || '#000000');
     if (lbl) lbl.textContent = this.candidateHex || '#000000';
   }
 
@@ -84,7 +84,10 @@ export class PaintColorReplaceController {
     const ed = this.editor;
     if (px >= 0 && px < ed.width && py >= 0 && py < ed.height) {
       const p = ed.ctx.getImageData(px, py, 1, 1).data;
-      this.candidateHex = rgbToHex(p[0], p[1], p[2]);
+      const allowAlpha = isAlphaSupportedTarget(ed.targetType);
+      this.candidateHex = (allowAlpha && p[3] === 0)
+        ? '#00000000'
+        : rgbaToHex(p[0], p[1], p[2], allowAlpha ? p[3] : 255);
       this._updatePickBarUI();
       ed._showHint(`🎯 プレビュー中: ${this.candidateHex} （「✓ OK」で取り込み）`);
     }
@@ -123,7 +126,7 @@ export class PaintColorReplaceController {
     const paletteOptions = paletteColors.map(hex => ({
       value: hex,
       label: hex,
-      colorHex: hex
+      colorHex: colorHexToCss(hex)
     }));
 
     this.replaceRules.forEach((rule, idx) => {
@@ -134,7 +137,7 @@ export class PaintColorReplaceController {
       row.innerHTML = `
         <span>元:</span>
         <button type="button" class="btn-color-pick btn-from" title="カラーピッカーで選択">
-          <span class="color-swatch" style="background:${rule.from};"></span>
+          <span class="color-swatch" style="background:${colorHexToCss(rule.from)};"></span>
           <span>${rule.from}</span>
         </button>
         <button type="button" class="btn-pick-canvas-from" title="編集中の画像からスクロール・プレビュー付きで色を取得">🎯 画像から取得</button>
@@ -145,9 +148,11 @@ export class PaintColorReplaceController {
       `;
 
       row.querySelector('.btn-from').onclick = async () => {
-        const picked = await this.editor.app.colorPicker.open(rule.from);
+        const picked = await this.editor.app.colorPicker.open(rule.from, {
+          enableAlpha: isAlphaSupportedTarget(this.editor.targetType)
+        });
         if (picked) {
-          rule.from = picked;
+          rule.from = normalizeColorHex(picked) || picked;
           this._renderRulesUI();
         }
       };
@@ -216,8 +221,8 @@ export class PaintColorReplaceController {
     const mask = selectionOnly ? ed.selectionMask : null;
 
     const preparedRules = this.replaceRules.map(r => ({
-      fromRgb: hexToRgb(r.from),
-      toRgb: hexToRgb(r.to)
+      fromRgba: parseHexColor(r.from),
+      toRgba: parseHexColor(r.to)
     }));
 
     const beforeSnap = ed._captureHistoryState ? ed._captureHistoryState() : null;
@@ -232,15 +237,16 @@ export class PaintColorReplaceController {
         if (mask && !mask[pIdx]) continue;
 
         const idx = pIdx * 4;
-        if (d[idx + 3] === 0) continue;
-
-        const r = d[idx], g = d[idx + 1], b = d[idx + 2];
+        const r = d[idx], g = d[idx + 1], b = d[idx + 2], a = d[idx + 3];
 
         for (const rule of preparedRules) {
-          if (r === rule.fromRgb[0] && g === rule.fromRgb[1] && b === rule.fromRgb[2]) {
-            d[idx] = rule.toRgb[0];
-            d[idx + 1] = rule.toRgb[1];
-            d[idx + 2] = rule.toRgb[2];
+          const fr = rule.fromRgba;
+          if (r === fr[0] && g === fr[1] && b === fr[2] && a === fr[3]) {
+            const tr = rule.toRgba;
+            d[idx] = tr[0];
+            d[idx + 1] = tr[1];
+            d[idx + 2] = tr[2];
+            d[idx + 3] = tr[3];
             replacedCount++;
             break;
           }

@@ -1,4 +1,5 @@
-import { rgbToHex } from './color-utils.js';
+import { rgbaToHex, parseHexColor, colorHexToCss } from './color-utils.js';
+import { isAlphaSupportedTarget } from './paint-palette-ui.js';
 import {
   drawLineContinuous,
   floodFill,
@@ -17,23 +18,29 @@ export class PaintToolHandler {
     this.editor = editor;
   }
 
-  // 指定ピクセルの色をスポイト採取する共通メソッド
+  // 指定ピクセルの色をスポイト採取する共通メソッド（32bitアルファ色にも対応）
   pickColorAt(px, py) {
     const ed = this.editor;
     if (px < 0 || px >= ed.width || py < 0 || py >= ed.height) return false;
     const p = ed.ctx.getImageData(px, py, 1, 1).data;
-    if (p[3] > 0) {
-      const hex = rgbToHex(p[0], p[1], p[2]);
-      ed.currentColor = hex;
-      ed._updateCurrentColorUI();
-      if (ed.targetType === 'mask') {
-        ed.app.paletteManager.addColorToMaskPalette(hex);
-        ed._renderPaletteUI();
-      }
-      ed._showHint(`🎯 色を取得しました: ${hex}`);
-      return true;
+    const allowAlpha = isAlphaSupportedTarget(ed.targetType);
+    if (!allowAlpha && p[3] === 0) return false;
+
+    const hex = (allowAlpha && p[3] === 0)
+      ? '#00000000'
+      : rgbaToHex(p[0], p[1], p[2], allowAlpha ? p[3] : 255);
+    ed.currentColor = hex;
+    ed._updateCurrentColorUI();
+    if (ed.targetType === 'mask') {
+      ed.app.paletteManager.addColorToMaskPalette(hex);
+      ed._renderPaletteUI();
+    } else if (ed.targetType === 'base' && p[3] < 255) {
+      ed.app.paletteManager.addColorToBasePalette(hex);
+      ed._renderPaletteUI();
     }
-    return false;
+    const alphaTag = p[3] < 255 ? ` (A:${p[3]})` : '';
+    ed._showHint(`🎯 色を取得しました: ${hex}${alphaTag}`);
+    return true;
   }
 
   handlePointerDown(px, py) {
@@ -165,8 +172,12 @@ export class PaintToolHandler {
     } else if (ed.currentTool === 'rectFill' && ed.rectFillStart) {
       ed._pushHistory();
       const b = this._resolveRectBounds(ed.rectFillStart, [px, py]);
-      for (let y = b.y0; y <= b.y1; y++) {
-        for (let x = b.x0; x <= b.x1; x++) ed._drawPixel(x, y);
+      if (ed.repeatMgr) {
+        ed.repeatMgr.drawRect(b.x0, b.y0, b.x1, b.y1);
+      } else {
+        for (let y = b.y0; y <= b.y1; y++) {
+          for (let x = b.x0; x <= b.x1; x++) ed._drawPixel(x, y);
+        }
       }
       ed.rectFillStart = null;
       this.drawOverlay();
@@ -220,14 +231,21 @@ export class PaintToolHandler {
     if (ed.repeatMgr) ed.repeatMgr.drawOverlay(oCtx);
 
     if (ed.currentTool === 'line' && ed.lineStart && curPos) {
-      oCtx.fillStyle = ed.currentColor;
+      const [, , , curA] = parseHexColor(ed.currentColor);
+      oCtx.fillStyle = curA === 0 ? 'rgba(255, 80, 120, 0.75)' : colorHexToCss(ed.currentColor);
       drawLineContinuous(ed.lineStart[0], ed.lineStart[1], curPos[0], curPos[1], (x, y) => oCtx.fillRect(x, y, 1, 1));
     } else if (ed.currentTool === 'rectFill' && ed.rectFillStart && curPos) {
       const b = this._resolveRectBounds(ed.rectFillStart, curPos);
-      oCtx.fillStyle = ed.currentColor;
-      oCtx.globalAlpha = 0.7;
-      oCtx.fillRect(b.x0, b.y0, b.x1 - b.x0 + 1, b.y1 - b.y0 + 1);
-      oCtx.globalAlpha = 1.0;
+      const [, , , curA] = parseHexColor(ed.currentColor);
+      if (curA === 0) {
+        oCtx.fillStyle = 'rgba(255, 80, 120, 0.35)';
+        oCtx.fillRect(b.x0, b.y0, b.x1 - b.x0 + 1, b.y1 - b.y0 + 1);
+      } else {
+        oCtx.fillStyle = colorHexToCss(ed.currentColor);
+        oCtx.globalAlpha = 0.7;
+        oCtx.fillRect(b.x0, b.y0, b.x1 - b.x0 + 1, b.y1 - b.y0 + 1);
+        oCtx.globalAlpha = 1.0;
+      }
     } else if (ed.currentTool === 'rectSelect' && ed.selStart && curPos) {
       const b = this._resolveRectBounds(ed.selStart, curPos);
       drawRectSelectionOverlay(oCtx, b.x0, b.y0, b.x1, b.y1);
