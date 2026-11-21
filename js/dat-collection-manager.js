@@ -39,6 +39,12 @@ export class DatCollectionManager {
       const idx = parseInt(e.target.value, 10);
       if (!Number.isNaN(idx)) this.selectItem(idx);
     });
+    document.getElementById('btn-dat-obj-prev')?.addEventListener('click', () => {
+      if (this.items.length > 1) this.selectItem((this.activeIndex - 1 + this.items.length) % this.items.length);
+    });
+    document.getElementById('btn-dat-obj-next')?.addEventListener('click', () => {
+      if (this.items.length > 1) this.selectItem((this.activeIndex + 1) % this.items.length);
+    });
     document.getElementById('btn-dat-obj-duplicate')?.addEventListener('click', () => this.duplicateActive());
     document.getElementById('btn-dat-obj-delete')?.addEventListener('click', () => this.deleteActive());
     document.getElementById('btn-dat-obj-reset-single')?.addEventListener('click', () => this.resetToSingle());

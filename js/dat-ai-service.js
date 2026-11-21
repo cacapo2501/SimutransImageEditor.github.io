@@ -278,10 +278,12 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
     const rawCommon = item.common && typeof item.common === 'object' ? item.common : {};
     const allowedFmts = getImageFormatOptionsForObjType(objType).map(o => o.value);
     const curFmt = String(fallbackCommon.imageFormat || 'auto');
+    const isExplicitEmptyFmt = curFmt === 'vehicle_empty_8' || curFmt === 'vehicle_empty_4' || curFmt === 'vehicle_image_8';
+    const baseFmt = curFmt === 'vehicle_otrp_reverse' ? 'auto' : curFmt;
     const aiFmt = String(rawCommon.imageFormat || '').trim();
-    const resolvedFmt = (aiFmt && allowedFmts.includes(aiFmt))
-      ? aiFmt
-      : (allowedFmts.includes(curFmt) ? curFmt : 'auto');
+    const resolvedFmt = isExplicitEmptyFmt
+      ? curFmt
+      : ((aiFmt && allowedFmts.includes(aiFmt)) ? aiFmt : (allowedFmts.includes(baseFmt) ? baseFmt : 'auto'));
 
     // 画像プレフィックスは現在のエディタ出力名(activeImgPrefix)を最優先し、AIの架空ファイル名によるリンク切れを防ぐ
     const rawPrefix = String(rawCommon.imgPrefix || '').trim();

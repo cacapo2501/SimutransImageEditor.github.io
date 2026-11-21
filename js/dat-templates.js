@@ -68,6 +68,28 @@ export const CORE_DAT_TEMPLATES = {
         { value: 'dock', label: 'dock (ドック)' }
       ] },
       { key: 'level', label: 'レベル / 規模 (level)', type: 'number', min: 0 },
+      { key: 'waytype', label: '接続軌道 (駅/車庫用 waytype)', type: 'select', options: [{ value: '', label: '(なし)' }, ...WAYTYPE_OPTIONS] },
+      { key: 'capacity', label: '駅容量 (capacity)', type: 'number', min: 0 },
+      { key: 'cost', label: '建設費 (cost)', type: 'number', min: 0 },
+      { key: 'maintenance', label: '維持費 (maintenance)', type: 'number', min: 0 },
+      { key: 'chance', label: '出現確率 (chance)', type: 'number', min: 0 },
+      { key: 'allow_underground', label: '地下建設 (allow_underground)', type: 'select', options: [
+        { value: '', label: '(未指定)' },
+        { value: '0', label: '0 (地上のみ)' },
+        { value: '1', label: '1 (地下のみ)' },
+        { value: '2', label: '2 (地上・地下両用)' }
+      ] },
+      { key: 'enables_pax', label: '旅客対応 (enables_pax=1)', type: 'checkbox' },
+      { key: 'enables_post', label: '郵便対応 (enables_post=1)', type: 'checkbox' },
+      { key: 'enables_ware', label: '貨物対応 (enables_ware=1)', type: 'checkbox' },
+      { key: 'needs_ground', label: '地面描画 (needs_ground=1)', type: 'checkbox' },
+      { key: 'noinfo', label: '情報窓非表示 (noinfo=1)', type: 'checkbox' },
+      { key: 'noconstruction', label: '建設中画像なし (noconstruction=1)', type: 'checkbox' },
+      { key: 'intro_year', label: '登場年 (intro_year)', type: 'number', min: 1 },
+      { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
+      { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },
+      { key: 'retire_month', label: '引退月 (retire_month)', type: 'number', min: 1, max: 12 },
+      { key: 'climates', label: '気候 (climates)', type: 'climates', fullWidth: true },
       { key: 'dimsW', label: '幅タイル (dims W)', type: 'number', min: 1, max: 16 },
       { key: 'dimsH', label: '奥行タイル (dims H)', type: 'number', min: 1, max: 16 },
       {
@@ -92,6 +114,7 @@ export const CORE_DAT_TEMPLATES = {
       },
       { key: 'heightTiles', label: '高さ段数 (H)', type: 'number', min: 1, max: 16 },
       { key: 'frames', label: 'アニメ枚数 (A)', type: 'number', min: 1, max: 16 },
+      { key: 'animation_time', label: 'アニメ間隔 ms (frames>1時)', type: 'number', min: 10 },
       { key: 'seasons', label: '季節数 (S: 1=通常 / 2=雪有)', type: 'select', options: [
         { value: '1', label: '1 (通常のみ)' },
         { value: '2', label: '2 (通常 + 雪)' }
@@ -100,30 +123,7 @@ export const CORE_DAT_TEMPLATES = {
         { value: 'back', label: 'BackImage のみ' },
         { value: 'front', label: 'FrontImage のみ' },
         { value: 'both', label: 'BackImage + FrontImage' }
-      ] },
-      { key: 'animation_time', label: 'アニメ間隔 ms (frames>1時)', type: 'number', min: 10 },
-      { key: 'waytype', label: '接続軌道 (駅/車庫用 waytype)', type: 'select', options: [{ value: '', label: '(なし)' }, ...WAYTYPE_OPTIONS] },
-      { key: 'capacity', label: '駅容量 (capacity)', type: 'number', min: 0 },
-      { key: 'cost', label: '建設費 (cost)', type: 'number', min: 0 },
-      { key: 'maintenance', label: '維持費 (maintenance)', type: 'number', min: 0 },
-      { key: 'chance', label: '出現確率 (chance)', type: 'number', min: 0 },
-      { key: 'allow_underground', label: '地下建設 (allow_underground)', type: 'select', options: [
-        { value: '', label: '(未指定)' },
-        { value: '0', label: '0 (地上のみ)' },
-        { value: '1', label: '1 (地下のみ)' },
-        { value: '2', label: '2 (地上・地下両用)' }
-      ] },
-      { key: 'intro_year', label: '登場年 (intro_year)', type: 'number', min: 1 },
-      { key: 'intro_month', label: '登場月 (intro_month)', type: 'number', min: 1, max: 12 },
-      { key: 'retire_year', label: '引退年 (retire_year)', type: 'number', min: 1 },
-      { key: 'retire_month', label: '引退月 (retire_month)', type: 'number', min: 1, max: 12 },
-      { key: 'needs_ground', label: '地面描画 (needs_ground=1)', type: 'checkbox' },
-      { key: 'noinfo', label: '情報窓非表示 (noinfo=1)', type: 'checkbox' },
-      { key: 'noconstruction', label: '建設中画像なし (noconstruction=1)', type: 'checkbox' },
-      { key: 'enables_pax', label: '旅客対応 (enables_pax=1)', type: 'checkbox' },
-      { key: 'enables_post', label: '郵便対応 (enables_post=1)', type: 'checkbox' },
-      { key: 'enables_ware', label: '貨物対応 (enables_ware=1)', type: 'checkbox' },
-      { key: 'climates', label: '気候 (climates)', type: 'climates', fullWidth: true }
+      ] }
     ]
   },
 

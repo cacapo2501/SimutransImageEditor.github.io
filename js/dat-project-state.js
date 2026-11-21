@@ -173,22 +173,32 @@ export function restoreDatProjectState(gen, data) {
   }
 }
 
+const RAIL_WAYTYPES = new Set(['', 'track', 'tram_track', 'monorail_track', 'maglev_track', 'narrowgauge_track']);
+
 // 車両の先頭車・後尾車判定を行い、デフォルトの OTRP Reverse 有効化と排他整合を適用する
 export function applyDefaultVehicleReverse(entry, idx, total) {
   if (!entry || entry.objType !== 'vehicle') return entry;
   const values = entry.values || {};
   const common = entry.common || {};
   const hasNone = (raw) => String(raw || '').split(/\r?\n/).some(s => s.trim().toLowerCase() === 'none');
-  const isEndCar = (total <= 1)
-    || idx === 0
-    || idx === total - 1
-    || hasNone(values.constraintsPrev)
-    || hasNone(values.constraintsNext);
+  const hasPrev = String(values.constraintsPrev || '').trim() !== '';
+  const hasNext = String(values.constraintsNext || '').trim() !== '';
+  const isRailWay = RAIL_WAYTYPES.has(String(values.waytype || '').trim());
+  const pwrNum = parseInt(values.power, 10) || 0;
+  const freightStr = String(values.freight || '').trim();
+  const isPureFreightCar = pwrNum <= 0 && freightStr && !/^(None|Passagiere)$/i.test(freightStr);
+
+  // Reverse対象は軌道系の先頭車・後尾車・単行車のみ（中間車・貨車・道路車両・船舶・航空機には勝手に付けない）
+  const isEndCar = isRailWay && !isPureFreightCar && (
+    (hasPrev || hasNext)
+      ? (hasNone(values.constraintsPrev) || hasNone(values.constraintsNext))
+      : (total <= 1 || idx === 0 || idx === total - 1)
+  );
 
   const fmt = common.imageFormat || 'auto';
   if (fmt === 'vehicle_otrp_reverse' || fmt === 'vehicle_otrp_reverse_only') {
-    // 中間専用車に前回の先頭車の OTRP Reverse 設定が引き継がれていた場合は標準(auto)へ戻す
-    if (total > 1 && !isEndCar) {
+    // Reverse対象外の車両に引き継がれていた場合は標準(auto / freight)へ戻す
+    if (!isEndCar) {
       common.imageFormat = values.hasFreightImage ? 'vehicle_freight' : 'auto';
     } else {
       // OTRP Reverse と標準 FreightImage の同時設定は不可

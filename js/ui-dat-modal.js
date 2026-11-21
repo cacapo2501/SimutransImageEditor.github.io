@@ -1,6 +1,10 @@
 import { DAT_OBJECT_CATEGORIES, DAT_OBJECT_TEMPLATES, BUILDING_PRESETS } from './dat-templates.js';
 import { IMAGE_FORMAT_OPTIONS } from './dat-image-formats.js';
-import { renderDatAiSectionHtml } from './ui-dat-ai.js';
+import {
+  renderDatAiSectionHtml,
+  renderDatCollectionBarHtml,
+  renderDatLiveryPanelHtml
+} from './ui-dat-ai.js';
 import { ProjectIO } from './project-io.js';
 import { bindPatternFileButtons } from './dat-image-pattern-io.js';
 
@@ -38,10 +42,10 @@ export function renderDatModalUI() {
         </header>
 
         <div class="dat-main-body">
-          <!-- 左ペイン: 設定フォーム -->
+          <!-- 左ペイン: 設定フォーム（上から順に設定できる一方向フロー） -->
           <div class="dat-form-pane">
             <fieldset class="sub-panel">
-              <legend>オブジェクト種別＆プリセット</legend>
+              <legend>1. オブジェクト種別＆プリセット</legend>
               <div class="dat-field">
                 <label>オブジェクト種別 (obj=)</label>
                 <select id="sel-dat-obj-type">
@@ -61,8 +65,10 @@ export function renderDatModalUI() {
 
             ${renderDatAiSectionHtml()}
 
+            ${renderDatCollectionBarHtml()}
+
             <fieldset class="sub-panel">
-              <legend>共通パラメータ</legend>
+              <legend>3. 共通パラメータ (識別名・作者名)</legend>
               <div class="dat-field-grid">
                 <div class="dat-field">
                   <label id="lbl-dat-name-field">アドオン識別名 (name=)</label>
@@ -79,11 +85,25 @@ export function renderDatModalUI() {
               </div>
             </fieldset>
 
+            <fieldset class="sub-panel">
+              <legend>4. オブジェクト固有パラメータ (スペック・寸法)</legend>
+              <div id="dat-dynamic-fields" class="dat-field-grid"></div>
+              <div id="dat-tunnel-way-box" class="dat-field full-width mt-05" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
+              <div id="dat-factory-fields-box" class="dat-field full-width mt-05" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
+            </fieldset>
+
             <fieldset class="sub-panel" id="fs-dat-image-settings">
-              <legend>画像参照設定 (Image / BackImage / EmptyImage)</legend>
+              <legend>5. 画像参照設定 (Image / BackImage / EmptyImage)</legend>
               <label class="dat-check-item">
                 <input type="checkbox" id="chk-dat-include-images" checked> 画像指定行を自動生成する
               </label>
+              <div class="dat-field mt-05">
+                <label>画像ファイル名 (拡張子 .png なし)</label>
+                <div class="row">
+                  <input type="text" id="inp-dat-img-prefix" value="base_combined" placeholder="例: my_addon_combined" style="flex:1;">
+                  <button type="button" id="btn-dat-sync-img-name" title="現在開いているベース画像名から取得">🖼️ 取得</button>
+                </div>
+              </div>
               <div class="dat-field mt-05">
                 <label>画像指定形式 (切替可)</label>
                 <select id="sel-dat-image-format">
@@ -94,22 +114,7 @@ export function renderDatModalUI() {
               <label class="dat-check-item mt-05" id="lbl-dat-flip-directions">
                 <input type="checkbox" id="chk-dat-flip-directions"> 車両・車の向きを180°反転 (S↔N, E↔W, SE↔NW, SW↔NE)
               </label>
-              <div class="dat-field mt-05">
-                <label>画像ファイル名 (拡張子 .png なし)</label>
-                <div class="row">
-                  <input type="text" id="inp-dat-img-prefix" value="base_combined" placeholder="例: my_addon_combined" style="flex:1;">
-                  <button type="button" id="btn-dat-sync-img-name" title="現在開いているベース画像名から取得">🖼️ 取得</button>
-                </div>
-              </div>
               <div class="dat-field-grid mt-05">
-                <div class="dat-field">
-                  <label>開始行 (Y)</label>
-                  <input type="number" id="inp-dat-start-row" value="0" min="0">
-                </div>
-                <div class="dat-field">
-                  <label>開始列 (X)</label>
-                  <input type="number" id="inp-dat-start-col" value="0" min="0">
-                </div>
                 <div class="dat-field full-width" id="dat-tilecut-row" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;">
                   <label class="dat-check-item">
                     <input type="checkbox" id="chk-dat-tilecut-enable"> 🧱 複数タイル建物: PNG出力時にタイルカッターで分割 (_cut.png)
@@ -127,6 +132,18 @@ export function renderDatModalUI() {
                   </div>
                 </div>
                 <div class="dat-field full-width" id="dat-season-masks-box" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
+                <div class="dat-field">
+                  <label>開始行 (Y)</label>
+                  <input type="number" id="inp-dat-start-row" value="0" min="0">
+                </div>
+                <div class="dat-field">
+                  <label>開始列 (X)</label>
+                  <input type="number" id="inp-dat-start-col" value="0" min="0">
+                </div>
+                <div class="dat-field full-width">
+                  <label>画像オフセット (,x,y 形式 / 省略可)</label>
+                  <input type="text" id="inp-dat-img-offset" value="" placeholder="例: ,0,0 または -16,8">
+                </div>
                 <div class="dat-field full-width">
                   <div class="btn-group">
                     <button type="button" id="btn-dat-open-img-picker" class="btn-primary">🗺️ GUIで画像位置を指定 (一括 / 個別)</button>
@@ -138,22 +155,13 @@ export function renderDatModalUI() {
                   </div>
                   <div class="info-text" id="lbl-dat-custom-img-status">画像位置: 開始行列 (Y, X) から自動展開（独自配置PNGは上のGUIから個別指定）</div>
                 </div>
-                <div class="dat-field full-width">
-                  <label>画像オフセット (,x,y 形式 / 省略可)</label>
-                  <input type="text" id="inp-dat-img-offset" value="" placeholder="例: ,0,0 または -16,8">
-                </div>
               </div>
             </fieldset>
 
-            <fieldset class="sub-panel">
-              <legend>オブジェクト固有パラメータ</legend>
-              <div id="dat-dynamic-fields" class="dat-field-grid"></div>
-              <div id="dat-tunnel-way-box" class="dat-field full-width mt-05" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
-              <div id="dat-factory-fields-box" class="dat-field full-width mt-05" style="display:none; background:#1c2530; padding:6px 8px; border:1px solid #354759; border-radius:4px;"></div>
-            </fieldset>
+            ${renderDatLiveryPanelHtml()}
 
             <fieldset class="sub-panel">
-              <legend>追加パラメータ (自由記述)</legend>
+              <legend>7. 追加パラメータ (自由記述)</legend>
               <div class="dat-field">
                 <label>任意の key=value 行を追加（1行1項目）</label>
                 <textarea id="inp-dat-extra-lines" placeholder="# コメントや追加キーを自由に入力"></textarea>

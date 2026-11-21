@@ -229,9 +229,12 @@ function buildImageContextSection({
       '  - 【厳守】ユーザーがリクエスト文でタイルサイズ(2x2等)・向き数・アニメ・雪画像(seasons=2)の変更を明示的に求めていない限り、上記の dimsW / dimsH / dimsViews / heightTiles / frames / seasons / imageLayer の現在値をそのまま維持してください（勝手に増やすと現在のPNG画像サイズと合わずコンパイルエラーになります）。'
     );
   } else if (objType === 'vehicle') {
+    const isExplicitEmpty = curFmt === 'vehicle_empty_8' || curFmt === 'vehicle_empty_4' || curFmt === 'vehicle_image_8';
     lines.push(
       `- 現在の車両画像設定: directions="${v.directions || '8'}", hasFreightImage=${Boolean(v.hasFreightImage)}${v.freightRow ? `, freightRow="${v.freightRow}"` : ''}`,
-      '  - 先頭車・後尾車・単行車（constraintsPrev または constraintsNext に "none" を含む車両）にはアプリ側で自動的に OTRP Reverse 対応 (vehicle_otrp_reverse) が適用されます。imageFormat は原則 "auto"（または先頭・後尾車は "vehicle_otrp_reverse"、積載画像あり車両は "vehicle_freight"）として出力してください。'
+      isExplicitEmpty
+        ? `  - 【厳守】現在は "${curFmt}"（Reverse なし・EmptyImage 等のみ）が選択されているため、common.imageFormat は必ず "${curFmt}" のまま出力し、勝手に OTRP Reverse や FreightImage を追加しないでください。`
+        : '  - 【厳守】common.imageFormat は原則 "auto"（積載画像あり車両のみ "vehicle_freight"）として出力してください。先頭車・後尾車・単行鉄道車両への OTRP Reverse 対応はアプリ側が必要車両のみ自動適用するため、中間車・貨車・道路車両・船舶・航空機など Reverse のない車両に "vehicle_otrp_reverse" を指定したり、反転用の別オブジェクト (xxx_rev 等) を勝手に増やしたりしないでください。'
     );
   } else if (objType === 'way' || objType === 'way-object' || objType === 'bridge' || objType === 'tunnel' || objType === 'roadsign') {
     const imgFlags = [];

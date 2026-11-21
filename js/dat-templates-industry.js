@@ -86,6 +86,17 @@ export const INDUSTRY_DAT_TEMPLATES = (WAYTYPE_OPTIONS) => ({
       { key: 'Range', label: '生産力振れ幅 (Range)', type: 'number', min: 0 },
       { key: 'pax_level', label: '旅客発生度 (pax_level)', type: 'number', min: 0 },
       { key: 'MapColor', label: 'マップ色番号 (MapColor)', type: 'number', min: 0, max: 255 },
+      { key: 'inputGood0', label: '入力貨物0 (InputGood[0])', type: 'text', placeholder: '例: Eisenerz' },
+      { key: 'inputCapacity0', label: '入力容量0 (InputCapacity[0])', type: 'number', min: 0 },
+      { key: 'inputFactor0', label: '入力消費率0 (InputFactor[0])', type: 'number', min: 0 },
+      { key: 'outputGood0', label: '出力貨物0 (OutputGood[0])', type: 'text', placeholder: '例: Stahl' },
+      { key: 'outputCapacity0', label: '出力容量0 (OutputCapacity[0])', type: 'number', min: 0 },
+      { key: 'outputFactor0', label: '出力生産率0 (OutputFactor[0])', type: 'number', min: 0 },
+      { key: 'min_fields', label: '最小フィールド数 (min_fields / makeobj46+)', type: 'number', min: 0 },
+      { key: 'max_fields', label: '最大フィールド数 (max_fields / makeobj46+)', type: 'number', min: 0 },
+      { key: 'start_fields', label: '初期フィールド最大数 (start_fields / makeobj55+)', type: 'number', min: 0 },
+      { key: 'probability_to_spawn', label: 'フィールド生成確率 (probability_to_spawn / makeobj46+)', type: 'number', min: 0, max: 10000 },
+      { key: 'climates', label: '気候 (climates)', type: 'climates', fullWidth: true },
       { key: 'dimsW', label: '幅タイル (dims W)', type: 'number', min: 1, max: 16 },
       { key: 'dimsH', label: '奥行タイル (dims H)', type: 'number', min: 1, max: 16 },
       {
@@ -104,18 +115,7 @@ export const INDUSTRY_DAT_TEMPLATES = (WAYTYPE_OPTIONS) => ({
       { key: 'seasons', label: '季節数 (1:通常 / 2:通常+雪)', type: 'select', options: [
         { value: '1', label: '1 (通常のみ)' },
         { value: '2', label: '2 (通常 + 雪)' }
-      ] },
-      { key: 'inputGood0', label: '入力貨物0 (InputGood[0])', type: 'text', placeholder: '例: Eisenerz' },
-      { key: 'inputCapacity0', label: '入力容量0 (InputCapacity[0])', type: 'number', min: 0 },
-      { key: 'inputFactor0', label: '入力消費率0 (InputFactor[0])', type: 'number', min: 0 },
-      { key: 'outputGood0', label: '出力貨物0 (OutputGood[0])', type: 'text', placeholder: '例: Stahl' },
-      { key: 'outputCapacity0', label: '出力容量0 (OutputCapacity[0])', type: 'number', min: 0 },
-      { key: 'outputFactor0', label: '出力生産率0 (OutputFactor[0])', type: 'number', min: 0 },
-      { key: 'min_fields', label: '最小フィールド数 (min_fields / makeobj46+)', type: 'number', min: 0 },
-      { key: 'max_fields', label: '最大フィールド数 (max_fields / makeobj46+)', type: 'number', min: 0 },
-      { key: 'start_fields', label: '初期フィールド最大数 (start_fields / makeobj55+)', type: 'number', min: 0 },
-      { key: 'probability_to_spawn', label: 'フィールド生成確率 (probability_to_spawn / makeobj46+)', type: 'number', min: 0, max: 10000 },
-      { key: 'climates', label: '気候 (climates)', type: 'climates', fullWidth: true }
+      ] }
     ]
   },
 

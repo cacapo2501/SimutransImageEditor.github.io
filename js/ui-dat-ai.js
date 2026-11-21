@@ -9,11 +9,11 @@ function buildGeminiModelOptions() {
     '<option value="__custom__">カスタムモデル名を指定...</option>';
 }
 
+// 2. 生成AI連携パネル
 export function renderDatAiSectionHtml() {
   return `
-    <!-- 生成AI連携パネル -->
     <details class="sub-panel dat-ai-panel" id="details-dat-ai">
-      <summary style="cursor:pointer; font-size:11px; font-weight:bold; color:#9cdcfe;">✨ 生成AIでパラメータ自動設定 (Gemini)</summary>
+      <summary style="cursor:pointer; font-size:11px; font-weight:bold; color:#9cdcfe;">2. ✨ 生成AIでパラメータ自動設定 (Gemini)</summary>
       <div class="dat-ai-body">
         <div class="dat-field-grid">
           <div class="dat-field">
@@ -44,6 +44,20 @@ export function renderDatAiSectionHtml() {
           </div>
         </div>
 
+        <div class="dat-field mt-05">
+          <div class="row" style="justify-content:space-between; align-items:center; gap:4px;">
+            <label style="margin:0;">生成したい実車・建物・設備名や特徴</label>
+            <div class="row" style="gap:4px; width:auto;">
+              <select id="sel-dat-ai-history" style="max-width:155px; font-size:10px;" title="過去に保存・生成したAI指示を呼び出します">
+                <option value="">-- 保存済み指示 (0件) --</option>
+              </select>
+              <button type="button" id="btn-dat-ai-save-history" class="btn-sm" title="現在の指示文・設定を履歴に保存します">💾</button>
+              <button type="button" id="btn-dat-ai-del-history" class="btn-sm" style="color:#ff8888;" title="選択中の履歴を削除します">🗑️</button>
+            </div>
+          </div>
+          <textarea id="inp-dat-ai-prompt" placeholder="例: JR東日本 E233系0番台 中央快速線 10両編成 / 国鉄 EF65形1000番台＋コキ104形 / いすゞエルガ 都営バス / B787-8 / 昭和レトロな木造駅舎"></textarea>
+        </div>
+
         <div class="dat-field-grid mt-05" id="dat-ai-cost-options-wrap">
           <div class="dat-field full-width">
             <div class="row" style="justify-content:space-between; align-items:center;">
@@ -69,20 +83,6 @@ export function renderDatAiSectionHtml() {
               <button type="button" id="btn-dat-ai-reset-balance" class="btn-sm" title="コスト・バランスをすべて100%(標準)に戻します">↺ 標準</button>
             </div>
           </div>
-        </div>
-
-        <div class="dat-field mt-05">
-          <div class="row" style="justify-content:space-between; align-items:center; gap:4px;">
-            <label style="margin:0;">生成したい実車・建物・設備名や特徴</label>
-            <div class="row" style="gap:4px; width:auto;">
-              <select id="sel-dat-ai-history" style="max-width:155px; font-size:10px;" title="過去に保存・生成したAI指示を呼び出します">
-                <option value="">-- 保存済み指示 (0件) --</option>
-              </select>
-              <button type="button" id="btn-dat-ai-save-history" class="btn-sm" title="現在の指示文・設定を履歴に保存します">💾</button>
-              <button type="button" id="btn-dat-ai-del-history" class="btn-sm" style="color:#ff8888;" title="選択中の履歴を削除します">🗑️</button>
-            </div>
-          </div>
-          <textarea id="inp-dat-ai-prompt" placeholder="例: JR東日本 E233系0番台 中央快速線 10両編成 / 国鉄 EF65形1000番台＋コキ104形 / いすゞエルガ 都営バス / B787-8 / 昭和レトロな木造駅舎"></textarea>
         </div>
 
         <details class="dat-ai-api-details mt-05" id="details-dat-ai-key">
@@ -130,12 +130,18 @@ export function renderDatAiSectionHtml() {
         <div class="info-text mt-05" id="lbl-dat-ai-status">AI連携: 待機中</div>
       </div>
     </details>
+  `;
+}
 
-    <!-- 複数オブジェクト / 編成車両切替バー -->
+// 複数オブジェクト / 編成車両切替バー
+export function renderDatCollectionBarHtml() {
+  return `
     <fieldset class="sub-panel" id="fs-dat-collection-bar" style="display:none;">
-      <legend>🚃 編成・複数オブジェクト一覧</legend>
-      <div class="row">
+      <legend>🚃 編成・複数オブジェクト切替</legend>
+      <div class="row" style="gap:4px;">
+        <button type="button" id="btn-dat-obj-prev" class="btn-sm" title="前の車両/オブジェクトへ切替">◀</button>
         <select id="sel-dat-active-object" style="flex:1;"></select>
+        <button type="button" id="btn-dat-obj-next" class="btn-sm" title="次の車両/オブジェクトへ切替">▶</button>
       </div>
       <div class="btn-group mt-05">
         <button type="button" id="btn-dat-obj-duplicate" title="現在のオブジェクトを複製追加">＋ 複製</button>
@@ -156,10 +162,14 @@ export function renderDatAiSectionHtml() {
         </div>
       </div>
     </fieldset>
+  `;
+}
 
-    <!-- マスク画像＝塗装バリエーション連携パネル -->
+// 6. マスク画像＝塗装バリエーション連携パネル
+export function renderDatLiveryPanelHtml() {
+  return `
     <details class="sub-panel" id="fs-dat-livery-panel">
-      <summary style="cursor:pointer; font-size:11px; font-weight:bold; color:#e5c07b;">🎭 マスク画像(塗装)バリエーション連携</summary>
+      <summary style="cursor:pointer; font-size:11px; font-weight:bold; color:#e5c07b;">6. 🎭 マスク画像(塗装)バリエーション連携</summary>
       <div class="dat-ai-body">
         <div class="info-text" id="lbl-dat-livery-mask">選択中マスク: なし</div>
         <div class="dat-field mt-05">

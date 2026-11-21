@@ -155,15 +155,16 @@ export class DatAiController {
   _collectPromptOptions() {
     this.gen.syncImagePrefixWithApp?.();
     const objType = this.gen.currentObjType;
-    const form = this._collectPromptFormValues();
+    const promptCommon = { ...this.gen.common };
+    if (promptCommon.imageFormat === 'vehicle_otrp_reverse') promptCommon.imageFormat = 'auto';
     return {
       objType,
-      ...form,
+      ...this._collectPromptFormValues(),
       liveryName: this.gen.liveryMgr ? this.gen.liveryMgr.getActiveLiveryName({ forPrompt: true }) : '',
       imgPrefix: this.gen.common.imgPrefix,
       copyright: this.gen.common.copyright,
       imageContext: this._buildCurrentImageContext(objType),
-      currentCommon: { ...this.gen.common },
+      currentCommon: promptCommon,
       currentValues: { ...this.gen._getObjState(objType) }
     };
   }
