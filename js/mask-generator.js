@@ -120,7 +120,7 @@ export class MaskGenerator {
   }
 
   // ベース画像からマスク画像を自動生成（ベース画像の32bitアルファ値をそのまま引き継ぐ）
-  static generateFromBase(app) {
+  static generateFromBase(app, { apply = true, maskName = null } = {}) {
     if (!app.baseImage || !app.baseRgb) return null;
 
     let minGray = 255, maxGray = 0, grayFound = false;
@@ -173,9 +173,12 @@ export class MaskGenerator {
     }
 
     mCtx.putImageData(mImgData, 0, 0);
-    app.applyMaskImage(mCanvas, 'auto_generated_mask.png');
-    app.markDirty();
-    app.render();
+    if (apply) {
+      const targetName = maskName || (app.baseName ? app.baseName.replace(/\.png$/i, '_paint.png') : 'auto_generated_mask.png');
+      app.applyMaskImage(mCanvas, targetName);
+      app.markDirty();
+      app.render();
+    }
     return mCanvas;
   }
 }

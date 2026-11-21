@@ -163,8 +163,9 @@ class AdvancedMultiplyApp {
     if (!confirm('現在選択中のマスク画像を破棄し、ベース画像からマスク画像を再生成しますか？')) return null;
     MaskGenerator.analyzeBaseImage(this, this.baseImage, this.baseName);
     const keepName = this.maskMgr?.getActive()?.name || this.baseName.replace(/\.png$/i, '_paint.png');
-    const generated = MaskGenerator.generateFromBase(this);
-    if (this.maskMgr) this.maskMgr.registerAnalyzedMask(generated, keepName, { addAsNew: this.maskMgr.items.length === 0 });
+    const generated = MaskGenerator.generateFromBase(this, { apply: false });
+    if (this.maskMgr && generated) this.maskMgr.registerAnalyzedMask(generated, keepName, { addAsNew: this.maskMgr.items.length === 0 });
+    else if (generated) this.applyMaskImage(generated, keepName);
     this.toneTintCtrl.updateMaskCombos();
     this.toneTintCtrl.updateTintTable();
     this.markDirty();
@@ -197,8 +198,10 @@ class AdvancedMultiplyApp {
 
     if (!this.maskImage && !skipAutoMask) {
       const autoName = (name || 'base.png').replace(/\.png$/i, '_paint.png');
-      const generated = MaskGenerator.generateFromBase(this);
-      if (this.maskMgr && generated) this.maskMgr.registerAnalyzedMask(generated, autoName, { addAsNew: true });
+      const generated = MaskGenerator.generateFromBase(this, { apply: false });
+      if (generated) {
+        this.applyMaskImage(generated, autoName, { addAsNew: false });
+      }
     }
     if (resetDat) {
       this.datGenerator?.syncImagePrefixWithApp?.({ force: true });

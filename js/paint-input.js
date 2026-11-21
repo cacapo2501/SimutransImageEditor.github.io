@@ -41,6 +41,7 @@ export class PaintInputController {
     });
 
     bindClick('btn-paint-resize', () => ed.resizeCtrl.openDialog());
+    bindClick('btn-paint-trim', () => ed.trimCtrl.openDialog());
     bindClick('btn-paint-copy', () => ed.clipMgr.copySelection());
     bindClick('btn-paint-paste', () => ed.clipMgr.pasteClipboard());
     bindClick('btn-paint-import-img', () => ed.clipMgr.importExternalImage());

@@ -1,6 +1,7 @@
 import { PaintClipboardManager } from './paint-clipboard.js';
 import { PaintDialogs } from './paint-dialogs.js';
 import { PaintResizeController, cloneCanvasFromSource } from './paint-resize.js';
+import { PaintTrimController, captureTrimHistorySnapshots, restoreTrimHistorySnapshots } from './paint-trim.js';
 import { PaintInputController } from './paint-input.js';
 import { PaintToolHandler, updatePaintStatus } from './paint-tools.js';
 import { PaintOnionSkinManager } from './paint-onion-skin.js';
@@ -36,6 +37,7 @@ export class PaintEditor {
     this.clipMgr = null;
     this.dialogs = null;
     this.resizeCtrl = null;
+    this.trimCtrl = null;
     this.inputCtrl = null;
     this.toolHandler = null;
     this.onionSkinMgr = null;
@@ -97,6 +99,7 @@ export class PaintEditor {
     this.clipMgr = new PaintClipboardManager(this);
     this.dialogs = new PaintDialogs(this);
     this.resizeCtrl = new PaintResizeController(this);
+    this.trimCtrl = new PaintTrimController(this);
     this.inputCtrl = new PaintInputController(this);
     this.toolHandler = new PaintToolHandler(this);
     this.onionSkinMgr = new PaintOnionSkinManager(this);
@@ -107,6 +110,7 @@ export class PaintEditor {
     this.textCtrl = new PaintTextController(this);
 
     this.resizeCtrl.bindEvents();
+    this.trimCtrl.bindEvents();
     this.inputCtrl.bindAll();
     this.onionSkinMgr.bindEvents();
     this.repeatMgr.bindEvents();
@@ -310,7 +314,8 @@ export class PaintEditor {
   _captureHistoryState() {
     const data = this.ctx.getImageData(0, 0, this.width, this.height);
     const maskSnap = (this.targetType === 'base' && this.app.maskImage) ? cloneCanvasFromSource(this.app.maskImage) : null;
-    return { imageData: data, width: this.width, height: this.height, maskCanvas: maskSnap };
+    const trimSnaps = (this.targetType === 'base' || this.targetType === 'mask') ? captureTrimHistorySnapshots(this) : null;
+    return { imageData: data, width: this.width, height: this.height, maskCanvas: maskSnap, trimSnaps };
   }
 
   _pushHistory(state = null) {
@@ -321,18 +326,14 @@ export class PaintEditor {
 
   _restoreHistoryState(state) {
     if (!state) return;
-    this.width = state.width;
-    this.height = state.height;
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
-    this.overlayCanvas.width = this.width;
-    this.overlayCanvas.height = this.height;
+    this.width = state.width; this.height = state.height;
+    this.canvas.width = this.width; this.canvas.height = this.height;
+    this.overlayCanvas.width = this.width; this.overlayCanvas.height = this.height;
     this.ctx.putImageData(state.imageData, 0, 0);
-
-    if (this.targetType === 'base' && state.maskCanvas) {
-      this.app.baseW = this.width;
-      this.app.baseH = this.height;
-      this.app.applyMaskImage(state.maskCanvas, this.app.maskName);
+    if (this.targetType === 'base' || this.targetType === 'mask') {
+      this.app.baseW = this.width; this.app.baseH = this.height;
+      if (state.trimSnaps) restoreTrimHistorySnapshots(this, state.trimSnaps);
+      else if (state.maskCanvas) this.app.applyMaskImage(state.maskCanvas, this.app.maskName);
     }
 
     this.selectionMask = null;

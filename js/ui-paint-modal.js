@@ -44,6 +44,7 @@ export function renderPaintModalUI() {
               <button class="paint-tool-btn" data-tool="text" title="テキスト挿入 (右クリック: スポイト)">🔤 文字</button>
               <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
               <button id="btn-paint-resize" title="ベース画像の大きさ変更（マスク画像も連動）">📐 サイズ</button>
+              <button id="btn-paint-trim" title="選択範囲・余白自動検出・数値指定で画像をトリミング（マスクも連動）">✂️ トリミング</button>
             </div>
 
             <div class="paint-tool-group sel-mode-group" title="選択ツールの演算モード">

@@ -154,6 +154,69 @@ export function renderSubModalsUI() {
     `);
   }
 
+  if (!document.getElementById('modal-trim-image')) {
+    container.insertAdjacentHTML('beforeend', `
+      <dialog id="modal-trim-image">
+        <div class="picker-content" style="width:410px; max-width:92vw;">
+          <h3 style="font-size:13px; margin-bottom:4px;">✂️ 画像のトリミング（切り抜き）</h3>
+          <div class="info-text" id="lbl-trim-current" style="margin-bottom:6px;">現在のサイズ: 64 × 96 px</div>
+          <fieldset class="sub-panel">
+            <legend>トリミング方法</legend>
+            <label><input type="radio" name="trim-mode" value="selection"> 🔲 現在の選択範囲で切り抜く</label>
+            <div id="trim-selection-opts" style="display:none; flex-direction:column; gap:4px; padding-left:16px;">
+              <div class="info-text" id="lbl-trim-selection-info">選択範囲: なし</div>
+              <label><input type="checkbox" id="chk-trim-clear-outside"> 多角形・非矩形選択時、選択範囲外を塗り潰し除去</label>
+              <div class="row">
+                <label style="width:80px;">範囲外の塗色:</label>
+                <select id="sel-trim-outside-fill">
+                  <option value="#E7FFFF" selected>#E7FFFF (透過色)</option>
+                  <option value="#00000000">完全透明 (α=0 / 32bit)</option>
+                  <option value="#000000">#000000 (黒)</option>
+                </select>
+              </div>
+            </div>
+            <label><input type="radio" name="trim-mode" value="auto" checked> ✨ 余白（背景色・透明）を自動でトリミング</label>
+            <div id="trim-auto-opts" style="display:flex; flex-direction:column; gap:4px; padding-left:16px;">
+              <label><input type="checkbox" id="chk-trim-e7ffff" checked> #E7FFFF (背景色) を余白とみなす</label>
+              <label><input type="checkbox" id="chk-trim-transparent" checked> 完全透明 (α=0) を余白とみなす</label>
+              <label><input type="checkbox" id="chk-trim-corner"> 左上(0,0)と同じ色を余白とみなす</label>
+              <div class="row">
+                <label style="width:95px;">残す余白 (px):</label>
+                <input type="number" id="inp-trim-margin" value="0" min="0" max="256" style="width:70px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:3px; border-radius:3px;">
+              </div>
+            </div>
+            <label><input type="radio" name="trim-mode" value="manual"> 📐 範囲(X,Y,W,H)・カット量(上下左右)を手動指定</label>
+            <div id="trim-manual-opts" style="display:none; flex-direction:column; gap:5px; padding-left:12px;">
+              <div class="row" style="gap:6px;">
+                <span>X:</span><input type="number" id="inp-trim-x" min="0" value="0" style="width:55px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:3px;">
+                <span>Y:</span><input type="number" id="inp-trim-y" min="0" value="0" style="width:55px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:3px;">
+                <span>幅:</span><input type="number" id="inp-trim-w" min="1" value="64" style="width:58px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:3px;">
+                <span>高:</span><input type="number" id="inp-trim-h" min="1" value="64" style="width:58px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:3px;">
+              </div>
+              <div class="row" style="gap:6px;">
+                <span>上削:</span><input type="number" id="inp-trim-cut-top" min="0" value="0" style="width:46px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:3px;">
+                <span>下削:</span><input type="number" id="inp-trim-cut-bottom" min="0" value="0" style="width:46px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:3px;">
+                <span>左削:</span><input type="number" id="inp-trim-cut-left" min="0" value="0" style="width:46px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:3px;">
+                <span>右削:</span><input type="number" id="inp-trim-cut-right" min="0" value="0" style="width:46px; background:#1a1a1a; border:1px solid #444; color:#eee; padding:3px;">
+              </div>
+            </div>
+          </fieldset>
+          <div class="row" id="row-trim-sync-mask" style="margin-top:2px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
+              <input type="checkbox" id="chk-trim-sync-mask" checked>
+              <span id="lbl-trim-sync-mask">登録済みのマスク画像も同範囲で連動トリミング（サイズ整合維持）</span>
+            </label>
+          </div>
+          <div class="info-text" id="lbl-trim-preview" style="color:#7ee787; font-weight:bold;">トリミング後: 64 × 96 px</div>
+          <div class="btn-group mt-1">
+            <button id="btn-trim-ok" class="btn-primary">✂️ トリミングを実行</button>
+            <button id="btn-trim-cancel">キャンセル</button>
+          </div>
+        </div>
+      </dialog>
+    `);
+  }
+
   if (!document.getElementById('modal-color-replace')) {
     container.insertAdjacentHTML('beforeend', `
       <dialog id="modal-color-replace">

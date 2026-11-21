@@ -174,7 +174,7 @@ export class MaskCollectionManager {
     this.activeIndex = this.items.length - 1;
     this._syncAppFromActive();
 
-    MaskGenerator.generateFromBase(app);
+    MaskGenerator.generateFromBase(app, { apply: true, maskName: newName });
     this.saveActiveStateFromApp();
 
     if (app.toneTintCtrl) {

@@ -299,6 +299,7 @@
 /* 新規作成 & 画像サイズ変更 & パレット入力 & 中間色生成モーダル */
 #modal-new-image,
 #modal-resize-image,
+#modal-trim-image,
 #modal-palette-import,
 #modal-palette-blend {
   border: 1px solid #555;
@@ -312,6 +313,7 @@
 
 #modal-new-image::backdrop,
 #modal-resize-image::backdrop,
+#modal-trim-image::backdrop,
 #modal-palette-import::backdrop,
 #modal-palette-blend::backdrop {
   background: rgba(0, 0, 0, 0.65);
