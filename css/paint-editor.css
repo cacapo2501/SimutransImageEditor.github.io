@@ -26,17 +26,43 @@
 }
 
 #paint-toolbar {
-  min-height: 42px;
+  min-height: 36px;
   height: auto !important;
   background: #282828;
   border-bottom: 1px solid #3d3d3d;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 6px 8px;
-  gap: 6px 8px;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 5px 8px;
+  gap: 5px;
   flex-shrink: 0;
   overflow: visible;
+}
+
+.paint-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+  width: 100%;
+}
+
+.paint-toolbar-row.collapsed,
+#paint-sidebar.collapsed {
+  display: none !important;
+}
+
+.paint-toggle-btn {
+  background: #303030;
+  border: 1px solid #555;
+  color: #ccc;
+}
+
+.paint-toggle-btn.active {
+  background: #1f4b6e;
+  border-color: #3b82b8;
+  color: #fff;
+  font-weight: bold;
 }
 
 .paint-tool-group {
@@ -348,4 +374,90 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* タブレット・小画面向け：上部ツールバーと左ペインをスリム化しキャンバス領域を最大化 */
+@media (pointer: coarse), (max-width: 1180px), (max-height: 820px) {
+  #modal-paint-editor {
+    width: 98vw;
+    height: 96vh;
+    height: 96dvh;
+    max-width: 98vw;
+    max-height: 96dvh;
+  }
+
+  #paint-toolbar {
+    min-height: 30px;
+    padding: 3px 6px;
+    gap: 3px;
+  }
+
+  .paint-toolbar-row {
+    gap: 3px 5px;
+  }
+
+  #paint-toolbar-tools {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+  }
+
+  #paint-toolbar-tools .paint-tool-group {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+
+  #paint-toolbar button {
+    padding: 3px 6px;
+    font-size: 11px;
+  }
+
+  #paint-toolbar-extra {
+    max-height: 22vh;
+    overflow-y: auto;
+  }
+
+  #paint-sidebar {
+    width: 185px;
+    min-width: 185px;
+    padding: 6px;
+    gap: 6px;
+  }
+
+  #paint-palette-slots {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+  }
+
+  #paint-footer {
+    min-height: 20px;
+    font-size: 10px;
+    padding: 2px 6px;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 760px) {
+  #paint-toolbar-topbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    scrollbar-width: thin;
+  }
+
+  #paint-toolbar-topbar .paint-tool-group {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+
+  #paint-sidebar {
+    width: 155px;
+    min-width: 155px;
+  }
 }

@@ -238,6 +238,7 @@ export class PaintEditor {
       : null;
 
     this._renderPaletteUI();
+    this.inputCtrl?.applyDefaultCompactLayout?.();
     this.updateCursor();
     if (typeof this.modal.showModal === 'function') this.modal.showModal();
     else this.modal.setAttribute('open', '');

@@ -6,50 +6,113 @@ export function renderPaintModalUI() {
     <dialog id="modal-paint-editor">
       <div id="paint-editor-container">
         <header id="paint-toolbar">
-          <div class="paint-tool-group">
-            <button class="paint-tool-btn" data-tool="hand" title="描画・選択を解除してハンドスクロール (手のひら移動)">✋ スクロール</button>
-            <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ (右クリック: スポイト)">✏️ ドット</button>
-            <button class="paint-tool-btn" data-tool="line" title="直線 (右クリック: スポイト)">📏 直線</button>
-            <button class="paint-tool-btn" data-tool="rectFill" title="矩形塗りつぶし (右クリック: スポイト)">⬛ 矩形塗潰</button>
-            <button class="paint-tool-btn" data-tool="bucket" title="塗りつぶし (右クリック: スポイト)">🪣 塗潰</button>
-            <button class="paint-tool-btn" data-tool="picker" title="スポイト (色取得後、前のツールに自動で戻ります)">🎯 スポイト</button>
-            <button class="paint-tool-btn" data-tool="rectSelect" title="矩形選択 (新規時は範囲内ドラッグで移動・範囲外クリックで解除)">🔲 矩形選択</button>
-            <button class="paint-tool-btn" data-tool="polySelect" title="多角形選択 (ダブルクリック/始点クリック/Enterで確定)">📐 多角形選択</button>
-            <button class="paint-tool-btn" data-tool="wand" title="自動選択 (Magic Wand)">🪄 自動選択</button>
-            <button class="paint-tool-btn" data-tool="colorSelect" title="同色選択">🎯 同色選択</button>
-            <button class="paint-tool-btn" data-tool="moveSel" title="選択範囲の移動（中のピクセルを移動）">↔️ 選択移動</button>
-            <button class="paint-tool-btn" data-tool="text" title="テキスト挿入 (右クリック: スポイト)">🔤 文字</button>
-            <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
-            <button id="btn-paint-resize" title="ベース画像の大きさ変更（マスク画像も連動）">📐 画像サイズ変更</button>
+          <div id="paint-toolbar-topbar" class="paint-toolbar-row">
+            <div class="paint-tool-group">
+              <button id="btn-paint-undo" title="元に戻す (Ctrl+Z)">↩ Undo</button>
+              <button id="btn-paint-redo" title="やり直し (Ctrl+Y)">↪ Redo</button>
+              <button id="btn-paint-copy" title="選択範囲をコピー (Ctrl+C)">📋 コピー</button>
+              <button id="btn-paint-paste" title="貼り付け (Ctrl+V)">📌 貼付</button>
+              <button id="btn-paint-import-img" title="外部画像を取り込んで貼り付け">🖼️ 画像貼付</button>
+              <button id="btn-paint-reimport-img" title="前回貼り付けた外部画像をもう一度貼り付け" disabled>🔁 再貼付</button>
+              <button id="btn-paint-clear-sel" title="選択解除 (Esc / Ctrl+D)">✕ 選択解除</button>
+            </div>
+            <div class="paint-tool-group">
+              <button type="button" id="btn-paint-toggle-tools" class="paint-toggle-btn active" title="描画・選択ツール行の表示/折りたたみを切り替えます">🛠️ ツール ▾</button>
+              <button type="button" id="btn-paint-toggle-extra" class="paint-toggle-btn" title="補助線・タイル菱形・スナップ・上方リピート等の詳細パネルを開閉します">🔧 ガイド・設定 ▸</button>
+              <button type="button" id="btn-paint-toggle-sidebar" class="paint-toggle-btn active" title="左側パレット・カラー編集ペインの表示/非表示を切り替えます">🎨 パレット</button>
+            </div>
+            <div class="paint-tool-group ml-auto">
+              <span id="paint-lbl-zoom" class="val-badge">100%</span>
+              <button id="btn-paint-apply" class="btn-primary">✓ 完了(反映)</button>
+              <button id="btn-paint-cancel">キャンセル</button>
+            </div>
           </div>
 
-          <div class="paint-tool-group sel-mode-group" title="選択ツールの演算モード">
-            <span style="font-size:10px; color:#aaa;">選択:</span>
-            <button class="sel-mode-btn active" data-sel-mode="replace" title="新規選択">新規</button>
-            <button class="sel-mode-btn" data-sel-mode="add" title="現在の選択範囲に追加">＋追加</button>
-            <button class="sel-mode-btn" data-sel-mode="subtract" title="現在の選択範囲から一部削除">－削除</button>
-            <button class="sel-mode-btn" data-sel-mode="intersect" title="現在の選択範囲と重なる部分のみ残す（乗算）">×乗算</button>
-            <button id="btn-paint-clear-sel" title="選択解除 (Esc / Ctrl+D)">✕ 解除</button>
+          <div id="paint-toolbar-tools" class="paint-toolbar-row">
+            <div class="paint-tool-group">
+              <button class="paint-tool-btn" data-tool="hand" title="描画・選択を解除してハンドスクロール (手のひら移動)">✋ スクロール</button>
+              <button class="paint-tool-btn active" data-tool="pencil" title="ドットブラシ (右クリック: スポイト)">✏️ ドット</button>
+              <button class="paint-tool-btn" data-tool="line" title="直線 (右クリック: スポイト)">📏 直線</button>
+              <button class="paint-tool-btn" data-tool="rectFill" title="矩形塗りつぶし (右クリック: スポイト)">⬛ 矩形塗潰</button>
+              <button class="paint-tool-btn" data-tool="bucket" title="塗りつぶし (右クリック: スポイト)">🪣 塗潰</button>
+              <button class="paint-tool-btn" data-tool="picker" title="スポイト (色取得後、前のツールに自動で戻ります)">🎯 スポイト</button>
+              <button class="paint-tool-btn" data-tool="rectSelect" title="矩形選択 (新規時は範囲内ドラッグで移動・範囲外クリックで解除)">🔲 矩形選択</button>
+              <button class="paint-tool-btn" data-tool="polySelect" title="多角形選択 (ダブルクリック/始点クリック/Enterで確定)">📐 多角形選択</button>
+              <button class="paint-tool-btn" data-tool="wand" title="自動選択 (Magic Wand)">🪄 自動選択</button>
+              <button class="paint-tool-btn" data-tool="colorSelect" title="同色選択">🎯 同色選択</button>
+              <button class="paint-tool-btn" data-tool="moveSel" title="選択範囲の移動（中のピクセルを移動）">↔️ 選択移動</button>
+              <button class="paint-tool-btn" data-tool="text" title="テキスト挿入 (右クリック: スポイト)">🔤 文字</button>
+              <button id="btn-open-color-replace" title="色置換・複数色置換">🔄 色置換</button>
+              <button id="btn-paint-resize" title="ベース画像の大きさ変更（マスク画像も連動）">📐 サイズ</button>
+            </div>
+
+            <div class="paint-tool-group sel-mode-group" title="選択ツールの演算モード">
+              <span style="font-size:10px; color:#aaa;">選択:</span>
+              <button class="sel-mode-btn active" data-sel-mode="replace" title="新規選択">新規</button>
+              <button class="sel-mode-btn" data-sel-mode="add" title="現在の選択範囲に追加">＋追加</button>
+              <button class="sel-mode-btn" data-sel-mode="subtract" title="現在の選択範囲から一部削除">－削除</button>
+              <button class="sel-mode-btn" data-sel-mode="intersect" title="現在の選択範囲と重なる部分のみ残す（乗算）">×乗算</button>
+            </div>
+
+            <div class="paint-tool-group">
+              <button id="btn-paint-flip-h" title="左右反転 (貼付中/選択範囲/全体)">↔ 左右反転</button>
+              <button id="btn-paint-flip-v" title="上下反転 (貼付中/選択範囲/全体)">↕ 上下反転</button>
+            </div>
           </div>
 
-          <div class="paint-tool-group guide-control-group" title="選択範囲内を描画編集した際、選択範囲外の上方指定pxおきに指定回数同じ編集を繰り返します">
-            <label class="inline-chk-lbl">
-              <input type="checkbox" id="chk-paint-repeat-up"> 🔁 上方リピート:
-            </label>
-            <span style="font-size:10px; color:#aaa;">間隔</span>
-            <input type="number" id="inp-paint-repeat-step" class="num-input-mini" value="8" min="1" max="512">
-            <span style="font-size:10px; color:#aaa;">px ×</span>
-            <input type="number" id="inp-paint-repeat-count" class="num-input-mini" value="3" min="1" max="64">
-            <span style="font-size:10px; color:#aaa;">回</span>
-          </div>
+          <div id="paint-toolbar-extra" class="paint-toolbar-row">
+            <div class="paint-tool-group guide-control-group" title="選択範囲内を描画編集した際、選択範囲外の上方指定pxおきに指定回数同じ編集を繰り返します">
+              <label class="inline-chk-lbl">
+                <input type="checkbox" id="chk-paint-repeat-up"> 🔁 上方リピート:
+              </label>
+              <span style="font-size:10px; color:#aaa;">間隔</span>
+              <input type="number" id="inp-paint-repeat-step" class="num-input-mini" value="8" min="1" max="512">
+              <span style="font-size:10px; color:#aaa;">px ×</span>
+              <input type="number" id="inp-paint-repeat-count" class="num-input-mini" value="3" min="1" max="64">
+              <span style="font-size:10px; color:#aaa;">回</span>
+            </div>
 
-          <div class="paint-tool-group">
-            <button id="btn-paint-copy" title="選択範囲をコピー (Ctrl+C)">📋 コピー</button>
-            <button id="btn-paint-paste" title="貼り付け (Ctrl+V)">📌 貼付</button>
-            <button id="btn-paint-import-img" title="外部画像を取り込んで貼り付け">🖼️ 画像貼付</button>
-            <button id="btn-paint-reimport-img" title="前回貼り付けた外部画像をもう一度貼り付け" disabled>🔁 再貼付</button>
-            <button id="btn-paint-flip-h" title="左右反転 (貼付中/選択範囲/全体)">↔ 左右反転</button>
-            <button id="btn-paint-flip-v" title="上下反転 (貼付中/選択範囲/全体)">↕ 上下反転</button>
+            <div class="paint-tool-group guide-control-group">
+              <label class="inline-chk-lbl" title="等間隔の直交補助線を表示">
+                <input type="checkbox" id="chk-paint-grid"> 補助線:
+              </label>
+              <input type="number" id="inp-paint-grid-step" class="num-input-mini" value="8" min="1" max="256">
+              <span style="font-size:10px; color:#aaa;">px</span>
+              <input type="color" id="inp-paint-grid-color" class="color-input-mini" value="#00FF66" title="補助線の色を選択">
+
+              <label class="inline-chk-lbl" style="margin-left:6px;" title="ベースタイルのアイソメトリック菱形を表示">
+                <input type="checkbox" id="chk-paint-iso"> タイル菱形:
+              </label>
+              <span style="font-size:10px; color:#aaa;">幅</span>
+              <input type="number" id="inp-paint-iso-w" class="num-input-mini" value="64" min="4" max="512">
+              <span style="font-size:10px; color:#aaa;">×高</span>
+              <input type="number" id="inp-paint-iso-h" class="num-input-mini" value="32" min="2" max="512">
+              <span style="font-size:10px; color:#aaa;">px</span>
+              <input type="color" id="inp-paint-iso-color" class="color-input-mini" value="#FFAA00" title="タイル菱形の色を選択">
+            </div>
+
+            <div class="paint-tool-group guide-control-group" title="塗潰し以外の描画ツール・選択ツール・選択移動/貼付移動を指定グリッドにスナップします">
+              <label class="inline-chk-lbl">
+                <input type="checkbox" id="chk-paint-snap-grid"> 🧲 スナップ:
+              </label>
+              <select id="sel-paint-snap-preset" class="snap-select-mini" title="スナップグリッドサイズ プリセット">
+                <option value="8x8">8×8</option>
+                <option value="16x16" selected>16×16</option>
+                <option value="32x32">32×32</option>
+                <option value="64x32">64×32</option>
+                <option value="64x64">64×64</option>
+                <option value="128x128">128×128</option>
+                <option value="custom">カスタム</option>
+              </select>
+              <input type="number" id="inp-paint-snap-w" class="num-input-mini" value="16" min="1" max="512" title="スナップ幅(px)">
+              <span style="font-size:10px; color:#aaa;">×</span>
+              <input type="number" id="inp-paint-snap-h" class="num-input-mini" value="16" min="1" max="512" title="スナップ高さ(px)">
+              <span style="font-size:10px; color:#aaa;">px</span>
+            </div>
+
+            <div class="paint-tool-group">
+              <button id="btn-paint-keybindings" title="キーバインド設定">⌨️ キー設定</button>
+            </div>
           </div>
 
           <div class="paint-tool-group floating-bar" id="floating-action-bar" style="display:none;">
@@ -69,55 +132,6 @@ export function renderPaintModalUI() {
             <strong id="replace-pick-preview-hex" style="font-family:Consolas,monospace; font-size:11px; color:#fff;">#000000</strong>
             <button type="button" id="btn-replace-pick-ok" class="btn-primary">✓ OK (取り込む)</button>
             <button type="button" id="btn-replace-pick-cancel">✕ キャンセル</button>
-          </div>
-
-          <div class="paint-tool-group guide-control-group">
-            <label class="inline-chk-lbl" title="等間隔の直交補助線を表示">
-              <input type="checkbox" id="chk-paint-grid"> 補助線:
-            </label>
-            <input type="number" id="inp-paint-grid-step" class="num-input-mini" value="8" min="1" max="256">
-            <span style="font-size:10px; color:#aaa;">px</span>
-            <input type="color" id="inp-paint-grid-color" class="color-input-mini" value="#00FF66" title="補助線の色を選択">
-
-            <label class="inline-chk-lbl" style="margin-left:6px;" title="ベースタイルのアイソメトリック菱形を表示">
-              <input type="checkbox" id="chk-paint-iso"> タイル菱形:
-            </label>
-            <span style="font-size:10px; color:#aaa;">幅</span>
-            <input type="number" id="inp-paint-iso-w" class="num-input-mini" value="64" min="4" max="512">
-            <span style="font-size:10px; color:#aaa;">×高</span>
-            <input type="number" id="inp-paint-iso-h" class="num-input-mini" value="32" min="2" max="512">
-            <span style="font-size:10px; color:#aaa;">px</span>
-            <input type="color" id="inp-paint-iso-color" class="color-input-mini" value="#FFAA00" title="タイル菱形の色を選択">
-          </div>
-
-          <div class="paint-tool-group guide-control-group" title="塗潰し以外の描画ツール・選択ツール・選択移動/貼付移動を指定グリッドにスナップします">
-            <label class="inline-chk-lbl">
-              <input type="checkbox" id="chk-paint-snap-grid"> 🧲 スナップ:
-            </label>
-            <select id="sel-paint-snap-preset" class="snap-select-mini" title="スナップグリッドサイズ プリセット">
-              <option value="8x8">8×8</option>
-              <option value="16x16" selected>16×16</option>
-              <option value="32x32">32×32</option>
-              <option value="64x32">64×32</option>
-              <option value="64x64">64×64</option>
-              <option value="128x128">128×128</option>
-              <option value="custom">カスタム</option>
-            </select>
-            <input type="number" id="inp-paint-snap-w" class="num-input-mini" value="16" min="1" max="512" title="スナップ幅(px)">
-            <span style="font-size:10px; color:#aaa;">×</span>
-            <input type="number" id="inp-paint-snap-h" class="num-input-mini" value="16" min="1" max="512" title="スナップ高さ(px)">
-            <span style="font-size:10px; color:#aaa;">px</span>
-          </div>
-
-          <div class="paint-tool-group">
-            <button id="btn-paint-undo" title="元に戻す (Ctrl+Z)">↩ Undo</button>
-            <button id="btn-paint-redo" title="やり直し (Ctrl+Y)">↪ Redo</button>
-            <button id="btn-paint-keybindings" title="キーバインド設定">⌨️ キー設定</button>
-          </div>
-          <div class="paint-tool-group ml-auto">
-            <span id="paint-lbl-zoom" class="val-badge">100%</span>
-            <button id="btn-paint-apply" class="btn-primary">✓ 完了(反映)</button>
-            <button id="btn-paint-cancel">キャンセル</button>
           </div>
         </header>
 

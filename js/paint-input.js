@@ -1,4 +1,9 @@
 import { bindPaletteControls } from './paint-palette-actions.js';
+import {
+  bindPaintGuideControls,
+  bindPaintToolbarToggles,
+  applyDefaultPaintCompactLayout
+} from './paint-toolbar-layout.js';
 
 export class PaintInputController {
   constructor(editor) {
@@ -11,6 +16,7 @@ export class PaintInputController {
     this.touchStartPan = [0, 0];
     this.touchStartCenter = [0, 0];
     this.lastTouchTime = 0;
+    this.hasUserToggledLayout = false;
   }
 
   bindAll() {
@@ -62,7 +68,8 @@ export class PaintInputController {
       }
     });
 
-    this._bindGuideControls();
+    bindPaintGuideControls(ed);
+    bindPaintToolbarToggles(this);
 
     bindClick('btn-paint-apply', () => ed.applyAndClose());
     bindClick('btn-paint-cancel', () => ed._cancelAndClose());
@@ -84,33 +91,8 @@ export class PaintInputController {
     this._bindKeyboardShortcuts();
   }
 
-  _bindGuideControls() {
-    const ed = this.editor;
-    const chkGrid = document.getElementById('chk-paint-grid');
-    const inpGridStep = document.getElementById('inp-paint-grid-step');
-    const inpGridColor = document.getElementById('inp-paint-grid-color');
-    const chkIso = document.getElementById('chk-paint-iso');
-    const inpIsoW = document.getElementById('inp-paint-iso-w');
-    const inpIsoH = document.getElementById('inp-paint-iso-h');
-    const inpIsoColor = document.getElementById('inp-paint-iso-color');
-
-    if (chkGrid) chkGrid.onchange = (e) => { ed.showGrid = e.target.checked; ed._drawOverlay(); };
-    if (inpGridStep) inpGridStep.oninput = (e) => { ed.gridStep = Math.max(1, Math.min(256, parseInt(e.target.value, 10) || 8)); ed._drawOverlay(); };
-    if (inpGridColor) inpGridColor.oninput = (e) => { ed.gridColor = e.target.value; ed._drawOverlay(); };
-
-    if (chkIso) chkIso.onchange = (e) => { ed.showIsoTile = e.target.checked; ed._drawOverlay(); };
-    if (inpIsoW) {
-      inpIsoW.oninput = (e) => {
-        const w = Math.max(4, Math.min(512, parseInt(e.target.value, 10) || 64));
-        ed.isoTileW = w;
-        const autoH = Math.max(2, Math.round(w / 2));
-        ed.isoTileH = autoH;
-        if (inpIsoH) inpIsoH.value = autoH;
-        ed._drawOverlay();
-      };
-    }
-    if (inpIsoH) inpIsoH.oninput = (e) => { ed.isoTileH = Math.max(2, Math.min(512, parseInt(e.target.value, 10) || 32)); ed._drawOverlay(); };
-    if (inpIsoColor) inpIsoColor.oninput = (e) => { ed.isoColor = e.target.value; ed._drawOverlay(); };
+  applyDefaultCompactLayout() {
+    applyDefaultPaintCompactLayout(this);
   }
 
   _bindViewportPointerAndTouch() {
