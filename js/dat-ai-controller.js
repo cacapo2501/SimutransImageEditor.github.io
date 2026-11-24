@@ -44,6 +44,7 @@ export class DatAiController {
     setV('inp-dat-ai-prompt', d.userPrompt);
     setV('sel-dat-ai-pakset', d.pakset);
     setV('sel-dat-ai-vehicle-mode', d.vehicleMode);
+    setV('sel-dat-ai-accel-profile', d.accelProfile ?? 'auto');
     setV('inp-dat-ai-car-count', d.carCount);
     setV('rng-dat-ai-build-cost', d.buildCostPct ?? 100);
     setV('rng-dat-ai-maint-cost', d.maintCostPct ?? 100);
@@ -144,6 +145,7 @@ export class DatAiController {
       userPrompt: (document.getElementById('inp-dat-ai-prompt')?.value || '').trim(),
       pakset: document.getElementById('sel-dat-ai-pakset')?.value || 'pak64',
       vehicleMode: document.getElementById('sel-dat-ai-vehicle-mode')?.value || 'consist',
+      accelProfile: document.getElementById('sel-dat-ai-accel-profile')?.value || 'auto',
       carCount: (document.getElementById('inp-dat-ai-car-count')?.value || '').trim(),
       autoSeqRows: Boolean(document.getElementById('chk-dat-ai-seq-rows')?.checked),
       buildCostPct: parseInt(document.getElementById('rng-dat-ai-build-cost')?.value, 10) || 100,
@@ -200,9 +202,10 @@ export class DatAiController {
     // AI指示・各種パラメータ入力を自動保存
     const draftIds = [
       ['inp-dat-ai-prompt', 'input'], ['sel-dat-ai-pakset', 'change'],
-      ['sel-dat-ai-vehicle-mode', 'change'], ['inp-dat-ai-car-count', 'input'],
-      ['chk-dat-ai-seq-rows', 'change'], ['rng-dat-ai-build-cost', 'input'],
-      ['rng-dat-ai-maint-cost', 'input'], ['rng-dat-ai-payload-eff', 'input']
+      ['sel-dat-ai-vehicle-mode', 'change'], ['sel-dat-ai-accel-profile', 'change'],
+      ['inp-dat-ai-car-count', 'input'], ['chk-dat-ai-seq-rows', 'change'],
+      ['rng-dat-ai-build-cost', 'input'], ['rng-dat-ai-maint-cost', 'input'],
+      ['rng-dat-ai-payload-eff', 'input']
     ];
     draftIds.forEach(([id, ev]) => {
       document.getElementById(id)?.addEventListener(ev, () => this._persistPromptDraft());
@@ -267,6 +270,18 @@ export class DatAiController {
     document.getElementById('btn-dat-ai-apply-json')?.addEventListener('click', () => this.applyManualJson());
   }
 
+  _buildParseOptions(opts) {
+    return {
+      fallbackValues: opts.currentValues,
+      autoSeqRows: opts.autoSeqRows,
+      gridRows: opts.imageContext?.gridRows || 0,
+      gridCols: opts.imageContext?.gridCols || 0,
+      vehicleMode: opts.vehicleMode,
+      accelProfile: opts.accelProfile,
+      userPrompt: opts.userPrompt
+    };
+  }
+
   async executeGeminiGenerate() {
     if (this.isGenerating) return;
     this._persistSettings();
@@ -295,12 +310,7 @@ export class DatAiController {
     try {
       const prompt = buildDatAiPrompt(opts);
       const rawText = await requestDatFromGemini({ apiKey: this.cfg.apiKey, model: this.cfg.model, prompt });
-      const parsed = parseAiDatResponse(rawText, this.gen.currentObjType, this.gen.common, {
-        fallbackValues: opts.currentValues,
-        autoSeqRows: opts.autoSeqRows,
-        gridRows: opts.imageContext?.gridRows || 0,
-        gridCols: opts.imageContext?.gridCols || 0
-      });
+      const parsed = parseAiDatResponse(rawText, this.gen.currentObjType, this.gen.common, this._buildParseOptions(opts));
       this.gen.applyAiResult(parsed);
       this._setStatus(`完了: ${parsed.summary} (${parsed.objects.length}件)`);
     } catch (err) {
@@ -331,16 +341,9 @@ export class DatAiController {
       if (selModel && models.length > 0) {
         const prevVal = this.cfg.model;
         selModel.innerHTML = '';
-        models.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m.value;
-          opt.textContent = m.label;
-          selModel.appendChild(opt);
+        [...models, { value: '__custom__', label: 'カスタムモデル名を指定...' }].forEach(m => {
+          selModel.appendChild(Object.assign(document.createElement('option'), { value: m.value, textContent: m.label }));
         });
-        const customOpt = document.createElement('option');
-        customOpt.value = '__custom__';
-        customOpt.textContent = 'カスタムモデル名を指定...';
-        selModel.appendChild(customOpt);
         selModel.value = models.some(m => m.value === prevVal) ? prevVal : models[0].value;
         const customWrap = document.getElementById('dat-ai-custom-model-wrap');
         if (customWrap) customWrap.style.display = 'none';
@@ -359,13 +362,11 @@ export class DatAiController {
     const opts = this._collectPromptOptions();
     if (!opts.userPrompt) {
       alert('先に「生成したい実車・建物・設備名や特徴」欄に内容を入力してください。');
-      document.getElementById('inp-dat-ai-prompt')?.focus();
-      return;
+      return document.getElementById('inp-dat-ai-prompt')?.focus();
     }
     this._recordCurrentToHistory();
-    const prompt = buildDatAiPrompt(opts);
     try {
-      await navigator.clipboard.writeText(prompt);
+      await navigator.clipboard.writeText(buildDatAiPrompt(opts));
       this._setStatus('プロンプトをクリップボードにコピーしました（指示を保存しました）');
     } catch (err) {
       alert('クリップボードへのコピーに失敗しました: ' + (err.message || err));
@@ -374,19 +375,11 @@ export class DatAiController {
 
   applyManualJson() {
     const raw = document.getElementById('inp-dat-ai-manual-json')?.value || '';
-    if (!raw.trim()) {
-      alert('JSONテキストを貼り付けてください。');
-      return;
-    }
+    if (!raw.trim()) return alert('JSONテキストを貼り付けてください。');
     try {
       this._recordCurrentToHistory();
       const opts = this._collectPromptOptions();
-      const parsed = parseAiDatResponse(raw, this.gen.currentObjType, this.gen.common, {
-        fallbackValues: opts.currentValues,
-        autoSeqRows: opts.autoSeqRows,
-        gridRows: opts.imageContext?.gridRows || 0,
-        gridCols: opts.imageContext?.gridCols || 0
-      });
+      const parsed = parseAiDatResponse(raw, this.gen.currentObjType, this.gen.common, this._buildParseOptions(opts));
       this.gen.applyAiResult(parsed);
       const jsonWrap = document.getElementById('dat-ai-manual-json-wrap');
       if (jsonWrap) jsonWrap.style.display = 'none';

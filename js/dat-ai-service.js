@@ -2,6 +2,7 @@
 import { DAT_OBJECT_TEMPLATES } from './dat-templates.js';
 import { getImageFormatOptionsForObjType } from './dat-image-formats.js';
 import { PAKSET_OPTIONS, describeFieldsSchema, buildDatAiPrompt } from './dat-ai-prompts.js';
+import { applyStandardGearBalance } from './dat-ai-gear.js';
 
 export { PAKSET_OPTIONS, describeFieldsSchema, buildDatAiPrompt };
 
@@ -322,37 +323,37 @@ export function parseAiDatResponse(rawText, fallbackObjType = 'building', fallba
   });
 
   resolveSmartStartRows(normalized, { baseRow, autoSeqRows, gridRows });
-
+  const gearInfo = applyStandardGearBalance(normalized, { parsed, options });
+  const baseSummary = String(parsed.summary || `${normalized.length}件のオブジェクトを生成しました`);
   return {
-    summary: String(parsed.summary || `${normalized.length}件のオブジェクトを生成しました`),
+    summary: gearInfo.applied ? `${baseSummary} ${gearInfo.summaryNote}` : baseSummary,
     objects: normalized
   };
+}
+
+async function readGeminiError(res, prefix) {
+  let errMsg = `HTTP ${res.status}`;
+  try {
+    const errJson = await res.json();
+    if (errJson?.error?.message) errMsg = errJson.error.message;
+  } catch (e) {}
+  throw new Error(`${prefix}: ${errMsg}`);
 }
 
 // Gemini API から利用可能な最新モデル一覧を取得する
 export async function fetchAvailableGeminiModels(apiKey) {
   const cleanKey = String(apiKey || '').trim();
-  if (!cleanKey) {
-    throw new Error('モデル一覧を取得するには Gemini API Key を入力してください。');
-  }
+  if (!cleanKey) throw new Error('モデル一覧を取得するには Gemini API Key を入力してください。');
   const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`;
   const res = await fetch(url);
-  if (!res.ok) {
-    let errMsg = `HTTP ${res.status}`;
-    try {
-      const errJson = await res.json();
-      if (errJson?.error?.message) errMsg = errJson.error.message;
-    } catch (e) {}
-    throw new Error(`モデル一覧取得エラー: ${errMsg}`);
-  }
+  if (!res.ok) await readGeminiError(res, 'モデル一覧取得エラー');
   const data = await res.json();
   const list = Array.isArray(data.models) ? data.models : [];
   return list
     .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
     .map(m => {
       const id = String(m.name || '').replace(/^models\//, '');
-      const display = m.displayName ? `${id} (${m.displayName})` : id;
-      return { value: id, label: display };
+      return { value: id, label: m.displayName ? `${id} (${m.displayName})` : id };
     })
     .filter(m => m.value.includes('gemini'))
     .sort((a, b) => b.value.localeCompare(a.value));
@@ -361,9 +362,7 @@ export async function fetchAvailableGeminiModels(apiKey) {
 // Gemini API を呼び出して dat パラメータ JSON を取得する
 export async function requestDatFromGemini({ apiKey, model = DEFAULT_GEMINI_MODEL, prompt }) {
   const cleanKey = String(apiKey || '').trim();
-  if (!cleanKey) {
-    throw new Error('Gemini API Key を入力してください。');
-  }
+  if (!cleanKey) throw new Error('Gemini API Key を入力してください。');
   const cleanModel = String(model || DEFAULT_GEMINI_MODEL).trim();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(cleanKey)}`;
 
@@ -372,27 +371,14 @@ export async function requestDatFromGemini({ apiKey, model = DEFAULT_GEMINI_MODE
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: 'application/json'
-      }
+      generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
     })
   });
-
-  if (!res.ok) {
-    let errMsg = `HTTP ${res.status}`;
-    try {
-      const errJson = await res.json();
-      if (errJson?.error?.message) errMsg = errJson.error.message;
-    } catch (e) {}
-    throw new Error(`Gemini API エラー: ${errMsg}`);
-  }
+  if (!res.ok) await readGeminiError(res, 'Gemini API エラー');
 
   const data = await res.json();
   const parts = data?.candidates?.[0]?.content?.parts || [];
   const text = parts.map(p => p.text || '').join('\n').trim();
-  if (!text) {
-    throw new Error('Gemini API から空の応答が返されました。');
-  }
+  if (!text) throw new Error('Gemini API から空の応答が返されました。');
   return text;
 }

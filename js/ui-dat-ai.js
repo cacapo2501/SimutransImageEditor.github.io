@@ -37,7 +37,15 @@ export function renderDatAiSectionHtml() {
             <label>希望両数 (空欄=実車/標準)</label>
             <input type="number" id="inp-dat-ai-car-count" min="1" max="30" placeholder="例: 10">
           </div>
-          <div class="dat-field" style="justify-content:flex-end;">
+          <div class="dat-field">
+            <label>Standard ギア比目標 (加速特性)</label>
+            <select id="sel-dat-ai-accel-profile" title="Standardでの最高速をベースに、満載総重量からギア比を自動計算します（上限なし）">
+              <option value="auto" selected>自動判定 (高加速2.5x / 低加速1.1x)</option>
+              <option value="high">高加速車両 (最高速の 2.5倍)</option>
+              <option value="low">低加速車両 (最高速の 1.1倍)</option>
+            </select>
+          </div>
+          <div class="dat-field full-width">
             <label class="dat-check-item" title="編集中画像の有効行数に合わせ、生成された複数車両の startRow を自動で割り当てます">
               <input type="checkbox" id="chk-dat-ai-seq-rows" checked> 画像行(Y)を自動連番/車種割当
             </label>
