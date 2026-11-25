@@ -1,7 +1,7 @@
 // Simutrans Standard の最高速度式に基づき標準編成満載重量と連続加速度(最大4.5km/h/s)から gear を算出するモジュール
 
-export const MIN_ACCEL_MULTIPLIER = 1.1;
-export const MAX_ACCEL_MULTIPLIER = 2.5;
+export const MIN_ACCEL_MULTIPLIER = 1.03;
+export const MAX_ACCEL_MULTIPLIER = 1.6;
 export const MAX_ACCEL_KMH_S = 4.5;
 
 export const ACCEL_MULTIPLIERS = {
@@ -38,14 +38,14 @@ export function getCargoWeightPerUnitKg(freight) {
   return 1000;
 }
 
-// 起動加速度(km/h/s, 上限4.5)から連続的に最高速倍率(1.1〜2.5)を算出する
+// 起動加速度(km/h/s, 上限4.5)から連続的に最高速倍率(1.03〜1.6)を算出する
 export function calcSpeedMultiplierFromAccel(accelKmhPerS) {
   const raw = toFiniteNumber(accelKmhPerS, 0);
   const clamped = Math.max(0, Math.min(MAX_ACCEL_KMH_S, raw));
   return MIN_ACCEL_MULTIPLIER + (MAX_ACCEL_MULTIPLIER - MIN_ACCEL_MULTIPLIER) * (clamped / MAX_ACCEL_KMH_S);
 }
 
-// 最高速倍率(1.1〜2.5)から対応する加速度(km/h/s)へ逆算する
+// 最高速倍率(1.03〜1.6)から対応する加速度(km/h/s)へ逆算する
 export function calcAccelFromSpeedMultiplier(multiplier) {
   const raw = toFiniteNumber(multiplier, MIN_ACCEL_MULTIPLIER);
   const ratio = (raw - MIN_ACCEL_MULTIPLIER) / (MAX_ACCEL_MULTIPLIER - MIN_ACCEL_MULTIPLIER);

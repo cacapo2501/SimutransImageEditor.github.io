@@ -39,7 +39,7 @@ export function renderDatAiSectionHtml() {
           </div>
           <div class="dat-field">
             <label>起動加速度 [km/h/s] (空欄=自動 / 最大4.5)</label>
-            <input type="number" id="inp-dat-ai-accel" min="0" max="4.5" step="0.1" placeholder="自動 (0〜4.5)" title="起動加速度(km/h/s)に応じ 0(1.1倍)〜4.5(2.5倍) の連続値でStandard準拠のギア比を計算します（上限なし）">
+            <input type="number" id="inp-dat-ai-accel" min="0" max="4.5" step="0.1" placeholder="自動 (0〜4.5)" title="起動加速度(km/h/s)に応じ 0(1.03倍)〜4.5(1.6倍) の連続値でStandard準拠のギア比を計算します（上限なし）">
           </div>
           <div class="dat-field full-width">
             <label class="dat-check-item" title="編集中画像の有効行数に合わせ、生成された複数車両の startRow を自動で割り当てます">

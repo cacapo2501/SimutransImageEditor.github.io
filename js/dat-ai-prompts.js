@@ -87,9 +87,9 @@ function buildVehicleRules({ vehicleMode, carCount, liveryName, accelKmhS = '', 
   const accelDirective = (accelKmhS !== '' && Number.isFinite(numAccel) && numAccel >= 0)
     ? `（※ユーザー指定: 起動加速度 a = ${Math.min(4.5, Math.max(0, numAccel))} km/h/s で連続計算してください）`
     : (accelProfile === 'high'
-      ? '（※ユーザー指定: 起動加速度 4.5 km/h/s = 2.5 倍で計算してください）'
+      ? '（※ユーザー指定: 起動加速度 4.5 km/h/s = 1.6 倍で計算してください）'
       : (accelProfile === 'low'
-        ? '（※ユーザー指定: 起動加速度 0 km/h/s = 1.1 倍で計算してください）'
+        ? '（※ユーザー指定: 起動加速度 0 km/h/s = 1.03 倍で計算してください）'
         : '（※実車・実機の起動加速度 a [km/h/s]（上限 4.5 km/h/s）から連続値で算出してください）'));
 
   let modeSection = '';
@@ -132,7 +132,7 @@ ${liveryRule}
      - 制御車(Tc: クハ)・付随車(T: サハ/サロ/サシ)・客車・貨車・炭水車(テンダー)・被牽引トレーラーは必ず power = "0" にしてください。
      - 【重要】機関車に牽引される「客車・貨車・炭水車」および「被牽引トレーラー」は、非電化区間でも各種機関車で牽引できるよう engine_type = ""（空文字）にしてください。一方、電車(EMU)編成のクハ・サハは engine_type = "electric"、気動車(DMU)編成のキサハ等は "diesel" にしてください。
      - 【ギア比 (gear [%]) ・連続加速度＆上限なし】Simutrans Standard の最高速度式 v = 50 * sqrt((Σ(power * gear/100)) / W_loaded - 1) に基づき、標準編成（単行車は単車、機関車は標準牽引編成）に積載物を満載した総重量 W_loaded [t]（全車の空車 weight 合計＋満員乗客[75kg/人]・郵便[50kg/個]・満載貨物[1t/単位等]）を基準に動力車の gear を設定してください ${accelDirective}：
-       - 加速度に応じた連続倍率（2段階ではなく 0〜4.5 km/h/s の連続値）: 実車の起動加速度 a [km/h/s]（最大加速 4.5 km/h/s、例: 貨物列車/SL=0.3〜0.6, 客車=0.8〜1.0, 気動車=1.2〜1.6, 特急/近郊/新幹線=1.7〜2.6, 通勤電車=2.5〜3.3, 地下鉄/路面/モノレール/高加速=3.3〜4.5, 船舶=0.1〜0.4）から multiplier = 1.1 + 1.4 * (min(max(a, 0), 4.5) / 4.5)（1.1倍〜2.5倍）を求め、目標理論最高速 V_target = speed * multiplier とします。
+       - 加速度に応じた連続倍率（2段階ではなく 0〜4.5 km/h/s の連続値）: 実車の起動加速度 a [km/h/s]（最大加速 4.5 km/h/s、例: 貨物列車/SL=0.3〜0.6, 客車=0.8〜1.0, 気動車=1.2〜1.6, 特急/近郊/新幹線=1.7〜2.6, 通勤電車=2.5〜3.3, 地下鉄/路面/モノレール/高加速=3.3〜4.5, 船舶=0.1〜0.4）から multiplier = 1.03 + 0.57 * (min(max(a, 0), 4.5) / 4.5)（1.03倍〜1.6倍）を求め、目標理論最高速 V_target = speed * multiplier とします。
        - 算出式: gear = round(100 * (W_loaded / Σpower) * ((V_target / 50)^2 + 1))。上限値は設定しません（300%や800%以上もそのまま整数出力、最小1、動力なしの付随車は "100"）。
   3. 空車自重 (weight [t]) と 軸重 (axle_load [t]):
      - 先頭車(運転台付)、パンタ・主制御器搭載M1車、MG/SIV・CP搭載M2車、付随車T、グリーン車/2階建車/寝台車/食堂車/電源車、機関車、炭水車、貨車それぞれ実車の実際の空車重量(t)を1両ごとに設定してください。
@@ -318,7 +318,7 @@ export function buildDatAiPrompt({
     ? buildVehicleRules({ vehicleMode, carCount, liveryName, accelKmhS, accelProfile })
     : buildNonVehicleObjRules(objType);
   const consistSpecSchema = objType === 'vehicle'
-    ? ',\n  "consistSpec": { "acceleration": 2.5, "speedMultiplier": 1.88, "standardMaxSpeed": 120, "standardTotalPower": 3600, "standardFullLoadWeight": 380 }'
+    ? ',\n  "consistSpec": { "acceleration": 2.5, "speedMultiplier": 1.35, "standardMaxSpeed": 120, "standardTotalPower": 3600, "standardFullLoadWeight": 380 }'
     : '';
 
   const imageSection = buildImageContextSection({
