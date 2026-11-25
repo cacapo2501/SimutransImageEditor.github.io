@@ -39,8 +39,13 @@ export class MaskCollectionManager {
         alert('先にベース画像を開くか、新規作成してください。');
         return;
       }
-      const f = await this.app.imageIOCtrl.pickFileFn('.png');
-      if (f) await this.app.loadMaskFromFile(f, { addAsNew: true });
+      const io = this.app.imageIOCtrl;
+      const files = io?.pickFilesFn
+        ? await io.pickFilesFn('.png')
+        : [await io?.pickFileFn?.('.png')].filter(Boolean);
+      if (files && files.length > 0) {
+        await this.app.loadMasksFromFiles(files, { addAsNew: true });
+      }
     });
 
     document.getElementById('btn-mask-add-from-base')?.addEventListener('click', () => this.addNewFromBase());

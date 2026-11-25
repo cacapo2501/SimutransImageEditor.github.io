@@ -25,7 +25,7 @@ export function renderSidebarUI() {
           </div>
           <div class="btn-group mt-05">
             <button id="btn-load-base">ベースPNGを開く</button>
-            <button id="btn-load-mask">マスク画像を開く</button>
+            <button id="btn-load-mask" title="マスクPNGを開く（複数同時選択可）">マスク画像を開く</button>
           </div>
           <div class="btn-group mt-05">
             <button id="btn-merge-bases" title="複数枚のベース画像を選択し、水平方向または垂直方向に結合して1枚のベース画像として取り込みます">🧩 複数ベース結合読込</button>
@@ -66,7 +66,7 @@ export function renderSidebarUI() {
               <input type="text" id="inp-mask-name" value="" placeholder="mask.png" disabled>
             </div>
             <div class="btn-group mt-05">
-              <button id="btn-mask-add-file" title="新しいマスクPNGを追加登録">＋ 画像追加</button>
+              <button id="btn-mask-add-file" title="新しいマスクPNGを追加登録（複数同時選択可）">＋ 画像追加</button>
               <button id="btn-mask-add-from-base" title="ベース画像から新規マスクを生成して追加">＋ ベース生成</button>
             </div>
             <div class="btn-group mt-05">

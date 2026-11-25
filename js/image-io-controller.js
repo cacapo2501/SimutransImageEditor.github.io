@@ -1,5 +1,5 @@
 import { parseSpecialColorsCsv } from './color-utils.js';
-import { ProjectIO } from './project-io.js';
+import { ProjectIO, loadImageAsync } from './project-io.js';
 import { MaskGenerator } from './mask-generator.js';
 import { renderSubModalsUI } from './ui-sub-modals.js';
 import { resetFullProjectState, updateProjectStatusUI } from './project-reset.js';
@@ -54,9 +54,53 @@ export function safePickFiles(accept = '.png') {
 }
 
 export class ImageIOController {
-  constructor(app, pickFileFn = safePickFile) {
+  constructor(app, pickFileFn = safePickFile, pickFilesFn = safePickFiles) {
     this.app = app;
     this.pickFileFn = pickFileFn;
+    this.pickFilesFn = pickFilesFn;
+  }
+
+  // 複数のマスク画像ファイルを一括で読み込み、マスクコレクションへ追加反映する
+  async loadMaskFiles(files, { addAsNew = true } = {}) {
+    const app = this.app;
+    const list = Array.from(files || []).filter(Boolean);
+    if (list.length === 0) return 0;
+    if (!app.baseImage) {
+      alert('先にベース画像を開くか、新規作成してください。');
+      return 0;
+    }
+
+    const loaded = [];
+    for (const file of list) {
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await loadImageAsync(url);
+        loaded.push({ img, name: file.name });
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+    if (loaded.length === 0) return 0;
+
+    loaded.forEach(({ img, name }, idx) => {
+      const shouldAdd = idx === 0 ? addAsNew : true;
+      if (app.maskMgr) {
+        app.maskMgr.registerAnalyzedMask(img, name, { addAsNew: shouldAdd });
+      } else {
+        MaskGenerator.analyzeMaskImage(app, img, name);
+      }
+    });
+
+    app.toneTintCtrl?.updateMaskCombos?.();
+    app.toneTintCtrl?.updateTintTable?.();
+    app.markDirty();
+    app.render();
+
+    const sb = document.getElementById('status-bar');
+    if (sb && loaded.length > 1) {
+      sb.textContent = `マスク画像を ${loaded.length} 件同時に読み込みました`;
+    }
+    return loaded.length;
   }
 
   bindAll() {
@@ -147,8 +191,9 @@ export class ImageIOController {
     });
     app.viewport.addEventListener('drop', async (e) => {
       e.preventDefault();
-      const files = e.dataTransfer.files;
-      if (!files || files.length === 0) return;
+      const files = Array.from(e.dataTransfer.files || []);
+      if (files.length === 0) return;
+      const maskQueue = [];
       for (const file of files) {
         if (file.name.endsWith('.proj.json') || file.name.endsWith('.json')) {
           ProjectIO.load(app, file);
@@ -156,10 +201,13 @@ export class ImageIOController {
           // ★追加1: ドラッグ＆ドロップ時に bpXXXhYYY なら平面定義画像として読込
           await app.aircraftCtrl.loadPlanFromFile(file);
         } else if (file.name.includes('mask') || file.name.includes('paint')) {
-          await app.loadMaskFromFile(file);
+          maskQueue.push(file);
         } else if (file.type.startsWith('image/')) {
           await app.loadBaseFromFile(file);
         }
+      }
+      if (maskQueue.length > 0) {
+        await this.loadMaskFiles(maskQueue, { addAsNew: true });
       }
     });
   }
@@ -175,8 +223,12 @@ export class ImageIOController {
       if (f) app.loadBaseFromFile(f);
     };
     document.getElementById('btn-load-mask').onclick = async () => {
-      const f = await this.pickFileFn('.png');
-      if (f) app.loadMaskFromFile(f);
+      if (!app.baseImage) {
+        alert('先にベース画像を開くか、新規作成してください。');
+        return;
+      }
+      const files = await this.pickFilesFn('.png');
+      if (files && files.length > 0) await this.loadMaskFiles(files, { addAsNew: true });
     };
     document.getElementById('btn-regen-mask').onclick = () => {
       app.regenerateMaskFromBase();
@@ -207,9 +259,9 @@ export class ImageIOController {
       const files = await app.storage.pickLocalDirectory();
       if (files && files.length > 0) {
         const base = files.find(f => f.name.includes('def') || f.name.includes('base')) || files[0];
-        const mask = files.find(f => f.name.includes('paint') || f.name.includes('mask'));
+        const masks = files.filter(f => f !== base && (f.name.includes('paint') || f.name.includes('mask')));
         await app.loadBaseFromFile(base);
-        if (mask) await app.loadMaskFromFile(mask);
+        if (masks.length > 0) await this.loadMaskFiles(masks, { addAsNew: true });
       }
     };
 

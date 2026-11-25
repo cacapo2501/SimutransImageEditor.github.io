@@ -30,7 +30,7 @@ import {
 } from './project-reset.js';
 
 // アプリケーションバージョン
-export const APP_VERSION = '5.8.3';
+export const APP_VERSION = '5.9.0';
 
 class AdvancedMultiplyApp {
   constructor() {
@@ -97,7 +97,7 @@ class AdvancedMultiplyApp {
     this.layerManager = new LayerManager(this, safePickFile);
     this.toneTintCtrl = new ToneTintController(this);
     this.deftileBuilder = new DeftileBuilder(this, safePickFile);
-    this.imageIOCtrl = new ImageIOController(this, safePickFile);
+    this.imageIOCtrl = new ImageIOController(this, safePickFile, safePickFiles);
     this.baseMergeCtrl = new BaseMergeController(this, safePickFiles);
     this.vehicleCtrl = new VehicleLayoutController(this);
     this.aircraftCtrl = new AircraftMapperController(this, safePickFile);
@@ -245,12 +245,11 @@ class AdvancedMultiplyApp {
   }
 
   async loadMaskFromFile(file, { addAsNew = true } = {}) {
-    if (!file) return;
-    if (!this.baseImage) { alert('先にベース画像を開くか、新規作成してください。'); return; }
-    const img = await loadImageAsync(URL.createObjectURL(file));
-    this.applyMaskImage(img, file.name, { addAsNew });
-    this.markDirty();
-    this.render();
+    return this.loadMasksFromFiles(file ? [file] : [], { addAsNew });
+  }
+
+  async loadMasksFromFiles(files, { addAsNew = true } = {}) {
+    return this.imageIOCtrl.loadMaskFiles(files, { addAsNew });
   }
 
   refreshLayerList() { this.layerManager.refreshList(); }
