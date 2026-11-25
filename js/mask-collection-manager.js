@@ -92,6 +92,23 @@ export class MaskCollectionManager {
       return;
     }
 
+    const curRgbLen = cur.rgb ? cur.rgb.length : 0;
+    const expectedRgbLen = (app.baseW > 0 && app.baseH > 0) ? (app.baseW * app.baseH * 3) : 0;
+    if (cur.image && expectedRgbLen > 0 && curRgbLen !== expectedRgbLen) {
+      // ベース解像度とマスク解析バッファが不一致の場合は現在のベース寸法で再解析して破損を防ぐ
+      app.maskTintColors = new Map(cur.tintColors);
+      MaskGenerator.analyzeMaskImage(app, cur.image, cur.name);
+      cur.rgb = app.maskRgb;
+      cur.alpha = app.maskAlpha;
+      cur.hasAlpha = Boolean(app.maskHasAlpha);
+      cur.colors = [...app.maskColors];
+      cur.tintColors = new Map(app.maskTintColors);
+      app.maskToneOverrides = new Map(
+        Array.from(cur.toneOverrides.entries()).map(([k, v]) => [k, { ...v }])
+      );
+      return;
+    }
+
     app.maskImage = cur.image;
     app.maskName = cur.name;
     app.maskRgb = cur.rgb;
@@ -102,6 +119,42 @@ export class MaskCollectionManager {
     app.maskToneOverrides = new Map(
       Array.from(cur.toneOverrides.entries()).map(([k, v]) => [k, { ...v }])
     );
+  }
+
+  // 全登録マスクを新しいキャンバス群・名称へ一括更新して再解析する（レイアウト変換・リサイズ用）
+  applyTransformedMasks(transformedList = []) {
+    if (!Array.isArray(transformedList) || transformedList.length === 0) return;
+    if (this.items.length === 0) {
+      const first = transformedList[0];
+      if (first?.canvas) {
+        this.registerAnalyzedMask(first.canvas, first.name || this.app.maskName, { addAsNew: true });
+      }
+      return;
+    }
+
+    transformedList.forEach((entry, fallbackIdx) => {
+      const idx = (typeof entry.index === 'number' && entry.index >= 0) ? entry.index : fallbackIdx;
+      const item = this.items[idx];
+      if (!item || !entry.canvas) return;
+      item.image = entry.canvas;
+      if (entry.name) item.name = entry.name;
+      this.app.maskTintColors = new Map(item.tintColors);
+      MaskGenerator.analyzeMaskImage(this.app, item.image, item.name);
+      item.rgb = this.app.maskRgb;
+      item.alpha = this.app.maskAlpha;
+      item.hasAlpha = Boolean(this.app.maskHasAlpha);
+      item.colors = [...this.app.maskColors];
+      item.tintColors = new Map(this.app.maskTintColors);
+    });
+
+    this._syncAppFromActive();
+    if (this.app.toneTintCtrl) {
+      this.app.toneTintCtrl.updateMaskCombos();
+      this.app.toneTintCtrl.updateTintTable();
+    }
+    this.refreshUI();
+    if (this.app.layerManager) this.app.layerManager.onMaskCollectionChanged();
+    if (this.app.datGenerator?.liveryMgr) this.app.datGenerator.liveryMgr.onAppMaskChanged();
   }
 
   registerAnalyzedMask(img, name, { addAsNew = false } = {}) {
@@ -264,8 +317,12 @@ export class MaskCollectionManager {
     if (this.items.length === 1) {
       if (!confirm('最後のマスク画像を削除して未設定状態に戻しますか？')) return;
       this.app.layers = this.app.layers.filter(l => l.targetMaskId !== deletedId);
+      if (this.app.activeIdx >= this.app.layers.length) {
+        this.app.activeIdx = this.app.layers.length - 1;
+      }
       this.clearAll();
       if (this.app.toneTintCtrl) {
+        this.app.toneTintCtrl.selectedMaskTint = null;
         this.app.toneTintCtrl.updateMaskCombos();
         this.app.toneTintCtrl.updateTintTable();
       }
@@ -277,11 +334,17 @@ export class MaskCollectionManager {
     if (!confirm(`マスク画像「${cur.name}」を削除しますか？（このマスク専用のレイヤーも削除されます）`)) return;
 
     this.app.layers = this.app.layers.filter(l => l.targetMaskId !== deletedId);
+    if (this.app.activeIdx >= this.app.layers.length) {
+      this.app.activeIdx = this.app.layers.length - 1;
+    }
     this.items.splice(this.activeIndex, 1);
     this.activeIndex = Math.min(this.activeIndex, this.items.length - 1);
     this._syncAppFromActive();
 
     if (this.app.toneTintCtrl) {
+      if (this.app.toneTintCtrl.selectedMaskTint && !this.app.maskTintColors.has(this.app.toneTintCtrl.selectedMaskTint)) {
+        this.app.toneTintCtrl.selectedMaskTint = null;
+      }
       this.app.toneTintCtrl.updateMaskCombos();
       this.app.toneTintCtrl.updateTintTable();
     }

@@ -106,12 +106,21 @@ export class PaintResizeController {
     ed.ctx.imageSmoothingEnabled = false;
     ed.ctx.drawImage(resizedBase, 0, 0);
 
-    if (ed.app.maskImage) {
+    ed.app.baseW = newW;
+    ed.app.baseH = newH;
+    if (ed.app.maskMgr && ed.app.maskMgr.items.length > 0) {
+      ed.app.maskMgr.saveActiveStateFromApp();
+      const transformed = ed.app.maskMgr.items.map((m, index) => {
+        if (!m.image) return null;
+        const mw = m.image.naturalWidth || m.image.width || oldW;
+        const mh = m.image.naturalHeight || m.image.height || oldH;
+        return { index, canvas: resizeSourceCanvas(m.image, mw, mh, newW, newH, mode, anchor, fillHex), name: m.name };
+      }).filter(Boolean);
+      if (transformed.length > 0) ed.app.maskMgr.applyTransformedMasks(transformed);
+    } else if (ed.app.maskImage) {
       const mOldW = ed.app.maskImage.naturalWidth || ed.app.maskImage.width || oldW;
       const mOldH = ed.app.maskImage.naturalHeight || ed.app.maskImage.height || oldH;
       const resizedMask = resizeSourceCanvas(ed.app.maskImage, mOldW, mOldH, newW, newH, mode, anchor, fillHex);
-      ed.app.baseW = newW;
-      ed.app.baseH = newH;
       ed.app.applyMaskImage(resizedMask, ed.app.maskName);
     }
 

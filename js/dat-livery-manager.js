@@ -130,7 +130,10 @@ export class DatLiveryManager {
   applyActiveMaskLivery({ regenerate = true } = {}) {
     const maskMgr = this.gen.app?.maskMgr;
     const active = maskMgr?.getActive();
-    if (!active) return;
+    if (!active) {
+      this.gen.syncImagePrefixWithApp?.({ force: true });
+      return;
+    }
 
     const maskItems = maskMgr.items || [];
     const count = maskItems.length;

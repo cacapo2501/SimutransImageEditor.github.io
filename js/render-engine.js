@@ -7,12 +7,13 @@ export class RenderEngine {
     if (!app.baseRgb) return null;
     const total = app.baseW * app.baseH;
     const activeMaskId = app.maskMgr?.getActive()?.id ?? null;
+    const maskRgb = (app.maskRgb && app.maskRgb.length >= total * 3) ? app.maskRgb : null;
     let multAccum = new Float32Array(total).fill(1.0);
 
     // 1. 乗算テクスチャ積算（現在のマスク画像で有効なレイヤーのみ）
     app.layers.forEach(layer => {
       if (layer.visible && layer.layerType === 'multiply' && layer.isActiveForMask(activeMaskId)) {
-        const mMap = layer.getMultiplierMap(app.baseW, app.baseH, app.maskRgb);
+        const mMap = layer.getMultiplierMap(app.baseW, app.baseH, maskRgb);
         for (let i = 0; i < total; i++) multAccum[i] *= mMap[i];
       }
     });
@@ -55,7 +56,6 @@ export class RenderEngine {
 
     const outRgb = new Float32Array(total * 3);
     const outAlpha = new Float32Array(total);
-    const maskRgb = app.maskRgb;
 
     // 2. ベース画像合成
     for (let i = 0; i < total; i++) {
@@ -137,7 +137,7 @@ export class RenderEngine {
     const structureAppliedMask = new Uint8Array(total);
     app.layers.forEach(layer => {
       if (layer.visible && layer.layerType === 'structure' && layer.isActiveForMask(activeMaskId)) {
-        const sData = layer.getWarpedStructure(app.baseW, app.baseH, app.maskRgb);
+        const sData = layer.getWarpedStructure(app.baseW, app.baseH, maskRgb);
         if (!sData) return;
         for (let i = 0; i < total; i++) {
           if (app.isBaseSpecialColor && app.isBaseSpecialColor[i]) continue;

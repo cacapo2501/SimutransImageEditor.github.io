@@ -170,37 +170,54 @@ export class VehicleLayoutController {
     const rawLen = document.getElementById('inp-vehicle-length')?.value || '8';
     const len = parseVehicleLength(rawLen);
     const useBgColorOnCompress = Boolean(document.getElementById('chk-vehicle-compress-bg')?.checked);
+    const tagChar = mode === 'compress' ? 'c' : 's';
+
+    const convertMaskImage = (img) => {
+      if (!img) return null;
+      if (mode === 'compress') {
+        const bgMask = useBgColorOnCompress ? '#FFFFFF' : '#000000';
+        return compressVehicleCanvas(img, len, bgMask);
+      }
+      return expandVehicleCanvas(img, len, false);
+    };
 
     let newBaseCanvas = null;
-    let newMaskCanvas = null;
-
-    if (mode === 'compress') {
-      if (app.baseImage) {
+    if (app.baseImage) {
+      if (mode === 'compress') {
         const bgBase = useBgColorOnCompress ? '#E7FFFF' : '#000000';
         newBaseCanvas = compressVehicleCanvas(app.baseImage, len, bgBase);
-      }
-      if (app.maskImage) {
-        const bgMask = useBgColorOnCompress ? '#FFFFFF' : '#000000';
-        newMaskCanvas = compressVehicleCanvas(app.maskImage, len, bgMask);
-      }
-    } else {
-      if (app.baseImage) {
+      } else {
         newBaseCanvas = expandVehicleCanvas(app.baseImage, len, true);
-      }
-      if (app.maskImage) {
-        newMaskCanvas = expandVehicleCanvas(app.maskImage, len, false);
       }
     }
 
-    const tagChar = mode === 'compress' ? 'c' : 's';
-    const nextBaseName = swapLayoutTagInName(app.baseName, tagChar);
-    const nextMaskName = swapLayoutTagInName(app.maskName, tagChar);
+    // 登録済みの全マスク画像を先に変換し、非アクティブマスクのサイズ不一致による破損を防ぐ
+    const convertedMasks = [];
+    if (app.maskMgr && app.maskMgr.items.length > 0) {
+      app.maskMgr.saveActiveStateFromApp();
+      app.maskMgr.items.forEach((m, index) => {
+        const canvas = convertMaskImage(m.image);
+        if (canvas) {
+          convertedMasks.push({ index, canvas, name: swapLayoutTagInName(m.name, tagChar) });
+        }
+      });
+    } else if (app.maskImage) {
+      const canvas = convertMaskImage(app.maskImage);
+      if (canvas) {
+        convertedMasks.push({ index: 0, canvas, name: swapLayoutTagInName(app.maskName, tagChar) });
+      }
+    }
 
+    const nextBaseName = swapLayoutTagInName(app.baseName, tagChar);
     if (newBaseCanvas) {
       app.applyBaseImage(newBaseCanvas, nextBaseName, { resetMask: false, resetDat: false, isTransform: true });
     }
-    if (newMaskCanvas) {
-      app.applyMaskImage(newMaskCanvas, nextMaskName);
+    if (convertedMasks.length > 0) {
+      if (app.maskMgr?.applyTransformedMasks) {
+        app.maskMgr.applyTransformedMasks(convertedMasks);
+      } else {
+        app.applyMaskImage(convertedMasks[0].canvas, convertedMasks[0].name);
+      }
     }
 
     app.markDirty();
